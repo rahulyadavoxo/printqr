@@ -390,19 +390,25 @@ function QrTab({ shop }: { shop: Shop }) {
       }
     }
 
-    // Background gradient + soft circles
-    const bg = g.createLinearGradient(0, 0, W, H)
-    bg.addColorStop(0, '#1e3a8a')
-    bg.addColorStop(0.55, '#2348e0')
-    bg.addColorStop(1, '#7c3aed')
-    g.fillStyle = bg
+    // Light background, pastel blobs, thin brand strips
+    g.fillStyle = '#f8fafc'
     g.fillRect(0, 0, W, H)
-    g.fillStyle = 'rgba(255,255,255,0.08)'
-    for (const [x, y, r] of [[980, 120, 220], [90, 1380, 260], [1020, 1050, 120], [60, 420, 90]]) {
-      g.beginPath()
-      g.arc(x, y, r, 0, Math.PI * 2)
-      g.fill()
+    const blob = (x: number, y: number, r: number, col: string) => {
+      const rg = g.createRadialGradient(x, y, 0, x, y, r)
+      rg.addColorStop(0, col)
+      rg.addColorStop(1, 'rgba(248,250,252,0)')
+      g.fillStyle = rg
+      g.fillRect(x - r, y - r, r * 2, r * 2)
     }
+    blob(960, 140, 420, 'rgba(191,219,254,0.9)')
+    blob(100, 1380, 460, 'rgba(221,214,254,0.85)')
+    blob(1000, 1200, 260, 'rgba(254,243,199,0.8)')
+    const strip = g.createLinearGradient(0, 0, W, 0)
+    strip.addColorStop(0, '#2348e0')
+    strip.addColorStop(1, '#7c3aed')
+    g.fillStyle = strip
+    g.fillRect(0, 0, W, 14)
+    g.fillRect(0, H - 14, W, 14)
 
     g.textAlign = 'center'
     g.textBaseline = 'middle'
@@ -412,31 +418,35 @@ function QrTab({ shop }: { shop: Shop }) {
     g.font = `700 30px ${font}`
     const tw = g.measureText(tag).width + 60
     rr((W - tw) / 2, 60, tw, 60, 30)
-    g.fillStyle = 'rgba(255,255,255,0.16)'
+    g.fillStyle = '#e0e7ff'
     g.fill()
-    g.fillStyle = '#ffffff'
+    g.fillStyle = '#3730a3'
     g.fillText(tag, W / 2, 91)
 
     // Shop name + address
     fitText(shop.name, 800, 84, 40, W - 120)
-    g.fillStyle = '#ffffff'
+    g.fillStyle = '#0f172a'
     g.fillText(shop.name, W / 2, 200)
     if (shop.address) {
       g.font = `500 36px ${font}`
-      g.fillStyle = 'rgba(255,255,255,0.8)'
+      g.fillStyle = '#64748b'
       g.fillText('📍 ' + shop.address, W / 2, 268, W - 140)
     }
 
     // White QR card with shadow
     const cardS = 760, cx = (W - cardS) / 2, cy = 320
     g.save()
-    g.shadowColor = 'rgba(15,23,42,0.35)'
+    g.shadowColor = 'rgba(35,72,224,0.18)'
     g.shadowBlur = 50
     g.shadowOffsetY = 20
     rr(cx, cy, cardS, cardS, 48)
     g.fillStyle = '#ffffff'
     g.fill()
     g.restore()
+    rr(cx, cy, cardS, cardS, 48)
+    g.strokeStyle = '#e2e8f0'
+    g.lineWidth = 3
+    g.stroke()
 
     // QR modules: rounded dots + custom eyes
     const pad = 60
@@ -484,7 +494,7 @@ function QrTab({ shop }: { shop: Shop }) {
 
     // Headline
     let y = cy + cardS + 90
-    g.fillStyle = '#ffffff'
+    g.fillStyle = '#0f172a'
     fitText(t('posterHeadline'), 800, 52, 30, W - 100)
     g.fillText(t('posterHeadline'), W / 2, y)
 
@@ -497,12 +507,15 @@ function QrTab({ shop }: { shop: Shop }) {
     let x = (W - (widths.reduce((a, b) => a + b, 0) + gap * (steps.length - 1))) / 2
     steps.forEach((s, i) => {
       rr(x, y - 36, widths[i], 72, 36)
-      g.fillStyle = 'rgba(255,255,255,0.95)'
+      g.fillStyle = '#eff6ff'
       g.fill()
-      g.fillStyle = '#1e3a8a'
+      g.strokeStyle = '#bfdbfe'
+      g.lineWidth = 2
+      g.stroke()
+      g.fillStyle = '#1d4ed8'
       g.fillText(s, x + widths[i] / 2, y + 1)
       if (i < steps.length - 1) {
-        g.fillStyle = 'rgba(255,255,255,0.8)'
+        g.fillStyle = '#94a3b8'
         g.fillText('›', x + widths[i] + gap / 2, y)
       }
       x += widths[i] + gap
@@ -511,9 +524,13 @@ function QrTab({ shop }: { shop: Shop }) {
     // Rates
     y += 100
     const rates = `${t('bw')} ${rupees(shop.rates.bw_single)}  ·  ${t('color')} ${rupees(shop.rates.color_single)}  ${t('perPageShort')}`
-    g.font = `600 34px ${font}`
-    g.fillStyle = '#fde68a'
-    g.fillText(rates, W / 2, y, W - 100)
+    g.font = `700 34px ${font}`
+    const rw = Math.min(g.measureText(rates).width + 70, W - 80)
+    rr((W - rw) / 2, y - 40, rw, 80, 40)
+    g.fillStyle = '#fef3c7'
+    g.fill()
+    g.fillStyle = '#92400e'
+    g.fillText(rates, W / 2, y + 1, W - 130)
 
     setCard(c.toDataURL('image/png'))
   }, [url, shop.name, shop.address, shop.rates.bw_single, shop.rates.color_single, t])
