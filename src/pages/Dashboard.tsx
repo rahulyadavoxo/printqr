@@ -351,6 +351,12 @@ function QrTab({ shop }: { shop: Shop }) {
   const [img, setImg] = useState('')
   const [copied, setCopied] = useState(false)
   const [card, setCard] = useState('')
+  const [logoEl, setLogoEl] = useState<HTMLImageElement | null>(null)
+  useEffect(() => {
+    const im = new Image()
+    im.onload = () => setLogoEl(im)
+    im.src = import.meta.env.BASE_URL + 'icon.svg'
+  }, [])
   useEffect(() => {
     QRCode.toDataURL(url, { width: 900, margin: 1, errorCorrectionLevel: 'M' }).then(setImg)
   }, [url])
@@ -483,14 +489,13 @@ function QrTab({ shop }: { shop: Shop }) {
     eye(n - 7, 0)
     // Center badge
     const bs = cell * logo, bx = ox + ls * cell, by = oy + ls * cell
-    rr(bx + cell * 0.4, by + cell * 0.4, bs - cell * 0.8, bs - cell * 0.8, cell * 1.6)
-    const bgr = g.createLinearGradient(bx, by, bx + bs, by + bs)
-    bgr.addColorStop(0, '#2348e0')
-    bgr.addColorStop(1, '#7c3aed')
-    g.fillStyle = bgr
-    g.fill()
-    g.font = `${Math.round(bs * 0.5)}px ${font}`
-    g.fillText('🖨️', bx + bs / 2, by + bs / 2 + 2)
+    if (logoEl) {
+      g.drawImage(logoEl, bx + cell * 0.4, by + cell * 0.4, bs - cell * 0.8, bs - cell * 0.8)
+    } else {
+      rr(bx + cell * 0.4, by + cell * 0.4, bs - cell * 0.8, bs - cell * 0.8, cell * 1.6)
+      g.fillStyle = '#2348e0'
+      g.fill()
+    }
 
     // Headline
     let y = cy + cardS + 90
@@ -533,7 +538,7 @@ function QrTab({ shop }: { shop: Shop }) {
     g.fillText(rates, W / 2, y + 1, W - 130)
 
     setCard(c.toDataURL('image/png'))
-  }, [url, shop.name, shop.address, shop.rates.bw_single, shop.rates.color_single, t])
+  }, [url, shop.name, shop.address, shop.rates.bw_single, shop.rates.color_single, t, logoEl])
   function copy() {
     void navigator.clipboard?.writeText(url).then(() => {
       setCopied(true)

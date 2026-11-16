@@ -4,16 +4,7 @@ import { useI18n } from '../lib/i18n'
 
 export function LogoMark({ size = 30 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
-      <rect width="32" height="32" rx="9" fill="var(--brand)" />
-      <rect x="7" y="7" width="7" height="7" rx="1.5" fill="#fff" />
-      <rect x="18" y="7" width="7" height="7" rx="1.5" fill="#fff" />
-      <rect x="7" y="18" width="7" height="7" rx="1.5" fill="#fff" />
-      <rect x="18" y="18" width="3" height="3" rx=".8" fill="#fff" />
-      <rect x="22" y="22" width="3" height="3" rx=".8" fill="#fff" />
-      <rect x="18" y="22" width="3" height="3" rx=".8" fill="#c7d2fe" />
-      <rect x="22" y="18" width="3" height="3" rx=".8" fill="#c7d2fe" />
-    </svg>
+    <img src={import.meta.env.BASE_URL + 'icon.svg'} width={size} height={size} alt="" aria-hidden="true" style={{ display: 'block', borderRadius: size * 0.23 }} />
   )
 }
 
