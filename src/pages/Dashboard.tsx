@@ -359,7 +359,7 @@ function QrTab({ shop }: { shop: Shop }) {
     if (!img) return
     const qr = new Image()
     qr.onload = () => {
-      const W = 1000, H = 1350
+      const W = 1000, H = 1210
       const c = document.createElement('canvas')
       c.width = W
       c.height = H
@@ -395,20 +395,13 @@ function QrTab({ shop }: { shop: Shop }) {
       g.fillStyle = '#2348e0'
       g.font = `800 50px ${font}`
       g.fillText(t('posterHeadline'), W / 2, qy + q + 100, W - 80)
-      g.fillStyle = '#334155'
-      g.font = `500 32px ${font}`
-      g.fillText(t('posterSub'), W / 2, qy + q + 165, W - 80)
-      if (shop.phone) {
-        g.font = `600 32px ${font}`
-        g.fillText('\u260E ' + shop.phone, W / 2, qy + q + 220)
-      }
       g.fillStyle = '#94a3b8'
       g.font = `600 26px ${font}`
       g.fillText('PrintQR', W / 2, H - 40)
       setCard(c.toDataURL('image/png'))
     }
     qr.src = img
-  }, [img, shop.name, shop.address, shop.phone, t])
+  }, [img, shop.name, shop.address, t])
   function copy() {
     void navigator.clipboard?.writeText(url).then(() => {
       setCopied(true)
@@ -429,7 +422,6 @@ function QrTab({ shop }: { shop: Shop }) {
         <div className="poster-brand"><LogoMark size={26} /> PrintQR</div>
         <div className="poster-top">{shop.name}</div>
         <h2>{t('posterHeadline')}</h2>
-        <p className="poster-sub">{t('posterSub')}</p>
         <div className="poster-qr">{img && <img src={img} alt="Shop QR code" />}</div>
         <div className="poster-rates">
           <div><span>{t('bw')}</span><strong>{rupees(shop.rates.bw_single)}</strong><em>{t('perPageShort')}</em></div>
