@@ -350,9 +350,65 @@ function QrTab({ shop }: { shop: Shop }) {
   const url = shopUrl(shop.slug)
   const [img, setImg] = useState('')
   const [copied, setCopied] = useState(false)
+  const [card, setCard] = useState('')
   useEffect(() => {
     QRCode.toDataURL(url, { width: 900, margin: 1, errorCorrectionLevel: 'M' }).then(setImg)
   }, [url])
+  // Downloadable PNG: shop name on top, QR in the middle, scan line + address below.
+  useEffect(() => {
+    if (!img) return
+    const qr = new Image()
+    qr.onload = () => {
+      const W = 1000, H = 1350
+      const c = document.createElement('canvas')
+      c.width = W
+      c.height = H
+      const g = c.getContext('2d')
+      if (!g) return
+      const font = "'Inter', 'Noto Sans Devanagari', system-ui, sans-serif"
+      g.fillStyle = '#ffffff'
+      g.fillRect(0, 0, W, H)
+      g.fillStyle = '#2348e0'
+      g.fillRect(0, 0, W, 16)
+      g.textAlign = 'center'
+      g.textBaseline = 'middle'
+      // Shop name, shrink to fit
+      let size = 76
+      g.font = `800 ${size}px ${font}`
+      while (g.measureText(shop.name).width > W - 100 && size > 36) {
+        size -= 4
+        g.font = `800 ${size}px ${font}`
+      }
+      g.fillStyle = '#0f172a'
+      g.fillText(shop.name, W / 2, 120)
+      if (shop.address) {
+        g.font = `500 34px ${font}`
+        g.fillStyle = '#64748b'
+        g.fillText(shop.address, W / 2, 190, W - 120)
+      }
+      const q = 760
+      const qx = (W - q) / 2, qy = 250
+      g.strokeStyle = '#2348e0'
+      g.lineWidth = 8
+      g.strokeRect(qx - 24, qy - 24, q + 48, q + 48)
+      g.drawImage(qr, qx, qy, q, q)
+      g.fillStyle = '#2348e0'
+      g.font = `800 50px ${font}`
+      g.fillText(t('posterHeadline'), W / 2, qy + q + 100, W - 80)
+      g.fillStyle = '#334155'
+      g.font = `500 32px ${font}`
+      g.fillText(t('posterSub'), W / 2, qy + q + 165, W - 80)
+      if (shop.phone) {
+        g.font = `600 32px ${font}`
+        g.fillText('\u260E ' + shop.phone, W / 2, qy + q + 220)
+      }
+      g.fillStyle = '#94a3b8'
+      g.font = `600 26px ${font}`
+      g.fillText('PrintQR', W / 2, H - 40)
+      setCard(c.toDataURL('image/png'))
+    }
+    qr.src = img
+  }, [img, shop.name, shop.address, shop.phone, t])
   function copy() {
     void navigator.clipboard?.writeText(url).then(() => {
       setCopied(true)
@@ -365,7 +421,7 @@ function QrTab({ shop }: { shop: Shop }) {
         <p className="small muted">{t('qrHint')}</p>
         <div className="btn-row">
           <button type="button" className="btn primary" onClick={() => window.print()}>{t('printPoster')}</button>
-          {img && <a className="btn" href={img} download={`${shop.slug}-qr.png`}>{t('downloadQr')}</a>}
+          {card && <a className="btn" href={card} download={`${shop.slug}-qr.png`}>{t('downloadQr')}</a>}
           <button type="button" className="btn" onClick={copy}>{copied ? t('linkCopied') : t('copyLink')}</button>
         </div>
       </div>
