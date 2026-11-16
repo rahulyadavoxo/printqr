@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { isConfigured } from './lib/supabase'
+import { useI18n } from './lib/i18n'
+import { TopBar } from './components/TopBar'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Setup from './pages/Setup'
@@ -8,18 +10,21 @@ import Upload from './pages/Upload'
 import Status from './pages/Status'
 
 export default function App() {
+  const { t } = useI18n()
   if (!isConfigured) {
     return (
-      <div className="page narrow">
-        <div className="card">
-          <h2>Setup baaki hai</h2>
-          <p>
-            Supabase keys nahi mili. GitHub repo ke Settings → Secrets and variables → Actions mein
-            <code> VITE_SUPABASE_URL</code> aur <code>VITE_SUPABASE_ANON_KEY</code> add karo, phir workflow dobara chalao.
-            README mein poore steps hain.
-          </p>
+      <>
+        <TopBar to={null} />
+        <div className="page narrow">
+          <div className="card">
+            <h2>{t('ncTitle')}</h2>
+            <p>
+              {t('ncBody1')} <code>VITE_SUPABASE_URL</code> {t('ncAnd')} <code>VITE_SUPABASE_ANON_KEY</code>
+              {t('ncBody2')}
+            </p>
+          </div>
         </div>
-      </div>
+      </>
     )
   }
   return (

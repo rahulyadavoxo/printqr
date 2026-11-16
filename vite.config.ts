@@ -14,10 +14,10 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg'],
       manifest: {
-        name: 'PrintQR - Scan karo, print karao',
+        name: 'PrintQR – Scan, upload, print',
         short_name: 'PrintQR',
-        description: 'Cyber cafe ke liye QR se file upload aur print queue',
-        theme_color: '#1d4ed8',
+        description: 'QR file upload and print queue for cyber cafes',
+        theme_color: '#2348e0',
         background_color: '#ffffff',
         display: 'standalone',
         start_url: base + '#/dashboard',

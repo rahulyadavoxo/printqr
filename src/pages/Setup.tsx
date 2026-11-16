@@ -1,7 +1,9 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { DEFAULT_RATES, errMsg, supabase } from '../lib/supabase'
+import { DEFAULT_RATES, supabase } from '../lib/supabase'
 import { useSession } from '../lib/useSession'
+import { useI18n } from '../lib/i18n'
+import { LogoMark, TopBar } from '../components/TopBar'
 
 function slugify(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
@@ -9,6 +11,7 @@ function slugify(s: string) {
 
 export default function Setup() {
   const { session, loading } = useSession()
+  const { t, te } = useI18n()
   const nav = useNavigate()
   const [name, setName] = useState('')
   const [address, setAddress] = useState('')
@@ -55,36 +58,42 @@ export default function Setup() {
       if (error) throw error
       nav('/dashboard?tab=rates', { replace: true })
     } catch (e) {
-      setMsg(errMsg(e))
+      setMsg(te(e))
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div className="page narrow">
-      <div className="logo">PrintQR</div>
-      <form className="card" onSubmit={submit}>
-        <h2>Apni shop ki details</h2>
-        <label>
-          Shop ka naam *
-          <input required minLength={2} maxLength={80} value={name} onChange={(e) => setName(e.target.value)} placeholder="Sharma Cyber Cafe" />
-        </label>
-        <label>
-          Address
-          <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Boring Road, Patna" />
-        </label>
-        <label>
-          Phone (poster pe dikhega, optional)
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
-        </label>
-        <label>
-          UPI ID (customer seedha pay kar sake, optional)
-          <input value={upi} onChange={(e) => setUpi(e.target.value)} placeholder="shopname@okaxis" />
-        </label>
-        {msg && <p className="notice error">{msg}</p>}
-        <button className="btn primary block" disabled={busy}>{busy ? 'Ban raha hai...' : 'Shop banao'}</button>
-      </form>
+    <div className="auth-page">
+      <TopBar to={null} />
+      <main className="auth-wrap">
+        <form className="card auth-card" onSubmit={submit}>
+          <div className="auth-logo"><LogoMark size={44} /></div>
+          <h1 className="auth-title">{t('setupTitle')}</h1>
+          <p className="muted center">{t('setupSub')}</p>
+          <label className="field">
+            <span>{t('shopName')} <b className="req">*</b></span>
+            <input required minLength={2} maxLength={80} value={name} onChange={(e) => setName(e.target.value)} placeholder="Sharma Cyber Cafe" />
+          </label>
+          <label className="field">
+            <span>{t('address')}</span>
+            <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Boring Road, Patna" />
+          </label>
+          <label className="field">
+            <span>{t('phone')} <em className="opt">({t('optional')})</em></span>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="98xxxxxx10" />
+            <small className="hint">{t('phoneHint')}</small>
+          </label>
+          <label className="field">
+            <span>{t('upiId')} <em className="opt">({t('optional')})</em></span>
+            <input value={upi} onChange={(e) => setUpi(e.target.value)} placeholder="shopname@okaxis" />
+            <small className="hint">{t('upiHint')}</small>
+          </label>
+          {msg && <p className="notice error">{msg}</p>}
+          <button className="btn primary block lg" disabled={busy}>{busy ? t('creating') : t('createShop')}</button>
+        </form>
+      </main>
     </div>
   )
 }

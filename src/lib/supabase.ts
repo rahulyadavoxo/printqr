@@ -65,10 +65,10 @@ export type Order = {
 export const DEFAULT_RATES: Rates = { bw_single: 2, bw_double: 1.5, color_single: 10, color_double: 8 }
 
 export function errMsg(e: unknown): string {
-  if (!e) return 'Kuch gadbad ho gayi'
+  if (!e) return 'Something went wrong'
   if (typeof e === 'string') return e
   const m = (e as { message?: string }).message
-  return m || 'Kuch gadbad ho gayi'
+  return m || 'Something went wrong'
 }
 
 export function shopUrl(slug: string): string {

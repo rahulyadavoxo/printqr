@@ -1,22 +1,25 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
-import { errMsg, Order, OrderStatus, Rates, Shop, shopUrl, supabase } from '../lib/supabase'
+import { Order, OrderStatus, Rates, Shop, shopUrl, supabase } from '../lib/supabase'
 import { useSession } from '../lib/useSession'
 import { rupees } from '../lib/pricing'
 import { ding, unlockAudio } from '../lib/sound'
+import { Key, useI18n } from '../lib/i18n'
+import { LogoMark, TopBar } from '../components/TopBar'
 
 type Tab = 'orders' | 'rates' | 'qr' | 'report' | 'settings'
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'orders', label: 'Orders' },
-  { id: 'rates', label: 'Rate' },
-  { id: 'qr', label: 'QR' },
-  { id: 'report', label: 'Hisaab' },
-  { id: 'settings', label: 'Settings' }
+const TABS: { id: Tab; label: Key }[] = [
+  { id: 'orders', label: 'tabOrders' },
+  { id: 'rates', label: 'tabRates' },
+  { id: 'qr', label: 'tabQr' },
+  { id: 'report', label: 'tabReport' },
+  { id: 'settings', label: 'tabSettings' }
 ]
 
 export default function Dashboard() {
   const { session, loading } = useSession()
+  const { t } = useI18n()
   const nav = useNavigate()
   const [params, setParams] = useSearchParams()
   const tab = (params.get('tab') as Tab) || 'orders'
@@ -41,48 +44,65 @@ export default function Dashboard() {
     if (!error && data) setShop(data as Shop)
   }
 
-  if (!shop) return <div className="page"><p className="muted center">Loading...</p></div>
+  async function logout() {
+    await supabase.auth.signOut()
+    nav('/', { replace: true })
+  }
+
+  if (!shop) {
+    return (
+      <div className="app-page">
+        <TopBar to={null} wide />
+        <p className="muted center loading">{t('loading')}</p>
+      </div>
+    )
+  }
 
   return (
-    <div className="page dash" onClick={unlockAudio}>
-      <header className="dash-head no-print">
-        <div>
-          <div className="logo">PrintQR</div>
-          <strong>{shop.name}</strong>
-        </div>
-        <button className={`btn small ${shop.is_open ? 'open' : 'closed'}`} onClick={toggleOpen}>
-          {shop.is_open ? '● Shop khuli' : '○ Shop band'}
+    <div className="app-page dash" onClick={unlockAudio}>
+      <TopBar to={null} wide>
+        <button type="button" className={`toggle ${shop.is_open ? 'is-open' : 'is-closed'}`} onClick={toggleOpen} aria-pressed={shop.is_open}>
+          <span className="toggle-dot" />
+          <span className="toggle-label">{shop.is_open ? t('shopOpen') : t('shopClosed')}</span>
         </button>
-      </header>
-      <nav className="tabs no-print">
-        {TABS.map((t) => (
-          <button key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setParams({ tab: t.id })}>{t.label}</button>
-        ))}
-      </nav>
-      {tab === 'orders' && <Orders shop={shop} />}
-      {tab === 'rates' && <RatesTab shop={shop} onSaved={setShop} />}
-      {tab === 'qr' && <QrTab shop={shop} />}
-      {tab === 'report' && <Report shop={shop} />}
-      {tab === 'settings' && <Settings shop={shop} onSaved={setShop} />}
+        <button type="button" className="btn ghost small hide-xs" onClick={logout}>{t('logout')}</button>
+      </TopBar>
+
+      <div className="page wide">
+        <div className="dash-head no-print">
+          <h1>{shop.name}</h1>
+          {shop.address && <p className="muted small">{shop.address}</p>}
+        </div>
+        <nav className="tabs no-print">
+          {TABS.map((x) => (
+            <button key={x.id} type="button" className={tab === x.id ? 'on' : ''} onClick={() => setParams({ tab: x.id })}>{t(x.label)}</button>
+          ))}
+        </nav>
+        {tab === 'orders' && <Orders shop={shop} />}
+        {tab === 'rates' && <RatesTab shop={shop} onSaved={setShop} />}
+        {tab === 'qr' && <QrTab shop={shop} />}
+        {tab === 'report' && <Report shop={shop} />}
+        {tab === 'settings' && <Settings shop={shop} onSaved={setShop} onLogout={logout} />}
+      </div>
     </div>
   )
 }
 
 /* ------------------------------------------------------------------ */
 
-const NEXT: Partial<Record<OrderStatus, { to: OrderStatus; label: string }>> = {
-  received: { to: 'printing', label: 'Print shuru' },
-  printing: { to: 'ready', label: 'Ready hai' },
-  ready: { to: 'done', label: 'De diya (Done)' }
+const NEXT: Partial<Record<OrderStatus, { to: OrderStatus; label: Key }>> = {
+  received: { to: 'printing', label: 'actStart' },
+  printing: { to: 'ready', label: 'actReady' },
+  ready: { to: 'done', label: 'actDone' }
 }
 
-const STATUS_TEXT: Record<OrderStatus, string> = {
-  uploading: 'Upload ho raha',
-  received: 'Naya',
-  printing: 'Printing',
-  ready: 'Ready',
-  done: 'Done',
-  cancelled: 'Cancel'
+const STATUS_TEXT: Record<OrderStatus, Key> = {
+  uploading: 'dst_uploading',
+  received: 'dst_received',
+  printing: 'dst_printing',
+  ready: 'dst_ready',
+  done: 'dst_done',
+  cancelled: 'dst_cancelled'
 }
 
 function timeText(iso: string) {
@@ -90,10 +110,16 @@ function timeText(iso: string) {
 }
 
 function Orders({ shop }: { shop: Shop }) {
+  const { t, te } = useI18n()
   const [orders, setOrders] = useState<Order[]>([])
   const [showDone, setShowDone] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const known = useRef<Set<string> | null>(null)
+  // Keep the latest translators in refs so the realtime subscription does not restart on language change.
+  const tRef = useRef(t)
+  const teRef = useRef(te)
+  tRef.current = t
+  teRef.current = te
 
   const load = useCallback(async () => {
     const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString()
@@ -104,7 +130,7 @@ function Orders({ shop }: { shop: Shop }) {
       .neq('status', 'uploading')
       .gte('created_at', since)
       .order('created_at', { ascending: false })
-    if (error) return setErr(errMsg(error))
+    if (error) return setErr(teRef.current(error))
     const list = (data || []) as Order[]
     const ids = new Set(list.map((o) => o.id))
     if (known.current) {
@@ -112,7 +138,9 @@ function Orders({ shop }: { shop: Shop }) {
       if (fresh.length) {
         ding()
         if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
-          new Notification(`Naya order #${fresh[0].token}`, { body: `${fresh[0].customer_name || 'Customer'} · ${rupees(Number(fresh[0].total))}` })
+          new Notification(tRef.current('newOrderNotif', { token: fresh[0].token }), {
+            body: `${fresh[0].customer_name || tRef.current('customer')} · ${rupees(Number(fresh[0].total))}`
+          })
         }
       }
     }
@@ -127,10 +155,10 @@ function Orders({ shop }: { shop: Shop }) {
       .channel('orders-' + shop.id)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `shop_id=eq.${shop.id}` }, () => void load())
       .subscribe()
-    const t = setInterval(load, 30000) // safety net if realtime drops
+    const timer = setInterval(load, 30000) // safety net if realtime drops
     if ('Notification' in window && Notification.permission === 'default') void Notification.requestPermission()
     return () => {
-      clearInterval(t)
+      clearInterval(timer)
       void supabase.removeChannel(ch)
     }
   }, [shop.id, load])
@@ -139,7 +167,7 @@ function Orders({ shop }: { shop: Shop }) {
     setOrders((l) => l.map((x) => (x.id === o.id ? { ...x, status } : x)))
     const { error } = await supabase.from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', o.id)
     if (error) {
-      setErr(errMsg(error))
+      setErr(te(error))
       void load()
     }
   }
@@ -149,7 +177,7 @@ function Orders({ shop }: { shop: Shop }) {
     const { data, error } = await supabase.storage.from('uploads').createSignedUrl(path, 600)
     if (error || !data) {
       w?.close()
-      return setErr(error ? errMsg(error) : 'File nahi khuli')
+      return setErr(error ? te(error) : t('fileOpenFail'))
     }
     if (w) w.location.href = data.signedUrl
     else window.location.href = data.signedUrl
@@ -157,7 +185,7 @@ function Orders({ shop }: { shop: Shop }) {
 
   async function downloadFile(path: string, name: string) {
     const { data, error } = await supabase.storage.from('uploads').download(path)
-    if (error || !data) return setErr(error ? errMsg(error) : 'Download nahi hua')
+    if (error || !data) return setErr(error ? te(error) : t('downloadFail'))
     const a = document.createElement('a')
     a.href = URL.createObjectURL(data)
     a.download = name
@@ -166,10 +194,10 @@ function Orders({ shop }: { shop: Shop }) {
   }
 
   async function deleteFiles(o: Order) {
-    if (!confirm(`Token #${o.token} ki files abhi delete karein?`)) return
+    if (!confirm(t('confirmDelete', { token: o.token }))) return
     const paths = (o.order_files || []).map((f) => f.storage_path)
     const { error } = await supabase.storage.from('uploads').remove(paths)
-    if (error) return setErr(errMsg(error))
+    if (error) return setErr(te(error))
     await supabase.from('orders').update({ files_deleted: true }).eq('id', o.id)
     void load()
   }
@@ -180,18 +208,34 @@ function Orders({ shop }: { shop: Shop }) {
   return (
     <section>
       {err && <p className="notice error">{err}</p>}
-      {!active.length && <div className="card center muted">Abhi koi naya order nahi. Naya order aate hi yahan dikhega aur ding bajega.</div>}
-      {active.map((o) => (
-        <OrderCard key={o.id} o={o} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} />
-      ))}
+      <div className="section-head">
+        <h2>{t('dActive')}</h2>
+        <span className="count-badge">{active.length}</span>
+      </div>
+      {!active.length && (
+        <div className="card empty">
+          <div className="empty-icon" aria-hidden="true">🔔</div>
+          <strong>{t('noOrders')}</strong>
+          <p className="muted small">{t('noOrdersSub')}</p>
+        </div>
+      )}
+      <div className="orders-grid">
+        {active.map((o) => (
+          <OrderCard key={o.id} o={o} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} />
+        ))}
+      </div>
       {finished.length > 0 && (
-        <button className="link block" onClick={() => setShowDone(!showDone)}>
-          {showDone ? 'Purane chhupao' : `Done / cancel orders (${finished.length})`}
+        <button type="button" className="btn ghost block show-done" onClick={() => setShowDone(!showDone)}>
+          {showDone ? t('hideFinished') : t('showFinished', { n: finished.length })}
         </button>
       )}
-      {showDone && finished.map((o) => (
-        <OrderCard key={o.id} o={o} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} />
-      ))}
+      {showDone && (
+        <div className="orders-grid">
+          {finished.map((o) => (
+            <OrderCard key={o.id} o={o} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} />
+          ))}
+        </div>
+      )}
     </section>
   )
 }
@@ -204,15 +248,16 @@ function OrderCard(props: {
   onDelete: (o: Order) => void
 }) {
   const { o, onStatus, onOpen, onDownload, onDelete } = props
+  const { t } = useI18n()
   const next = NEXT[o.status]
   return (
     <div className={`card order s-${o.status}`}>
-      <div className="row between">
-        <div className="row gap">
-          <span className="token sm">#{o.token}</span>
-          <div>
-            <strong>{o.customer_name || 'Customer'}</strong>
-            <div className="small muted">{timeText(o.created_at)} · {STATUS_TEXT[o.status]}</div>
+      <div className="order-top">
+        <span className="token sm">#{o.token}</span>
+        <div className="order-who">
+          <strong>{o.customer_name || t('customer')}</strong>
+          <div className="small muted">
+            {timeText(o.created_at)} · <span className={`pill tiny s-${o.status}`}>{t(STATUS_TEXT[o.status])}</span>
           </div>
         </div>
         <strong className="amt">{rupees(Number(o.total))}</strong>
@@ -223,26 +268,27 @@ function OrderCard(props: {
           <li key={f.id}>
             <div className="fname">{f.file_name}</div>
             <div className="small muted">
-              {f.color ? 'Color' : 'B/W'} · {f.duplex ? 'Dono side' : 'Ek side'} · {f.pages_to_print} page
-              {f.page_range ? ` (${f.page_range})` : ''} × {f.copies} copy · {rupees(Number(f.price))}
+              {f.color ? t('color') : t('bw')} · {f.duplex ? t('bothSides') : t('oneSide')} ·{' '}
+              {t('calcLine', { p: f.pages_to_print, c: f.copies })}
+              {f.page_range ? ` (${f.page_range})` : ''} · {rupees(Number(f.price))}
             </div>
             {!o.files_deleted && (
-              <div className="row gap">
-                <button className="btn small" onClick={() => onOpen(f.storage_path)}>Kholo / Print</button>
-                <button className="btn small" onClick={() => onDownload(f.storage_path, f.file_name)}>Download</button>
+              <div className="file-actions">
+                <button type="button" className="btn small soft" onClick={() => onOpen(f.storage_path)}>{t('openPrint')}</button>
+                <button type="button" className="btn small" onClick={() => onDownload(f.storage_path, f.file_name)}>{t('download')}</button>
               </div>
             )}
           </li>
         ))}
       </ul>
-      {o.files_deleted && <p className="small muted">Files delete ho chuki hain.</p>}
-      <div className="row gap wrap">
-        {next && <button className="btn primary" onClick={() => onStatus(o, next.to)}>{next.label}</button>}
+      {o.files_deleted && <p className="small muted">{t('filesDeleted')}</p>}
+      <div className="order-actions">
+        {next && <button type="button" className="btn primary" onClick={() => onStatus(o, next.to)}>{t(next.label)}</button>}
         {['received', 'printing', 'ready'].includes(o.status) && (
-          <button className="btn danger-outline" onClick={() => confirm('Order cancel karein?') && onStatus(o, 'cancelled')}>Cancel</button>
+          <button type="button" className="btn danger-outline" onClick={() => confirm(t('confirmCancel')) && onStatus(o, 'cancelled')}>{t('cancel')}</button>
         )}
         {['done', 'cancelled'].includes(o.status) && !o.files_deleted && (
-          <button className="btn" onClick={() => onDelete(o)}>Files abhi delete karo</button>
+          <button type="button" className="btn" onClick={() => onDelete(o)}>{t('deleteNow')}</button>
         )}
       </div>
     </div>
@@ -252,13 +298,14 @@ function OrderCard(props: {
 /* ------------------------------------------------------------------ */
 
 function RatesTab({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void }) {
+  const { t, te } = useI18n()
   const [r, setR] = useState<Rates>(shop.rates)
-  const [msg, setMsg] = useState<string | null>(null)
-  const fields: { k: keyof Rates; label: string }[] = [
-    { k: 'bw_single', label: 'B/W, ek side (per page)' },
-    { k: 'bw_double', label: 'B/W, dono side (per page)' },
-    { k: 'color_single', label: 'Color, ek side (per page)' },
-    { k: 'color_double', label: 'Color, dono side (per page)' }
+  const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
+  const fields: { k: keyof Rates; label: Key }[] = [
+    { k: 'bw_single', label: 'rate_bw_single' },
+    { k: 'bw_double', label: 'rate_bw_double' },
+    { k: 'color_single', label: 'rate_color_single' },
+    { k: 'color_double', label: 'rate_color_double' }
   ]
   async function save(e: FormEvent) {
     e.preventDefault()
@@ -269,22 +316,29 @@ function RatesTab({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void })
       color_double: Math.max(0, Number(r.color_double) || 0)
     }
     const { data, error } = await supabase.from('shops').update({ rates: clean }).eq('id', shop.id).select().single()
-    if (error) return setMsg(errMsg(error))
+    if (error) return setMsg({ text: te(error), error: true })
     onSaved(data as Shop)
-    setMsg('Rate save ho gaya ✓')
+    setMsg({ text: t('ratesSaved'), error: false })
   }
   return (
-    <form className="card" onSubmit={save}>
-      <h3>Print rate (A4)</h3>
-      <p className="small muted">Customer ko upload karte waqt isi rate se total dikhega.</p>
-      {fields.map((f) => (
-        <label key={f.k}>
-          {f.label} ₹
-          <input type="number" step="0.5" min={0} value={r[f.k]} onChange={(e) => setR({ ...r, [f.k]: e.target.value as unknown as number })} />
-        </label>
-      ))}
-      {msg && <p className="notice">{msg}</p>}
-      <button className="btn primary block">Save</button>
+    <form className="card form-card" onSubmit={save}>
+      <h2 className="card-title">{t('ratesTitle')}</h2>
+      <p className="small muted">{t('ratesSub')}</p>
+      <div className="rates-grid">
+        {fields.map((f) => (
+          <label className="field" key={f.k}>
+            <span>{t(f.label)}</span>
+            <div className="input-affix">
+              <span className="affix">₹</span>
+              <input type="number" step="0.5" min={0} value={r[f.k]} inputMode="decimal"
+                onChange={(e) => setR({ ...r, [f.k]: e.target.value as unknown as number })} />
+            </div>
+            <small className="hint">{t('perPage')}</small>
+          </label>
+        ))}
+      </div>
+      {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
+      <button className="btn primary block lg">{t('save')}</button>
     </form>
   )
 }
@@ -292,32 +346,45 @@ function RatesTab({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void })
 /* ------------------------------------------------------------------ */
 
 function QrTab({ shop }: { shop: Shop }) {
+  const { t } = useI18n()
   const url = shopUrl(shop.slug)
   const [img, setImg] = useState('')
+  const [copied, setCopied] = useState(false)
   useEffect(() => {
     QRCode.toDataURL(url, { width: 900, margin: 1, errorCorrectionLevel: 'M' }).then(setImg)
   }, [url])
+  function copy() {
+    void navigator.clipboard?.writeText(url).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
   return (
     <section>
-      <div className="row gap no-print">
-        <button className="btn primary" onClick={() => window.print()}>Poster print karo</button>
-        {img && <a className="btn" href={img} download={`${shop.slug}-qr.png`}>QR download</a>}
-        <button className="btn" onClick={() => navigator.clipboard?.writeText(url)}>Link copy</button>
+      <div className="card no-print qr-actions">
+        <p className="small muted">{t('qrHint')}</p>
+        <div className="btn-row">
+          <button type="button" className="btn primary" onClick={() => window.print()}>{t('printPoster')}</button>
+          {img && <a className="btn" href={img} download={`${shop.slug}-qr.png`}>{t('downloadQr')}</a>}
+          <button type="button" className="btn" onClick={copy}>{copied ? t('linkCopied') : t('copyLink')}</button>
+        </div>
       </div>
       <div className="poster">
+        <div className="poster-brand"><LogoMark size={26} /> PrintQR</div>
         <div className="poster-top">{shop.name}</div>
-        <h2>Print karana hai?</h2>
-        <p className="poster-sub">QR scan karo, file bhejo. WhatsApp number save karne ki zaroorat nahi.</p>
-        {img && <img src={img} alt="Shop QR code" />}
+        <h2>{t('posterHeadline')}</h2>
+        <p className="poster-sub">{t('posterSub')}</p>
+        <div className="poster-qr">{img && <img src={img} alt="Shop QR code" />}</div>
         <div className="poster-rates">
-          B/W {rupees(shop.rates.bw_single)}/page · Color {rupees(shop.rates.color_single)}/page
+          <div><span>{t('bw')}</span><strong>{rupees(shop.rates.bw_single)}</strong><em>{t('perPageShort')}</em></div>
+          <div><span>{t('color')}</span><strong>{rupees(shop.rates.color_single)}</strong><em>{t('perPageShort')}</em></div>
         </div>
         <ol className="poster-steps">
-          <li>Phone ke camera se QR scan karo</li>
-          <li>PDF ya photo chuno, total wahin dikhega</li>
-          <li>Token number counter pe batao</li>
+          <li><b>1</b><span>{t('posterStep1')}</span></li>
+          <li><b>2</b><span>{t('posterStep2')}</span></li>
+          <li><b>3</b><span>{t('posterStep3')}</span></li>
         </ol>
-        {shop.phone && <div className="small">📞 {shop.phone}</div>}
+        {shop.phone && <div className="poster-phone">📞 {shop.phone}</div>}
         <div className="poster-url">{url}</div>
       </div>
     </section>
@@ -327,6 +394,7 @@ function QrTab({ shop }: { shop: Shop }) {
 /* ------------------------------------------------------------------ */
 
 function Report({ shop }: { shop: Shop }) {
+  const { t, tn } = useI18n()
   const [rows, setRows] = useState<{ status: OrderStatus; total: number; created_at: string }[]>([])
   useEffect(() => {
     const since = new Date(Date.now() - 30 * 86400 * 1000).toISOString()
@@ -349,28 +417,32 @@ function Report({ shop }: { shop: Shop }) {
   const week = sum(startOfDay.getTime() - 6 * 86400 * 1000)
   const month = sum(startOfDay.getTime() - 29 * 86400 * 1000)
 
+  const cards: { label: Key; v: { count: number; total: number }; accent?: boolean }[] = [
+    { label: 'today', v: today, accent: true },
+    { label: 'last7', v: week },
+    { label: 'last30', v: month }
+  ]
+
   return (
-    <section className="stats">
-      {[
-        { label: 'Aaj', v: today },
-        { label: 'Pichhle 7 din', v: week },
-        { label: 'Pichhle 30 din', v: month }
-      ].map((s) => (
-        <div className="card stat" key={s.label}>
-          <div className="small muted">{s.label}</div>
-          <div className="big-num">{rupees(s.v.total)}</div>
-          <div className="small">{s.v.count} orders</div>
-        </div>
-      ))}
-      <p className="small muted">Cancel kiye orders hisaab mein nahi gine jaate.</p>
+    <section>
+      <div className="stats">
+        {cards.map((s) => (
+          <div className={`card stat${s.accent ? ' accent' : ''}`} key={s.label}>
+            <div className="small stat-label">{t(s.label)}</div>
+            <div className="big-num">{rupees(s.v.total)}</div>
+            <div className="small stat-sub">{tn('orders_one', 'orders_other', s.v.count)}</div>
+          </div>
+        ))}
+      </div>
+      <p className="small muted">{t('reportNote')}</p>
     </section>
   )
 }
 
 /* ------------------------------------------------------------------ */
 
-function Settings({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void }) {
-  const nav = useNavigate()
+function Settings({ shop, onSaved, onLogout }: { shop: Shop; onSaved: (s: Shop) => void; onLogout: () => void }) {
+  const { t, tn, te } = useI18n()
   const [f, setF] = useState({
     name: shop.name,
     address: shop.address || '',
@@ -378,7 +450,7 @@ function Settings({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void })
     upi_id: shop.upi_id || '',
     auto_delete_hours: shop.auto_delete_hours
   })
-  const [msg, setMsg] = useState<string | null>(null)
+  const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
   async function save(e: FormEvent) {
     e.preventDefault()
     const { data, error } = await supabase
@@ -393,30 +465,28 @@ function Settings({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void })
       .eq('id', shop.id)
       .select()
       .single()
-    if (error) return setMsg(errMsg(error))
+    if (error) return setMsg({ text: te(error), error: true })
     onSaved(data as Shop)
-    setMsg('Save ho gaya ✓')
-  }
-  async function logout() {
-    await supabase.auth.signOut()
-    nav('/', { replace: true })
+    setMsg({ text: t('saved'), error: false })
   }
   return (
-    <form className="card" onSubmit={save}>
-      <h3>Shop settings</h3>
-      <label>Shop ka naam<input required minLength={2} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
-      <label>Address<input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></label>
-      <label>Phone<input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></label>
-      <label>UPI ID<input value={f.upi_id} onChange={(e) => setF({ ...f, upi_id: e.target.value })} placeholder="shopname@okaxis" /></label>
-      <label>
-        Files apne aap delete kab hon
+    <form className="card form-card" onSubmit={save}>
+      <h2 className="card-title">{t('settingsTitle')}</h2>
+      <label className="field"><span>{t('shopName')}</span><input required minLength={2} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
+      <label className="field"><span>{t('address')}</span><input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></label>
+      <div className="grid2">
+        <label className="field"><span>{t('phone')}</span><input value={f.phone} inputMode="tel" onChange={(e) => setF({ ...f, phone: e.target.value })} /></label>
+        <label className="field"><span>{t('upiId')}</span><input value={f.upi_id} onChange={(e) => setF({ ...f, upi_id: e.target.value })} placeholder="shopname@okaxis" /></label>
+      </div>
+      <label className="field">
+        <span>{t('autoDeleteLabel')}</span>
         <select value={f.auto_delete_hours} onChange={(e) => setF({ ...f, auto_delete_hours: Number(e.target.value) })}>
-          {[1, 3, 6, 12, 24, 48].map((h) => <option key={h} value={h}>{h} ghante baad</option>)}
+          {[1, 3, 6, 12, 24, 48].map((h) => <option key={h} value={h}>{tn('hours_one', 'hours_other', h)}</option>)}
         </select>
       </label>
-      {msg && <p className="notice">{msg}</p>}
-      <button className="btn primary block">Save</button>
-      <button type="button" className="btn block" onClick={logout}>Logout</button>
+      {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
+      <button className="btn primary block lg">{t('save')}</button>
+      <button type="button" className="btn block lg" onClick={onLogout}>{t('logout')}</button>
     </form>
   )
 }
