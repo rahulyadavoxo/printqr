@@ -79,6 +79,13 @@ drop policy if exists "owner reads files" on public.order_files;
 create policy "owner reads files" on public.order_files for select to authenticated
   using (shop_id in (select id from public.shops where owner_id = auth.uid()));
 
+-- Explicit grants (works even if "Automatically expose new tables" was turned off)
+grant usage on schema public to anon, authenticated, service_role;
+grant select, insert, update on public.shops to authenticated;
+grant select on public.orders to authenticated;
+grant select on public.order_files to authenticated;
+grant all on public.shops, public.orders, public.order_files to service_role;
+
 -- Owners may only change status (and updated_at) on orders, not totals/tokens.
 revoke update on public.orders from authenticated, anon;
 grant update (status, updated_at, files_deleted) on public.orders to authenticated;
