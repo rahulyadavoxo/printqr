@@ -354,54 +354,169 @@ function QrTab({ shop }: { shop: Shop }) {
   useEffect(() => {
     QRCode.toDataURL(url, { width: 900, margin: 1, errorCorrectionLevel: 'M' }).then(setImg)
   }, [url])
-  // Downloadable PNG: shop name on top, QR in the middle, scan line + address below.
+  // Downloadable PNG: a styled QR card (gradient, rounded QR, shop name, rates, steps).
   useEffect(() => {
-    if (!img) return
-    const qr = new Image()
-    qr.onload = () => {
-      const W = 1000, H = 1210
-      const c = document.createElement('canvas')
-      c.width = W
-      c.height = H
-      const g = c.getContext('2d')
-      if (!g) return
-      const font = "'Inter', 'Noto Sans Devanagari', system-ui, sans-serif"
-      g.fillStyle = '#ffffff'
-      g.fillRect(0, 0, W, H)
-      g.fillStyle = '#2348e0'
-      g.fillRect(0, 0, W, 16)
-      g.textAlign = 'center'
-      g.textBaseline = 'middle'
-      // Shop name, shrink to fit
-      let size = 76
-      g.font = `800 ${size}px ${font}`
-      while (g.measureText(shop.name).width > W - 100 && size > 36) {
-        size -= 4
-        g.font = `800 ${size}px ${font}`
-      }
-      g.fillStyle = '#0f172a'
-      g.fillText(shop.name, W / 2, 120)
-      if (shop.address) {
-        g.font = `500 34px ${font}`
-        g.fillStyle = '#64748b'
-        g.fillText(shop.address, W / 2, 190, W - 120)
-      }
-      const q = 760
-      const qx = (W - q) / 2, qy = 250
-      g.strokeStyle = '#2348e0'
-      g.lineWidth = 8
-      g.strokeRect(qx - 24, qy - 24, q + 48, q + 48)
-      g.drawImage(qr, qx, qy, q, q)
-      g.fillStyle = '#2348e0'
-      g.font = `800 50px ${font}`
-      g.fillText(t('posterHeadline'), W / 2, qy + q + 100, W - 80)
-      g.fillStyle = '#94a3b8'
-      g.font = `600 26px ${font}`
-      g.fillText('PrintQR', W / 2, H - 40)
-      setCard(c.toDataURL('image/png'))
+    let qr: ReturnType<typeof QRCode.create>
+    try {
+      qr = QRCode.create(url, { errorCorrectionLevel: 'H' })
+    } catch {
+      return
     }
-    qr.src = img
-  }, [img, shop.name, shop.address, t])
+    const m = qr.modules as unknown as { size: number; data: ArrayLike<number> }
+    const n = m.size
+    const dark = (r: number, c: number) => !!m.data[r * n + c]
+    const W = 1080, H = 1500
+    const c = document.createElement('canvas')
+    c.width = W
+    c.height = H
+    const g = c.getContext('2d')
+    if (!g) return
+    const font = "'Inter', 'Noto Sans Devanagari', system-ui, sans-serif"
+    const rr = (x: number, y: number, w: number, h: number, r: number) => {
+      g.beginPath()
+      g.moveTo(x + r, y)
+      g.arcTo(x + w, y, x + w, y + h, r)
+      g.arcTo(x + w, y + h, x, y + h, r)
+      g.arcTo(x, y + h, x, y, r)
+      g.arcTo(x, y, x + w, y, r)
+      g.closePath()
+    }
+    const fitText = (text: string, weight: number, max: number, min: number, width: number) => {
+      let size = max
+      g.font = `${weight} ${size}px ${font}`
+      while (g.measureText(text).width > width && size > min) {
+        size -= 2
+        g.font = `${weight} ${size}px ${font}`
+      }
+    }
+
+    // Background gradient + soft circles
+    const bg = g.createLinearGradient(0, 0, W, H)
+    bg.addColorStop(0, '#1e3a8a')
+    bg.addColorStop(0.55, '#2348e0')
+    bg.addColorStop(1, '#7c3aed')
+    g.fillStyle = bg
+    g.fillRect(0, 0, W, H)
+    g.fillStyle = 'rgba(255,255,255,0.08)'
+    for (const [x, y, r] of [[980, 120, 220], [90, 1380, 260], [1020, 1050, 120], [60, 420, 90]]) {
+      g.beginPath()
+      g.arc(x, y, r, 0, Math.PI * 2)
+      g.fill()
+    }
+
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+
+    // Tag pill
+    const tag = 'PrintQR · ' + t('cardTag')
+    g.font = `700 30px ${font}`
+    const tw = g.measureText(tag).width + 60
+    rr((W - tw) / 2, 60, tw, 60, 30)
+    g.fillStyle = 'rgba(255,255,255,0.16)'
+    g.fill()
+    g.fillStyle = '#ffffff'
+    g.fillText(tag, W / 2, 91)
+
+    // Shop name + address
+    fitText(shop.name, 800, 84, 40, W - 120)
+    g.fillStyle = '#ffffff'
+    g.fillText(shop.name, W / 2, 200)
+    if (shop.address) {
+      g.font = `500 36px ${font}`
+      g.fillStyle = 'rgba(255,255,255,0.8)'
+      g.fillText('📍 ' + shop.address, W / 2, 268, W - 140)
+    }
+
+    // White QR card with shadow
+    const cardS = 760, cx = (W - cardS) / 2, cy = 320
+    g.save()
+    g.shadowColor = 'rgba(15,23,42,0.35)'
+    g.shadowBlur = 50
+    g.shadowOffsetY = 20
+    rr(cx, cy, cardS, cardS, 48)
+    g.fillStyle = '#ffffff'
+    g.fill()
+    g.restore()
+
+    // QR modules: rounded dots + custom eyes
+    const pad = 60
+    const cell = (cardS - pad * 2) / n
+    const ox = cx + pad, oy = cy + pad
+    const inEye = (r: number, col: number) =>
+      (r < 7 && col < 7) || (r < 7 && col >= n - 7) || (r >= n - 7 && col < 7)
+    const logo = Math.ceil(n * 0.22) | 1
+    const ls = Math.floor((n - logo) / 2)
+    const inLogo = (r: number, col: number) => r >= ls && r < ls + logo && col >= ls && col < ls + logo
+    g.fillStyle = '#0f172a'
+    for (let r = 0; r < n; r++) {
+      for (let col = 0; col < n; col++) {
+        if (!dark(r, col) || inEye(r, col) || inLogo(r, col)) continue
+        g.beginPath()
+        g.arc(ox + col * cell + cell / 2, oy + r * cell + cell / 2, cell * 0.46, 0, Math.PI * 2)
+        g.fill()
+      }
+    }
+    const eye = (r: number, col: number) => {
+      const x = ox + col * cell, y = oy + r * cell
+      rr(x, y, cell * 7, cell * 7, cell * 2)
+      g.fillStyle = '#2348e0'
+      g.fill()
+      rr(x + cell, y + cell, cell * 5, cell * 5, cell * 1.4)
+      g.fillStyle = '#ffffff'
+      g.fill()
+      rr(x + cell * 2, y + cell * 2, cell * 3, cell * 3, cell)
+      g.fillStyle = '#0f172a'
+      g.fill()
+    }
+    eye(0, 0)
+    eye(0, n - 7)
+    eye(n - 7, 0)
+    // Center badge
+    const bs = cell * logo, bx = ox + ls * cell, by = oy + ls * cell
+    rr(bx + cell * 0.4, by + cell * 0.4, bs - cell * 0.8, bs - cell * 0.8, cell * 1.6)
+    const bgr = g.createLinearGradient(bx, by, bx + bs, by + bs)
+    bgr.addColorStop(0, '#2348e0')
+    bgr.addColorStop(1, '#7c3aed')
+    g.fillStyle = bgr
+    g.fill()
+    g.font = `${Math.round(bs * 0.5)}px ${font}`
+    g.fillText('🖨️', bx + bs / 2, by + bs / 2 + 2)
+
+    // Headline
+    let y = cy + cardS + 90
+    g.fillStyle = '#ffffff'
+    fitText(t('posterHeadline'), 800, 52, 30, W - 100)
+    g.fillText(t('posterHeadline'), W / 2, y)
+
+    // Steps row
+    y += 100
+    const steps = ['📷  ' + t('cardScan'), '📄  ' + t('cardUpload'), '🖨️  ' + t('cardCollect')]
+    g.font = `700 32px ${font}`
+    const widths = steps.map((s) => g.measureText(s).width + 56)
+    const gap = 40
+    let x = (W - (widths.reduce((a, b) => a + b, 0) + gap * (steps.length - 1))) / 2
+    steps.forEach((s, i) => {
+      rr(x, y - 36, widths[i], 72, 36)
+      g.fillStyle = 'rgba(255,255,255,0.95)'
+      g.fill()
+      g.fillStyle = '#1e3a8a'
+      g.fillText(s, x + widths[i] / 2, y + 1)
+      if (i < steps.length - 1) {
+        g.fillStyle = 'rgba(255,255,255,0.8)'
+        g.fillText('›', x + widths[i] + gap / 2, y)
+      }
+      x += widths[i] + gap
+    })
+
+    // Rates
+    y += 100
+    const rates = `${t('bw')} ${rupees(shop.rates.bw_single)}  ·  ${t('color')} ${rupees(shop.rates.color_single)}  ${t('perPageShort')}`
+    g.font = `600 34px ${font}`
+    g.fillStyle = '#fde68a'
+    g.fillText(rates, W / 2, y, W - 100)
+
+    setCard(c.toDataURL('image/png'))
+  }, [url, shop.name, shop.address, shop.rates.bw_single, shop.rates.color_single, t])
   function copy() {
     void navigator.clipboard?.writeText(url).then(() => {
       setCopied(true)
