@@ -33,3 +33,4 @@ jobs:
       - run: supabase functions deploy verify-payment --project-ref "$PROJECT_REF" --yes
       - run: supabase functions deploy cancel-subscription --project-ref "$PROJECT_REF" --yes
       - run: supabase functions deploy razorpay-webhook --no-verify-jwt --project-ref "$PROJECT_REF" --yes
+      - run: supabase functions deploy cleanup-files --no-verify-jwt --project-ref "$PROJECT_REF" --yes

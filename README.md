@@ -30,7 +30,7 @@ Customer ko shop ka WhatsApp number save nahi karna padta. Shop wala apna QR pos
 - React + TypeScript + Vite, PWA (phone/PC pe install ho sakta hai)
 - Supabase: Auth, Postgres (RLS), Storage, Realtime
 - Hosting: GitHub Pages (free), build GitHub Actions pe
-- Auto-delete: GitHub Actions har ghante `scripts/cleanup.mjs` chalata hai
+- Auto-delete: Supabase pg_cron har 15 minute `cleanup-files` Edge Function chalata hai (backup: GitHub Actions har 6 ghante `scripts/cleanup.mjs`)
 
 ## Setup (ek baar, ~10 minute)
 
@@ -57,6 +57,11 @@ Agar `schema.sql` pehle chala chuke ho, to **SQL Editor** mein `supabase/migrati
 |---|---|---|
 | Free | ₹0 | Ads, sirf main QR queue, passport sheet nahi |
 | Pro | ₹49/month ya ₹539/year (1 month free) | No ads, unlimited counters, passport photo sheet |
+
+### 1d. Auto-delete Supabase se (v4: har 15 minute)
+1. Workflow **"Deploy Supabase Edge Functions"** `cleanup-files` function bhi deploy karta hai (push pe apne aap).
+2. Uske baad **SQL Editor** mein `supabase/migrations/2026-11-17-v4-cleanup-cron.sql` paste karke **Run** karo. Ye pg_cron + pg_net on karta hai aur har 15 minute cleanup chalata hai. Koi naya secret nahi chahiye.
+3. Check: `select * from cron.job_run_details order by start_time desc limit 5;`
 
 Limits server pe bhi lagte hain (counter trigger, `create_order`, `get_shop_public.is_pro`). Owner plan columns khud update nahi kar sakta.
 

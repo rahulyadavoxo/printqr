@@ -1,5 +1,6 @@
 // Deletes uploaded files after each shop's auto-delete time.
-// Runs every hour from GitHub Actions (.github/workflows/cleanup.yml).
+// Backup runner (GitHub Actions, every 6 hours). The main job is the cleanup-files Edge Function,
+// called every 15 minutes by pg_cron (supabase/migrations/2026-11-17-v4-cleanup-cron.sql).
 // Needs env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 import { createClient } from '@supabase/supabase-js'
 
