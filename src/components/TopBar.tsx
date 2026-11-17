@@ -8,13 +8,14 @@ export function LogoMark({ size = 30 }: { size?: number }) {
   )
 }
 
-export function Logo({ to = '/' }: { to?: string | null }) {
-  const inner = (
-    <>
-      <LogoMark />
-      <span>PrintQR</span>
-    </>
+export function Wordmark({ height = 36 }: { height?: number }) {
+  return (
+    <img src={import.meta.env.BASE_URL + 'logo.svg'} height={height} width={Math.round(height * 2.5)} alt="Print by Receipto" style={{ display: 'block' }} />
   )
+}
+
+export function Logo({ to = '/' }: { to?: string | null }) {
+  const inner = <Wordmark />
   return to ? <Link to={to} className="logo">{inner}</Link> : <span className="logo">{inner}</span>
 }
 

@@ -6,7 +6,7 @@ import { useSession } from '../lib/useSession'
 import { rupees } from '../lib/pricing'
 import { ding, unlockAudio } from '../lib/sound'
 import { Key, useI18n } from '../lib/i18n'
-import { LogoMark, TopBar } from '../components/TopBar'
+import { TopBar, Wordmark } from '../components/TopBar'
 import AdSlot from '../components/AdSlot'
 import { Period, PLAN_PRICES, startUpgrade, callFn } from '../lib/billing'
 
@@ -700,7 +700,7 @@ function QrTab({ shop, counters, counterId, onCounter }: {
         </div>
       </div>
       <div className="poster">
-        <div className="poster-brand"><LogoMark size={26} /> PrintQR</div>
+        <div className="poster-brand"><Wordmark height={34} /></div>
         <div className="poster-top">{shop.name}</div>
         {counterName && <div className="poster-counter">🧾 {counterName}</div>}
         <h2>{t('posterHeadline')}</h2>
