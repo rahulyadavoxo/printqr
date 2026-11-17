@@ -1,0 +1,33 @@
+{
+  "name": "printqr-desktop",
+  "productName": "PrintQR",
+  "version": "1.0.0",
+  "description": "PrintQR for Windows: scan, upload, print",
+  "author": "Rahul Kumar (Receipto)",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "^45.3.3",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "in.receipto.print",
+    "productName": "PrintQR",
+    "artifactName": "PrintQR-Setup-${version}.${ext}",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "package.json"],
+    "win": { "icon": "build/icon.png", "target": "nsis" },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PrintQR"
+    }
+  }
+}

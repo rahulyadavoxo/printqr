@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "in.receipto.print",
+      "sha256_cert_fingerprints": [
+        "16:AA:59:EB:6D:F6:97:08:03:0F:F2:B4:D5:D1:82:ED:B8:8E:2F:89:E2:44:D5:1D:6B:BA:77:75:32:E5:0D:05"
+      ]
+    }
+  }
+]

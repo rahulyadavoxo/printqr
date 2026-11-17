@@ -1,0 +1,115 @@
+# Builds the PrintQR apps on GitHub (nothing is built on any other server).
+#   Android: signed AAB (upload this to Play Console) + signed APK (install directly).
+#   Windows: PrintQR-Setup-x.y.z.exe installer.
+# Run it: Actions -> "Build apps" -> Run workflow, or push a tag like app-v1.0.0
+# (a tag also publishes a GitHub Release with all three files).
+# For every new Play Store upload, raise version_code (1, 2, 3 ...).
+#
+# Repo secrets needed (Settings -> Secrets and variables -> Actions):
+#   PQ_KEYSTORE_B64 = base64 of the upload key (.p12)
+#   PQ_KEY_PASS     = its password
+name: Build apps
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Version name (e.g. 1.0.0)'
+        default: '1.0.0'
+      version_code:
+        description: 'Android version code (raise by 1 for every Play Store upload)'
+        default: '1'
+  push:
+    tags: ['app-v*']
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.14.3' }
+      - name: Versions
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/app-v* ]]; then
+            NAME="${GITHUB_REF_NAME#app-v}"
+            IFS=. read -r MA MI PA <<< "$NAME"
+            CODE=$(( ${MA:-0} * 10000 + ${MI:-0} * 100 + ${PA:-0} ))
+          else
+            NAME="${{ github.event.inputs.version_name }}"
+            CODE="${{ github.event.inputs.version_code }}"
+          fi
+          echo "PQ_VERSION_NAME=$NAME" >> "$GITHUB_ENV"
+          echo "PQ_VERSION_CODE=$CODE" >> "$GITHUB_ENV"
+          echo "Android version $NAME ($CODE)"
+      - name: Restore signing key
+        env:
+          PQ_KEYSTORE_B64: ${{ secrets.PQ_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$PQ_KEYSTORE_B64" ]; then echo "::error::PQ_KEYSTORE_B64 secret is missing"; exit 1; fi
+          echo "$PQ_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.p12"
+          echo "PQ_KEYSTORE=$RUNNER_TEMP/upload.p12" >> "$GITHUB_ENV"
+      - name: Build AAB and APK
+        env:
+          PQ_KEY_PASS: ${{ secrets.PQ_KEY_PASS }}
+        run: gradle -p android --no-daemon assembleRelease bundleRelease
+      - name: Collect
+        run: |
+          mkdir out
+          cp android/app/build/outputs/apk/release/app-release.apk "out/PrintQR-${PQ_VERSION_NAME}.apk"
+          cp android/app/build/outputs/bundle/release/app-release.aab "out/PrintQR-${PQ_VERSION_NAME}.aab"
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: printqr-android
+          path: out/*
+          retention-days: 14
+
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Set version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/app-v* ]]; then V="${GITHUB_REF_NAME#app-v}"; else V="${{ github.event.inputs.version_name }}"; fi
+          npm pkg set version="$V"
+      - run: npm install --no-audit --no-fund
+      - run: npm run dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: printqr-windows
+          path: desktop/dist/*.exe
+          retention-days: 14
+
+  release:
+    needs: [android, windows]
+    if: startsWith(github.ref, 'refs/tags/app-v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: files, merge-multiple: true }
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -la files
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "PrintQR apps ${GITHUB_REF_NAME#app-v}" --notes "Android (AAB for Play Store, APK for direct install) and Windows installer."
+          gh release upload "$GITHUB_REF_NAME" files/* --clobber

@@ -1,0 +1,48 @@
+// PrintQR Android app: a Trusted Web Activity that opens https://print.receipto.in full screen.
+// Website updates reach the app instantly; only bump versionCode when this wrapper changes.
+plugins {
+    id 'com.android.application'
+}
+
+def ks = System.getenv('PQ_KEYSTORE')
+
+android {
+    namespace 'com.receipto.print'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'in.receipto.print'
+        minSdk 23
+        targetSdk 36
+        versionCode Integer.parseInt(System.getenv('PQ_VERSION_CODE') ?: '1')
+        versionName System.getenv('PQ_VERSION_NAME') ?: '1.0.0'
+    }
+
+    signingConfigs {
+        release {
+            if (ks) {
+                storeFile file(ks)
+                storeType 'pkcs12'
+                storePassword System.getenv('PQ_KEY_PASS')
+                keyAlias 'upload'
+                keyPassword System.getenv('PQ_KEY_PASS')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (ks) signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.4'
+}
