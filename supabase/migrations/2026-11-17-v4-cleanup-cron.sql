@@ -12,6 +12,7 @@ create table if not exists private.cron_tokens (
   name text primary key,
   token text not null
 );
+alter table private.cron_tokens enable row level security;  -- no policies: only postgres / security definer code reads it
 revoke all on private.cron_tokens from public, anon, authenticated;
 insert into private.cron_tokens (name, token)
 values ('cleanup', encode(extensions.gen_random_bytes(32), 'hex'))
