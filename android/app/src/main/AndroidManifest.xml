@@ -16,7 +16,7 @@
             android:resource="@string/asset_statements" />
 
         <activity
-            android:name="com.google.androidbrowserhelper.trusted.LauncherActivity"
+            android:name="com.receipto.print.MainLauncher"
             android:exported="true"
             android:label="@string/app_name">
             <meta-data
