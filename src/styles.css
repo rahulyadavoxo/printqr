@@ -397,3 +397,10 @@ input:focus, select:focus { outline: none; border-color: var(--brand); box-shado
 .legal a { overflow-wrap: anywhere; }
 .upload-legal { margin: 14px 0 0; }
 .upload-legal a { color: inherit; text-decoration: underline; }
+
+/* App download (Android APK / Windows installer) */
+.app-dl { margin-top: 14px; }
+.app-dl:empty { display: none; }
+.app-banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--brand-soft); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0 0 14px; font-size: 14px; }
+.app-banner > span { flex: 1 1 180px; min-width: 0; }
+.app-banner-x { background: transparent; border: 0; font-size: 22px; line-height: 1; color: var(--ink-2); cursor: pointer; padding: 4px 8px; min-height: 36px; }

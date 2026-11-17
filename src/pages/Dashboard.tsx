@@ -1,3 +1,4 @@
+import { AppDownloadBanner } from '../components/AppDownload'
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
@@ -101,6 +102,7 @@ export default function Dashboard() {
           <h1>{shop.name}</h1>
           {shop.address && <p className="muted small">{shop.address}</p>}
         </div>
+        <AppDownloadBanner />
         <nav className="tabs no-print">
           {TABS.map((x) => (
             <button key={x.id} type="button" className={tab === x.id ? 'on' : ''} onClick={() => setParams({ tab: x.id })}>{t(x.label)}</button>

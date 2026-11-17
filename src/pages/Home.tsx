@@ -4,6 +4,7 @@ import { useSession } from '../lib/useSession'
 import { Key, useI18n } from '../lib/i18n'
 import { LogoMark, TopBar } from '../components/TopBar'
 import { LegalLinks } from './Legal'
+import { AppDownloadButton } from '../components/AppDownload'
 
 /* A decorative, QR-looking grid (not a real code). */
 const QR_N = 21
@@ -108,6 +109,7 @@ export default function Home() {
               <Link className="btn lg" to="/login">{t('login')}</Link>
             </div>
             <p className="small muted">{t('homeTrust')}</p>
+            <div className="app-dl"><AppDownloadButton /></div>
           </div>
 
           <div className="hero-visual" aria-hidden="true">

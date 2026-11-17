@@ -113,3 +113,6 @@ jobs:
           ls -la files
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "PrintQR apps ${GITHUB_REF_NAME#app-v}" --notes "Android (AAB for Play Store, APK for direct install) and Windows installer."
           gh release upload "$GITHUB_REF_NAME" files/* --clobber
+          # Fixed names so the website can always link releases/latest/download/<name>
+          cp files/*.apk PrintQR.apk && cp files/*.exe PrintQR-Setup.exe
+          gh release upload "$GITHUB_REF_NAME" PrintQR.apk PrintQR-Setup.exe --clobber
