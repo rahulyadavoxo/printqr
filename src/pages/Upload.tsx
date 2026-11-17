@@ -1,5 +1,5 @@
 import { ChangeEvent, DragEvent, ReactElement, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Rates, supabase, UUID_RE } from '../lib/supabase'
 import { countPdfPages } from '../lib/pdf'
 import { countRange, rateFor, rupees } from '../lib/pricing'
@@ -560,6 +560,9 @@ export default function Upload() {
       )}
 
       {/* Free-plan shops show an ad below the form. It never covers the upload controls. */}
+      <p className="small muted center upload-legal">
+        {t('uAgreePre')} <Link to="/legal/terms">{t('agreeTerms')}</Link> {t('agreeAnd')} <Link to="/legal/privacy">{t('agreePrivacy')}</Link>{t('uAgreePost')}
+      </p>
       {shop.is_pro === false && <AdSlot className="upload-ad" />}
     </>,
     hasItems ? 'has-sticky' : ''

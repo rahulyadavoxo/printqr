@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useSession } from '../lib/useSession'
 import { Key, useI18n } from '../lib/i18n'
 import { LogoMark, TopBar } from '../components/TopBar'
+import { LegalLinks } from './Legal'
 
 /* A decorative, QR-looking grid (not a real code). */
 const QR_N = 21
@@ -169,7 +170,10 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="footer">{t('footer')}</footer>
+      <footer className="footer">
+        {t('footer')}
+        <LegalLinks />
+      </footer>
     </div>
   )
 }

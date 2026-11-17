@@ -385,3 +385,15 @@ input:focus, select:focus { outline: none; border-color: var(--brand); box-shado
 .ad-slot { margin: 18px 0; text-align: center; }
 .ad-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #94a3b8; margin-bottom: 4px; }
 .ad-slot:has(ins.adsbygoogle[data-ad-status="unfilled"]) { display: none; }
+
+/* Legal pages and policy links */
+.legal-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; margin-top: 10px; font-size: 13.5px; }
+.legal-links a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; padding: 6px 2px; }
+.legal h1 { font-size: 24px; margin: 0 0 4px; }
+.legal h2 { font-size: 17px; margin: 20px 0 6px; }
+.legal p, .legal li { line-height: 1.6; }
+.legal ul { padding-left: 20px; margin: 6px 0; }
+.legal li { margin: 4px 0; }
+.legal a { overflow-wrap: anywhere; }
+.upload-legal { margin: 14px 0 0; }
+.upload-legal a { color: inherit; text-decoration: underline; }

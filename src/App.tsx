@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard'
 import Upload from './pages/Upload'
 import Status from './pages/Status'
 import ResetPassword from './pages/ResetPassword'
+import Legal from './pages/Legal'
 
 export default function App() {
   const { t } = useI18n()
@@ -47,6 +48,7 @@ export default function App() {
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/s/:slug" element={<Upload />} />
       <Route path="/o/:id/:key" element={<Status />} />
+      <Route path="/legal/:doc" element={<Legal />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

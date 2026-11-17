@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { clearAuthUrlError, peekAuthUrlError, sendResetEmail } from '../lib/recovery'
 import { useI18n } from '../lib/i18n'
@@ -120,6 +120,11 @@ export default function Login() {
             </p>
           )}
           {msg && <p className={`notice${msg.error ? ' error' : ''}`}>{msg.text}</p>}
+          {signup && (
+            <p className="small muted center">
+              {t('agreePre')} <Link to="/legal/terms">{t('agreeTerms')}</Link>, <Link to="/legal/refund">{t('agreeRefund')}</Link> {t('agreeAnd')} <Link to="/legal/privacy">{t('agreePrivacy')}</Link>{t('agreePost')}
+            </p>
+          )}
           <button className="btn primary block lg" disabled={busy}>
             {busy ? t('pleaseWait') : signup ? t('createAccount') : t('login')}
           </button>
