@@ -1,18 +1,27 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { clearAuthUrlError, peekAuthUrlError, sendResetEmail } from '../lib/recovery'
 import { useI18n } from '../lib/i18n'
 import { LogoMark, TopBar } from '../components/TopBar'
 
 export default function Login() {
   const [params] = useSearchParams()
   const { t, te } = useI18n()
-  const [mode, setMode] = useState<'login' | 'signup'>(params.get('mode') === 'signup' ? 'signup' : 'login')
+  const initialMode = params.get('mode')
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(
+    initialMode === 'signup' ? 'signup' : initialMode === 'forgot' ? 'forgot' : 'login'
+  )
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
+  const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(() => {
+    const e = peekAuthUrlError()
+    return e ? { text: e, error: true } : null
+  })
   const nav = useNavigate()
+
+  useEffect(() => clearAuthUrlError(), [])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -25,6 +34,12 @@ export default function Login() {
     setBusy(true)
     setMsg(null)
     try {
+      if (mode === 'forgot') {
+        const { error } = await sendResetEmail(email)
+        if (error) throw error
+        setMsg({ text: t('fpSent'), error: false })
+        return
+      }
       if (mode === 'signup') {
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -51,6 +66,35 @@ export default function Login() {
   }
 
   const signup = mode === 'signup'
+  const forgot = mode === 'forgot'
+  const switchTo = (m: 'login' | 'signup' | 'forgot') => {
+    setMode(m)
+    setMsg(null)
+  }
+
+  if (forgot) {
+    return (
+      <div className="auth-page">
+        <TopBar />
+        <main className="auth-wrap">
+          <form className="card auth-card" onSubmit={submit}>
+            <div className="auth-logo"><LogoMark size={44} /></div>
+            <h1 className="auth-title">{t('fpTitle')}</h1>
+            <p className="muted center">{t('fpSub')}</p>
+            <label className="field">
+              <span>{t('email')}</span>
+              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" />
+            </label>
+            {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
+            <button className="btn primary block lg" disabled={busy}>{busy ? t('pleaseWait') : t('fpSend')}</button>
+            <p className="center small switch-line">
+              <button type="button" className="link" onClick={() => switchTo('login')}>{t('fpBack')}</button>
+            </p>
+          </form>
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="auth-page">
@@ -70,13 +114,18 @@ export default function Login() {
               autoComplete={signup ? 'new-password' : 'current-password'} />
             {signup && <small className="hint">{t('passwordHint')}</small>}
           </label>
+          {!signup && (
+            <p className="forgot-line">
+              <button type="button" className="link small" onClick={() => switchTo('forgot')}>{t('forgotLink')}</button>
+            </p>
+          )}
           {msg && <p className={`notice${msg.error ? ' error' : ''}`}>{msg.text}</p>}
           <button className="btn primary block lg" disabled={busy}>
             {busy ? t('pleaseWait') : signup ? t('createAccount') : t('login')}
           </button>
           <p className="center small switch-line">
             <span className="muted">{signup ? t('haveAccount') : t('noAccount')}</span>{' '}
-            <button type="button" className="link" onClick={() => { setMode(signup ? 'login' : 'signup'); setMsg(null) }}>
+            <button type="button" className="link" onClick={() => switchTo(signup ? 'login' : 'signup')}>
               {signup ? t('login') : t('switchSignup')}
             </button>
           </p>

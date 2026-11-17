@@ -289,6 +289,38 @@ input:focus, select:focus { outline: none; border-color: var(--brand); box-shado
 .poster-phone { font-size: 20px; font-weight: 800; margin-top: 8px; }
 .poster-url { font-size: 11px; color: var(--muted); word-break: break-all; margin-top: 10px; }
 
+/* ---------------- v2: password reset, photo PDF, passport, counters ---------------- */
+.forgot-line { margin: -6px 0 10px; text-align: right; }
+.link.small { font-size: 13.5px; }
+.counter-tag { display: inline-block; margin: 8px 0 0; background: linear-gradient(135deg, var(--brand), #7c3aed); color: #fff; font-weight: 700; font-size: 13.5px; padding: 5px 14px; border-radius: 999px; }
+.passport-entry { margin-top: 0; margin-bottom: 14px; flex-wrap: wrap; }
+.check-row { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; padding: 14px 16px; }
+.check-row input[type="checkbox"] { flex: none; width: 22px; height: 22px; min-height: 0; margin: 2px 0 0; padding: 0; accent-color: var(--brand); cursor: pointer; }
+.check-row strong { display: block; font-size: 15px; }
+.check-row .small { display: block; }
+.combo-list { list-style: none; padding: 0; margin: 12px 0 4px; max-height: 260px; overflow-y: auto; }
+.combo-list li { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); }
+.combo-num { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--brand-soft); color: var(--brand); font-size: 12px; font-weight: 800; display: grid; place-items: center; }
+.combo-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.icon-btn.sm { width: 32px; height: 32px; border-radius: 8px; font-size: 13px; }
+.passport-card { border-top: 4px solid #7c3aed; }
+.pp-thumb { flex: none; width: 56px; height: 72px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line-2); background: #fff; }
+.passport-card .fname .link { padding: 0; margin-top: 2px; }
+.add-row { display: grid; gap: 0 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.add-row .btn.block { margin-top: 0; margin-bottom: 10px; }
+.counter-filter { display: flex; align-items: center; gap: 10px; margin: 12px 0 0; }
+.counter-filter select { width: auto; min-width: 200px; min-height: 42px; padding: 8px 12px; font-size: 15px; }
+.pill.counter-pill { background: #f3e8ff; color: #6b21a8; }
+.pill.pp-pill { background: #f3e8ff; color: #6b21a8; }
+.poster-counter { display: inline-block; margin-top: 8px; background: linear-gradient(135deg, var(--brand), #7c3aed); color: #fff; font-weight: 800; font-size: 20px; padding: 6px 20px; border-radius: 999px; }
+.counter-list { list-style: none; padding: 0; margin: 14px 0 6px; }
+.counter-list li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.counter-list li input { flex: 1 1 180px; min-height: 44px; }
+.counter-actions { display: flex; gap: 8px; }
+.counter-add { display: flex; gap: 10px; margin: 12px 0 6px; flex-wrap: wrap; }
+.counter-add input { flex: 1 1 200px; }
+.counter-add .btn { flex: none; min-height: 48px; }
+
 /* ---------------- responsive ---------------- */
 @media (max-width: 420px) {
   .hide-xs { display: none; }

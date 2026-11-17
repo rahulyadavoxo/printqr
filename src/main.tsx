@@ -3,7 +3,11 @@ import ReactDOM from 'react-dom/client'
 import { HashRouter } from 'react-router-dom'
 import App from './App'
 import { I18nProvider } from './lib/i18n'
+import { captureAuthHash } from './lib/recovery'
 import './styles.css'
+
+// Must run before HashRouter reads the hash (Supabase puts auth tokens there).
+captureAuthHash()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

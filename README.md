@@ -37,11 +37,14 @@ Customer ko shop ka WhatsApp number save nahi karna padta. Shop wala apna QR pos
 ### 1. Supabase project
 1. https://supabase.com pe free account banao → **New project** (region: Mumbai / `ap-south-1`).
 2. **SQL Editor → New query** mein `supabase/schema.sql` ka poora content paste karo → **Run**.
-3. **Authentication → URL Configuration**:
+3. **Authentication → URL Configuration** (custom domain ho to wahi, jaise `https://print.receipto.in/`):
    - Site URL: `https://<github-username>.github.io/printqr/`
-   - Redirect URLs mein bhi yahi add karo.
+   - Redirect URLs mein bhi yahi add karo, aur `https://<github-username>.github.io/printqr/**` bhi (password reset link isi pe aata hai).
 4. (Testing ke liye optional) **Authentication → Sign In / Providers → Email** mein *Confirm email* off kar sakte ho.
 5. **Project Settings → API** se copy karo: Project URL, `anon` public key, `service_role` key.
+
+### 1b. Purane database ka upgrade (v2: counters, passport photo, forgot password)
+Agar `schema.sql` pehle chala chuke ho, to **SQL Editor** mein `supabase/migrations/2026-11-17-v2.sql` ka poora content paste karke **Run** karo. Ye file kitni bhi baar chala sakte ho.
 
 ### 2. GitHub secrets
 Repo → **Settings → Secrets and variables → Actions → New repository secret**:

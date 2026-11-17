@@ -1,5 +1,6 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
-import { isConfigured } from './lib/supabase'
+import { useEffect } from 'react'
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { isConfigured, supabase } from './lib/supabase'
 import { useI18n } from './lib/i18n'
 import { TopBar } from './components/TopBar'
 import Home from './pages/Home'
@@ -8,9 +9,19 @@ import Setup from './pages/Setup'
 import Dashboard from './pages/Dashboard'
 import Upload from './pages/Upload'
 import Status from './pages/Status'
+import ResetPassword from './pages/ResetPassword'
 
 export default function App() {
   const { t } = useI18n()
+  const nav = useNavigate()
+  // PKCE-style recovery links (?code=...) are exchanged by supabase-js, which then fires PASSWORD_RECOVERY.
+  useEffect(() => {
+    if (!isConfigured) return
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') nav('/reset', { replace: true })
+    })
+    return () => data.subscription.unsubscribe()
+  }, [nav])
   if (!isConfigured) {
     return (
       <>
@@ -31,6 +42,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/reset" element={<ResetPassword />} />
       <Route path="/setup" element={<Setup />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/s/:slug" element={<Upload />} />

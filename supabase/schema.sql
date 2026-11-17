@@ -15,10 +15,19 @@ create table if not exists public.shops (
   upi_id text,
   is_open boolean not null default true,
   -- price per printed page (A4). "double" = price per page when printed double-sided
-  rates jsonb not null default '{"bw_single":2,"bw_double":1.5,"color_single":10,"color_double":8}'::jsonb,
+  rates jsonb not null default '{"bw_single":2,"bw_double":1.5,"color_single":10,"color_double":8,"passport_sheet":40}'::jsonb,
   auto_delete_hours int not null default 24 check (auto_delete_hours between 1 and 168),
   created_at timestamptz not null default now()
 );
+
+-- Optional named counters (each has its own QR: shop link + ?c=<counter id>)
+create table if not exists public.counters (
+  id uuid primary key default gen_random_uuid(),
+  shop_id uuid not null references public.shops(id) on delete cascade,
+  name text not null check (char_length(name) between 1 and 40),
+  created_at timestamptz not null default now()
+);
+create index if not exists counters_shop on public.counters(shop_id, created_at);
 
 create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
@@ -31,6 +40,8 @@ create table if not exists public.orders (
     check (status in ('uploading','received','printing','ready','done','cancelled')),
   total numeric(10,2) not null default 0,
   files_deleted boolean not null default false,
+  counter_id uuid references public.counters(id) on delete set null,
+  counter_name text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -50,15 +61,30 @@ create table if not exists public.order_files (
   copies int not null default 1 check (copies between 1 and 100),
   color boolean not null default false,
   duplex boolean not null default false,
-  price numeric(10,2) not null
+  price numeric(10,2) not null,
+  item_kind text not null default 'print' check (item_kind in ('print','passport')),
+  photos int
 );
 create index if not exists order_files_order on public.order_files(order_id);
+
+-- Upgrades for databases created before v2 (no-ops on a fresh install)
+alter table public.shops alter column rates
+  set default '{"bw_single":2,"bw_double":1.5,"color_single":10,"color_double":8,"passport_sheet":40}'::jsonb;
+update public.shops set rates = rates || jsonb_build_object('passport_sheet', 40) where not (rates ? 'passport_sheet');
+alter table public.orders add column if not exists counter_id uuid references public.counters(id) on delete set null;
+alter table public.orders add column if not exists counter_name text;
+alter table public.order_files add column if not exists item_kind text not null default 'print';
+alter table public.order_files add column if not exists photos int;
+do $$ begin
+  alter table public.order_files add constraint order_files_item_kind_check check (item_kind in ('print','passport'));
+exception when duplicate_object then null; end $$;
 
 -- ============ RLS ============
 
 alter table public.shops enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_files enable row level security;
+alter table public.counters enable row level security;
 
 drop policy if exists "owner reads shop" on public.shops;
 create policy "owner reads shop" on public.shops for select to authenticated using (owner_id = auth.uid());
@@ -79,12 +105,27 @@ drop policy if exists "owner reads files" on public.order_files;
 create policy "owner reads files" on public.order_files for select to authenticated
   using (shop_id in (select id from public.shops where owner_id = auth.uid()));
 
+drop policy if exists "owner reads counters" on public.counters;
+create policy "owner reads counters" on public.counters for select to authenticated
+  using (shop_id in (select id from public.shops where owner_id = auth.uid()));
+drop policy if exists "owner creates counters" on public.counters;
+create policy "owner creates counters" on public.counters for insert to authenticated
+  with check (shop_id in (select id from public.shops where owner_id = auth.uid()));
+drop policy if exists "owner updates counters" on public.counters;
+create policy "owner updates counters" on public.counters for update to authenticated
+  using (shop_id in (select id from public.shops where owner_id = auth.uid()))
+  with check (shop_id in (select id from public.shops where owner_id = auth.uid()));
+drop policy if exists "owner deletes counters" on public.counters;
+create policy "owner deletes counters" on public.counters for delete to authenticated
+  using (shop_id in (select id from public.shops where owner_id = auth.uid()));
+
 -- Explicit grants (works even if "Automatically expose new tables" was turned off)
 grant usage on schema public to anon, authenticated, service_role;
 grant select, insert, update on public.shops to authenticated;
 grant select on public.orders to authenticated;
 grant select on public.order_files to authenticated;
-grant all on public.shops, public.orders, public.order_files to service_role;
+grant select, insert, update, delete on public.counters to authenticated;
+grant all on public.shops, public.orders, public.order_files, public.counters to service_role;
 
 -- Owners may only change status (and updated_at) on orders, not totals/tokens.
 revoke update on public.orders from authenticated, anon;
@@ -93,16 +134,30 @@ revoke insert, update, delete on public.order_files from authenticated, anon;
 
 -- ============ PUBLIC FUNCTIONS (customers, no login) ============
 
--- Shop info for the customer upload page
+-- Shop info for the customer upload page (rates always include passport_sheet, default 40)
 create or replace function public.get_shop_public(p_slug text)
 returns table (id uuid, name text, address text, is_open boolean, rates jsonb, upi_id text)
 language sql stable security definer set search_path = public as $$
-  select s.id, s.name, s.address, s.is_open, s.rates, s.upi_id from public.shops s where s.slug = p_slug;
+  select s.id, s.name, s.address, s.is_open, jsonb_build_object('passport_sheet', 40) || s.rates, s.upi_id
+  from public.shops s where s.slug = p_slug;
 $$;
 
--- Creates an order. Prices are calculated HERE from the shop's rates (never trusted from the browser).
+-- Counter name for the customer page (QR link with ?c=<counter id>)
+create or replace function public.get_counter_public(p_slug text, p_counter uuid)
+returns text language sql stable security definer set search_path = public as $$
+  select c.name from public.counters c join public.shops s on s.id = c.shop_id
+  where s.slug = p_slug and c.id = p_counter;
+$$;
+grant execute on function public.get_counter_public(text, uuid) to anon, authenticated;
+
+-- create_order gets an optional counter. The old 4-argument version is dropped so calls are not ambiguous.
+drop function if exists public.create_order(text, text, text, jsonb);
+
+-- Prices are calculated HERE from the shop's rates (never trusted from the browser).
 -- p_files: [{"name":"a.pdf","mime":"application/pdf","size":1234,"total_pages":10,"page_range":"1-3","pages_to_print":3,"copies":1,"color":false,"duplex":false}]
-create or replace function public.create_order(p_slug text, p_customer_name text, p_note text, p_files jsonb)
+-- Passport sheet item: {"kind":"passport","name":"passport.pdf","mime":"application/pdf","size":1234,"photos":16}
+--   -> sheets = ceil(photos / 30) (30 photos of 35x45 mm fit on one A4), price = sheets * rates.passport_sheet
+create or replace function public.create_order(p_slug text, p_customer_name text, p_note text, p_files jsonb, p_counter uuid default null)
 returns table (order_id uuid, access_key uuid, token int, shop_id uuid, total numeric, paths text[])
 language plpgsql security definer set search_path = public as $$
 declare
@@ -115,9 +170,17 @@ declare
   v_i int := 0;
   v_rate numeric;
   v_pages int;
+  v_total_pages int;
   v_copies int;
+  v_color boolean;
+  v_duplex boolean;
+  v_kind text;
+  v_photos int;
+  v_range text;
   v_price numeric(10,2);
   v_path text;
+  v_counter_id uuid;
+  v_counter_name text;
   v_day_start timestamptz := (date_trunc('day', now() at time zone 'Asia/Kolkata')) at time zone 'Asia/Kolkata';
 begin
   select * into v_shop from public.shops where slug = p_slug for update;
@@ -128,33 +191,54 @@ begin
   end if;
   if jsonb_array_length(p_files) > 20 then raise exception 'Max 20 files per order'; end if;
 
+  -- Unknown / deleted counter -> order goes to the default (no counter), so old QRs keep working.
+  if p_counter is not null then
+    select c.id, c.name into v_counter_id, v_counter_name
+      from public.counters c where c.id = p_counter and c.shop_id = v_shop.id;
+  end if;
+
   select coalesce(max(o.token), 0) + 1 into v_token
     from public.orders o where o.shop_id = v_shop.id and o.created_at >= v_day_start;
 
-  insert into public.orders (shop_id, token, customer_name, note)
-    values (v_shop.id, v_token, nullif(left(trim(coalesce(p_customer_name,'')), 60), ''), nullif(left(trim(coalesce(p_note,'')), 300), ''))
+  insert into public.orders (shop_id, token, customer_name, note, counter_id, counter_name)
+    values (v_shop.id, v_token, nullif(left(trim(coalesce(p_customer_name,'')), 60), ''),
+      nullif(left(trim(coalesce(p_note,'')), 300), ''), v_counter_id, v_counter_name)
     returning * into v_order;
 
   for v_f in select * from jsonb_array_elements(p_files) loop
     v_i := v_i + 1;
-    v_pages := greatest(1, least(2000, coalesce((v_f->>'pages_to_print')::int, 1)));
-    v_copies := greatest(1, least(100, coalesce((v_f->>'copies')::int, 1)));
-    v_rate := coalesce((v_shop.rates ->> (
-      case when coalesce((v_f->>'color')::boolean, false) then 'color' else 'bw' end
-      || case when coalesce((v_f->>'duplex')::boolean, false) then '_double' else '_single' end
-    ))::numeric, 0);
+    v_kind := case when v_f->>'kind' = 'passport' then 'passport' else 'print' end;
+    if v_kind = 'passport' then
+      v_photos := greatest(1, least(300, coalesce((v_f->>'photos')::int, 8)));
+      v_pages := ceil(v_photos / 30.0)::int;
+      v_total_pages := v_pages;
+      v_copies := 1;
+      v_color := true;
+      v_duplex := false;
+      v_range := null;
+      v_rate := coalesce((v_shop.rates ->> 'passport_sheet')::numeric, 40);
+    else
+      v_photos := null;
+      v_pages := greatest(1, least(2000, coalesce((v_f->>'pages_to_print')::int, 1)));
+      v_total_pages := greatest(1, least(2000, coalesce((v_f->>'total_pages')::int, 1)));
+      v_copies := greatest(1, least(100, coalesce((v_f->>'copies')::int, 1)));
+      v_color := coalesce((v_f->>'color')::boolean, false);
+      v_duplex := coalesce((v_f->>'duplex')::boolean, false);
+      v_range := nullif(left(v_f->>'page_range', 60), '');
+      v_rate := coalesce((v_shop.rates ->> (
+        case when v_color then 'color' else 'bw' end || case when v_duplex then '_double' else '_single' end
+      ))::numeric, 0);
+    end if;
     v_price := round(v_pages * v_copies * v_rate, 2);
     v_total := v_total + v_price;
     v_path := v_shop.id::text || '/' || v_order.id::text || '/' || v_i::text || '-' ||
       left(regexp_replace(coalesce(v_f->>'name','file'), '[^A-Za-z0-9._-]', '_', 'g'), 80);
     v_paths := v_paths || v_path;
     insert into public.order_files (order_id, shop_id, storage_path, file_name, mime, size_bytes,
-        total_pages, page_range, pages_to_print, copies, color, duplex, price)
+        total_pages, page_range, pages_to_print, copies, color, duplex, price, item_kind, photos)
       values (v_order.id, v_shop.id, v_path, left(coalesce(v_f->>'name','file'), 200), v_f->>'mime',
-        (v_f->>'size')::bigint,
-        greatest(1, least(2000, coalesce((v_f->>'total_pages')::int, 1))),
-        nullif(left(v_f->>'page_range', 60), ''), v_pages, v_copies,
-        coalesce((v_f->>'color')::boolean, false), coalesce((v_f->>'duplex')::boolean, false), v_price);
+        (v_f->>'size')::bigint, v_total_pages, v_range, v_pages, v_copies, v_color, v_duplex, v_price,
+        v_kind, v_photos);
   end loop;
 
   update public.orders set total = v_total where id = v_order.id;
@@ -212,7 +296,7 @@ $$;
 revoke all on function public.cleanup_candidates() from public, anon, authenticated;
 grant execute on function public.cleanup_candidates() to service_role;
 grant execute on function public.get_shop_public(text) to anon, authenticated;
-grant execute on function public.create_order(text, text, text, jsonb) to anon, authenticated;
+grant execute on function public.create_order(text, text, text, jsonb, uuid) to anon, authenticated;
 grant execute on function public.finalize_order(uuid, uuid) to anon, authenticated;
 grant execute on function public.get_order_status(uuid, uuid) to anon, authenticated;
 grant execute on function public.can_upload(text) to anon, authenticated;
@@ -245,3 +329,5 @@ create policy "owner deletes uploads" on storage.objects for delete to authentic
 do $$ begin
   alter publication supabase_realtime add table public.orders;
 exception when duplicate_object then null; end $$;
+
+notify pgrst, 'reload schema';

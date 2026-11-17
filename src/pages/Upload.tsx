@@ -1,8 +1,9 @@
 import { ChangeEvent, DragEvent, ReactElement, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { Rates, supabase } from '../lib/supabase'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Rates, supabase, UUID_RE } from '../lib/supabase'
 import { countPdfPages } from '../lib/pdf'
 import { countRange, rateFor, rupees } from '../lib/pricing'
+import { imagesToPdf, PASSPORT_OPTIONS, passportPreview, passportSheetPdf, passportSheets } from '../lib/imagePdf'
 import { useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
 
@@ -22,6 +23,13 @@ type Item = {
 
 type Progress = { text: string; pct: number }
 
+type Opts = { copies: number; color: boolean; duplex: boolean }
+
+type Passport = { file: File; photos: number; preview: string }
+
+/** One file that will be uploaded: what create_order gets, and the bytes. */
+type Upload = { payload: Record<string, unknown>; blob: Blob; contentType: string }
+
 const MAX_FILES = 20
 const MAX_SIZE = 50 * 1024 * 1024
 
@@ -35,6 +43,41 @@ function sizeText(b: number) {
   return b > 1024 * 1024 ? (b / 1024 / 1024).toFixed(1) + ' MB' : Math.ceil(b / 1024) + ' KB'
 }
 
+type OptProps = { o: Opts; onChange: (p: Partial<Opts>) => void; disabled?: boolean }
+
+function CopiesField({ o, onChange, disabled }: OptProps) {
+  const { t } = useI18n()
+  return (
+      <div className="field">
+        <span>{t('uCopies')}</span>
+        <div className="stepper">
+          <button type="button" aria-label="-" disabled={disabled || o.copies <= 1}
+            onClick={() => onChange({ copies: Math.max(1, o.copies - 1) })}>−</button>
+          <input type="number" min={1} max={100} value={o.copies} aria-label={t('uCopies')} disabled={disabled}
+            onChange={(e) => onChange({ copies: Math.max(1, Math.min(100, Number(e.target.value) || 1)) })} />
+          <button type="button" aria-label="+" disabled={disabled || o.copies >= 100}
+            onClick={() => onChange({ copies: Math.min(100, o.copies + 1) })}>+</button>
+        </div>
+      </div>
+  )
+}
+
+function SideColor({ o, onChange }: OptProps) {
+  const { t } = useI18n()
+  return (
+    <>
+      <div className="seg">
+        <button type="button" className={!o.color ? 'on' : ''} onClick={() => onChange({ color: false })}>{t('bw')}</button>
+        <button type="button" className={o.color ? 'on' : ''} onClick={() => onChange({ color: true })}>{t('color')}</button>
+      </div>
+      <div className="seg">
+        <button type="button" className={!o.duplex ? 'on' : ''} onClick={() => onChange({ duplex: false })}>{t('oneSide')}</button>
+        <button type="button" className={o.duplex ? 'on' : ''} onClick={() => onChange({ duplex: true })}>{t('bothSides')}</button>
+      </div>
+    </>
+  )
+}
+
 function FileBadge({ kind }: { kind: Item['kind'] }) {
   const label = kind === 'pdf' ? 'PDF' : kind === 'image' ? 'IMG' : 'DOC'
   return <span className={`file-badge k-${kind}`}>{label}</span>
@@ -42,6 +85,9 @@ function FileBadge({ kind }: { kind: Item['kind'] }) {
 
 export default function Upload() {
   const { slug = '' } = useParams()
+  const [params] = useSearchParams()
+  const rawCounter = params.get('c')
+  const counterId = rawCounter && UUID_RE.test(rawCounter) ? rawCounter : null
   const nav = useNavigate()
   const { t, tn, te } = useI18n()
   const [shop, setShop] = useState<ShopPublic | null>(null)
@@ -53,7 +99,12 @@ export default function Upload() {
   const [progress, setProgress] = useState<Progress | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
+  const [combine, setCombine] = useState(true)
+  const [combo, setCombo] = useState<Opts>({ copies: 1, color: true, duplex: false })
+  const [passport, setPassport] = useState<Passport | null>(null)
+  const [counterName, setCounterName] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const passportRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     supabase.rpc('get_shop_public', { p_slug: slug }).then(({ data, error }) => {
@@ -65,13 +116,21 @@ export default function Upload() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug])
 
+  // Counter QR (?c=<id>): show the counter name. Before the v2 database update this RPC does not exist; ignore.
+  useEffect(() => {
+    if (!counterId) return
+    supabase.rpc('get_counter_public', { p_slug: slug, p_counter: counterId }).then(({ data, error }) => {
+      if (!error && typeof data === 'string' && data) setCounterName(data)
+    })
+  }, [slug, counterId])
+
   function update(key: string, patch: Partial<Item>) {
     setItems((list) => list.map((it) => (it.key === key ? { ...it, ...patch } : it)))
   }
 
   async function addFiles(files: File[]) {
     setMsg(null)
-    const room = MAX_FILES - items.length
+    const room = MAX_FILES - items.length - (passport ? 1 : 0)
     if (files.length > room) setMsg(t('uMaxFiles', { n: MAX_FILES }))
     const added: Item[] = []
     for (const f of files.slice(0, Math.max(0, room))) {
@@ -111,6 +170,20 @@ export default function Upload() {
     void addFiles(files)
   }
 
+  async function onPickPassport(e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    setMsg(null)
+    if (f.size > MAX_SIZE) return setMsg(t('uTooBig', { name: f.name }))
+    try {
+      const preview = await passportPreview(f)
+      setPassport((p) => ({ file: f, photos: p?.photos ?? PASSPORT_OPTIONS[0], preview }))
+    } catch {
+      setMsg(t('ppReadFail'))
+    }
+  }
+
   function onDrop(e: DragEvent<HTMLButtonElement>) {
     e.preventDefault()
     setDragging(false)
@@ -118,48 +191,115 @@ export default function Upload() {
     void addFiles(Array.from(e.dataTransfer.files || []))
   }
 
+  const images = items.filter((it) => it.kind === 'image')
+  const combineOn = combine && images.length >= 2
+  const passportRate = shop?.rates.passport_sheet
+  const passportEnabled = passportRate !== undefined && passportRate !== null
+
   const priced = useMemo(() => {
     if (!shop) return []
-    return items.map((it) => {
-      const pages = it.kind === 'pdf' ? countRange(it.range, it.totalPages) : it.totalPages
-      const price = pages ? pages * it.copies * rateFor(shop.rates, it.color, it.duplex) : 0
-      return { it, pages, price }
-    })
-  }, [items, shop])
+    return items
+      .filter((it) => !(combineOn && it.kind === 'image'))
+      .map((it) => {
+        const pages = it.kind === 'pdf' ? countRange(it.range, it.totalPages) : it.totalPages
+        const price = pages ? pages * it.copies * rateFor(shop.rates, it.color, it.duplex) : 0
+        return { it, pages, price }
+      })
+  }, [items, shop, combineOn])
 
-  const total = priced.reduce((s, p) => s + p.price, 0)
+  const comboPrice = shop && combineOn ? images.length * combo.copies * rateFor(shop.rates, combo.color, combo.duplex) : 0
+  const sheets = passport ? passportSheets(passport.photos) : 0
+  const passportPrice = passport ? sheets * Number(passportRate ?? 0) : 0
+  const total = priced.reduce((s, p) => s + p.price, 0) + comboPrice + passportPrice
   const invalid = priced.some((p) => !p.pages) || items.some((i) => i.counting)
+  const uploadCount = priced.length + (combineOn ? 1 : 0) + (passport ? 1 : 0)
 
   async function submit() {
-    if (!shop || !items.length || invalid) return
+    if (!shop || (!items.length && !passport) || invalid) return
     setBusy(true)
     setMsg(null)
     try {
       localStorage.setItem('pq_name', name.trim())
-      const payload = priced.map(({ it, pages }) => ({
-        name: it.file.name,
-        mime: it.file.type || 'application/octet-stream',
-        size: it.file.size,
-        total_pages: it.totalPages,
-        page_range: it.kind === 'pdf' ? it.range.replace(/\s+/g, '') : '',
-        pages_to_print: pages,
-        copies: it.copies,
-        color: it.color,
-        duplex: it.duplex
-      }))
-      const { data, error } = await supabase.rpc('create_order', {
-        p_slug: slug,
-        p_customer_name: name,
-        p_note: note,
-        p_files: payload
+      const uploads: Upload[] = []
+      const fileUpload = (it: Item, pages: number): Upload => ({
+        payload: {
+          name: it.file.name,
+          mime: it.file.type || 'application/octet-stream',
+          size: it.file.size,
+          total_pages: it.totalPages,
+          page_range: it.kind === 'pdf' ? it.range.replace(/\s+/g, '') : '',
+          pages_to_print: pages,
+          copies: it.copies,
+          color: it.color,
+          duplex: it.duplex
+        },
+        blob: it.file,
+        contentType: it.file.type || 'application/octet-stream'
       })
+      let comboAdded = false
+      for (const it of items) {
+        if (combineOn && it.kind === 'image') {
+          if (comboAdded) continue
+          comboAdded = true
+          let pdf: Blob
+          try {
+            pdf = await imagesToPdf(images.map((x) => x.file), (i) =>
+              setProgress({ text: t('uMakingPdf', { i: i + 1, n: images.length }), pct: Math.round((i / images.length) * 100) })
+            )
+          } catch {
+            throw new Error(t('uPdfFail'))
+          }
+          if (pdf.size > MAX_SIZE) throw new Error(t('uTooBig', { name: 'photos.pdf' }))
+          uploads.push({
+            payload: {
+              name: 'photos.pdf',
+              mime: 'application/pdf',
+              size: pdf.size,
+              total_pages: images.length,
+              page_range: '',
+              pages_to_print: images.length,
+              copies: combo.copies,
+              color: combo.color,
+              duplex: combo.duplex
+            },
+            blob: pdf,
+            contentType: 'application/pdf'
+          })
+          continue
+        }
+        const p = priced.find((x) => x.it.key === it.key)
+        if (p?.pages) uploads.push(fileUpload(it, p.pages))
+      }
+      if (passport) {
+        setProgress({ text: t('ppMaking'), pct: 50 })
+        let pdf: Blob
+        try {
+          pdf = await passportSheetPdf(passport.file, passport.photos)
+        } catch {
+          throw new Error(t('ppReadFail'))
+        }
+        uploads.push({
+          payload: { kind: 'passport', name: 'passport-photos.pdf', mime: 'application/pdf', size: pdf.size, photos: passport.photos },
+          blob: pdf,
+          contentType: 'application/pdf'
+        })
+      }
+      setProgress(null)
+
+      const args = { p_slug: slug, p_customer_name: name, p_note: note, p_files: uploads.map((u) => u.payload) }
+      let res = counterId
+        ? await supabase.rpc('create_order', { ...args, p_counter: counterId })
+        : await supabase.rpc('create_order', args)
+      // Database not updated to v2 yet: the counter argument is unknown. Send the order without it.
+      if (counterId && res.error && res.error.code === 'PGRST202') res = await supabase.rpc('create_order', args)
+      const { data, error } = res
       if (error) throw error
       const order = (data as { order_id: string; access_key: string; token: number; paths: string[] }[])[0]
-      for (let i = 0; i < items.length; i++) {
-        setProgress({ text: t('uUploading', { i: i + 1, n: items.length }), pct: Math.round((i / items.length) * 100) })
-        const it = items[i]
-        const { error: upErr } = await supabase.storage.from('uploads').upload(order.paths[i], it.file, {
-          contentType: it.file.type || 'application/octet-stream',
+      for (let i = 0; i < uploads.length; i++) {
+        setProgress({ text: t('uUploading', { i: i + 1, n: uploads.length }), pct: Math.round((i / uploads.length) * 100) })
+        const u = uploads[i]
+        const { error: upErr } = await supabase.storage.from('uploads').upload(order.paths[i], u.blob, {
+          contentType: u.contentType,
           upsert: false
         })
         if (upErr) throw upErr
@@ -188,7 +328,8 @@ export default function Upload() {
   if (loadErr) return shell(<div className="card center"><p>{loadErr.notFound ? t('uShopNotFound') : loadErr.text}</p></div>)
   if (!shop) return shell(<p className="muted center loading">{t('loading')}</p>)
 
-  const hasItems = items.length > 0
+  const hasItems = items.length > 0 || passport !== null
+  const roomLeft = MAX_FILES - items.length - (passport ? 1 : 0)
 
   return shell(
     <>
@@ -196,6 +337,7 @@ export default function Upload() {
         <div className="shop-avatar" aria-hidden="true">{shop.name.trim().charAt(0).toUpperCase() || 'P'}</div>
         <h1>{shop.name}</h1>
         {shop.address && <p className="muted">{shop.address}</p>}
+        {counterName && <p className="counter-tag">🧾 {t('uCounter', { name: counterName })}</p>}
         <p className="rates-pill">
           {t('ratesLine', { bw: rupees(shop.rates.bw_single), color: rupees(shop.rates.color_single) })}
         </p>
@@ -211,6 +353,7 @@ export default function Upload() {
         <>
           <input ref={inputRef} type="file" multiple hidden onChange={onPick}
             accept=".pdf,image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx" />
+          <input ref={passportRef} type="file" hidden accept="image/*" onChange={(e) => void onPickPassport(e)} />
 
           {!hasItems ? (
             <button
@@ -231,6 +374,53 @@ export default function Upload() {
               <span className="dz-sub">{t('uDropSub')}</span>
             </button>
           ) : null}
+
+          {!hasItems && passportEnabled && (
+            <button type="button" className="btn block lg passport-entry" onClick={() => passportRef.current?.click()} disabled={busy}>
+              🪪 {t('ppEntry')} <span className="small muted">· {t('ppEntrySub')}</span>
+            </button>
+          )}
+
+          {images.length >= 2 && (
+            <label className="card check-row">
+              <input type="checkbox" checked={combine} onChange={(e) => setCombine(e.target.checked)} disabled={busy} />
+              <span>
+                <strong>{t('uCombine')}</strong>
+                <span className="small muted">{t('uCombineSub')}</span>
+              </span>
+            </label>
+          )}
+
+          {combineOn && (
+            <div className="card file-card">
+              <div className="file-top">
+                <FileBadge kind="pdf" />
+                <div className="fname">
+                  <strong>{t('uComboTitle', { n: images.length })}</strong>
+                  <span className="muted small">{tn('uPages_one', 'uPages_other', images.length)} · A4</span>
+                </div>
+              </div>
+              <ul className="combo-list">
+                {images.map((it, i) => (
+                  <li key={it.key}>
+                    <span className="combo-num">{i + 1}</span>
+                    <span className="combo-name">{it.file.name}</span>
+                    <span className="small muted">{sizeText(it.file.size)}</span>
+                    <button type="button" className="icon-btn sm" aria-label={t('uRemove')} title={t('uRemove')}
+                      onClick={() => setItems((l) => l.filter((x) => x.key !== it.key))} disabled={busy}>✕</button>
+                  </li>
+                ))}
+              </ul>
+              <div className="grid2">
+                <CopiesField o={combo} onChange={(p) => setCombo((c) => ({ ...c, ...p }))} disabled={busy} />
+              </div>
+              <SideColor o={combo} onChange={(p) => setCombo((c) => ({ ...c, ...p }))} />
+              <div className="file-price">
+                <span className="small muted">{t('calcLine', { p: images.length, c: combo.copies })}</span>
+                <strong>{rupees(comboPrice)}</strong>
+              </div>
+            </div>
+          )}
 
           {priced.map(({ it, pages, price }) => (
             <div className="card file-card" key={it.key}>
@@ -261,27 +451,10 @@ export default function Upload() {
                       onChange={(e) => update(it.key, { totalPages: Math.max(1, Math.min(2000, Number(e.target.value) || 1)) })} />
                   </label>
                 )}
-                <div className="field">
-                  <span>{t('uCopies')}</span>
-                  <div className="stepper">
-                    <button type="button" aria-label="-" disabled={it.copies <= 1}
-                      onClick={() => update(it.key, { copies: Math.max(1, it.copies - 1) })}>−</button>
-                    <input type="number" min={1} max={100} value={it.copies} aria-label={t('uCopies')}
-                      onChange={(e) => update(it.key, { copies: Math.max(1, Math.min(100, Number(e.target.value) || 1)) })} />
-                    <button type="button" aria-label="+" disabled={it.copies >= 100}
-                      onClick={() => update(it.key, { copies: Math.min(100, it.copies + 1) })}>+</button>
-                  </div>
-                </div>
+                <CopiesField o={it} onChange={(p) => update(it.key, p)} disabled={busy} />
               </div>
 
-              <div className="seg">
-                <button type="button" className={!it.color ? 'on' : ''} onClick={() => update(it.key, { color: false })}>{t('bw')}</button>
-                <button type="button" className={it.color ? 'on' : ''} onClick={() => update(it.key, { color: true })}>{t('color')}</button>
-              </div>
-              <div className="seg">
-                <button type="button" className={!it.duplex ? 'on' : ''} onClick={() => update(it.key, { duplex: false })}>{t('oneSide')}</button>
-                <button type="button" className={it.duplex ? 'on' : ''} onClick={() => update(it.key, { duplex: true })}>{t('bothSides')}</button>
-              </div>
+              <SideColor o={it} onChange={(p) => update(it.key, p)} />
 
               <div className="file-price">
                 <span className={pages ? 'small muted' : 'small err-text'}>
@@ -292,10 +465,47 @@ export default function Upload() {
             </div>
           ))}
 
-          {hasItems && items.length < MAX_FILES && (
-            <button type="button" className="btn dashed block lg" onClick={() => inputRef.current?.click()} disabled={busy}>
-              {t('uAddMore')}
-            </button>
+          {passport && (
+            <div className="card file-card passport-card">
+              <div className="file-top">
+                <img className="pp-thumb" src={passport.preview} alt="" />
+                <div className="fname">
+                  <strong>{t('ppTitle')}</strong>
+                  <span className="muted small">{t('ppSub')}</span>
+                  <button type="button" className="link small" onClick={() => passportRef.current?.click()} disabled={busy}>
+                    {t('ppChange')}
+                  </button>
+                </div>
+                <button type="button" className="icon-btn" aria-label={t('uRemove')} title={t('uRemove')}
+                  onClick={() => setPassport(null)} disabled={busy}>✕</button>
+              </div>
+              <div className="field">
+                <span>{t('ppHowMany')}</span>
+                <div className="seg">
+                  {PASSPORT_OPTIONS.map((n) => (
+                    <button type="button" key={n} className={passport.photos === n ? 'on' : ''}
+                      onClick={() => setPassport({ ...passport, photos: n })}>{n}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="file-price">
+                <span className="small muted">{t('ppCalc', { n: passport.photos, s: sheets })}</span>
+                <strong>{rupees(passportPrice)}</strong>
+              </div>
+            </div>
+          )}
+
+          {hasItems && roomLeft > 0 && (
+            <div className="add-row">
+              <button type="button" className="btn dashed block lg" onClick={() => inputRef.current?.click()} disabled={busy}>
+                {t('uAddMore')}
+              </button>
+              {passportEnabled && !passport && (
+                <button type="button" className="btn dashed block lg" onClick={() => passportRef.current?.click()} disabled={busy}>
+                  🪪 {t('ppEntry')}
+                </button>
+              )}
+            </div>
           )}
 
           {hasItems && (
@@ -325,7 +535,7 @@ export default function Upload() {
                 )}
                 <div className="sticky-row">
                   <div className="sticky-total">
-                    <span className="small muted">{t('total')} · {tn('files_one', 'files_other', items.length)}</span>
+                    <span className="small muted">{t('total')} · {tn('files_one', 'files_other', uploadCount)}</span>
                     <strong>{rupees(total)}</strong>
                   </div>
                   <button type="button" className="btn primary lg" onClick={submit} disabled={busy || invalid}>

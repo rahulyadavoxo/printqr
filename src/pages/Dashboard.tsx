@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
-import { Order, OrderStatus, Rates, Shop, shopUrl, supabase } from '../lib/supabase'
+import { Counter, DEFAULT_PASSPORT_RATE, Order, OrderStatus, Rates, Shop, shopUrl, supabase } from '../lib/supabase'
 import { useSession } from '../lib/useSession'
 import { rupees } from '../lib/pricing'
 import { ding, unlockAudio } from '../lib/sound'
@@ -24,13 +24,30 @@ export default function Dashboard() {
   const [params, setParams] = useSearchParams()
   const tab = (params.get('tab') as Tab) || 'orders'
   const [shop, setShop] = useState<Shop | null>(null)
+  const [counters, setCounters] = useState<Counter[]>([])
+  // false until the v2 database update (supabase/migrations/2026-11-17-v2.sql) has been run
+  const [v2, setV2] = useState(false)
+
+  const loadCounters = useCallback(async (shopId: string) => {
+    const { data, error } = await supabase.from('counters').select('*').eq('shop_id', shopId).order('created_at')
+    if (error) {
+      setV2(false)
+      setCounters([])
+    } else {
+      setV2(true)
+      setCounters((data || []) as Counter[])
+    }
+  }, [])
 
   const loadShop = useCallback(async () => {
     if (!session) return
     const { data } = await supabase.from('shops').select('*').eq('owner_id', session.user.id).maybeSingle()
     if (!data) nav('/setup', { replace: true })
-    else setShop(data as Shop)
-  }, [session, nav])
+    else {
+      setShop(data as Shop)
+      void loadCounters((data as Shop).id)
+    }
+  }, [session, nav, loadCounters])
 
   useEffect(() => {
     if (loading) return
@@ -78,11 +95,20 @@ export default function Dashboard() {
             <button key={x.id} type="button" className={tab === x.id ? 'on' : ''} onClick={() => setParams({ tab: x.id })}>{t(x.label)}</button>
           ))}
         </nav>
-        {tab === 'orders' && <Orders shop={shop} />}
-        {tab === 'rates' && <RatesTab shop={shop} onSaved={setShop} />}
-        {tab === 'qr' && <QrTab shop={shop} />}
+        {tab === 'orders' && <Orders shop={shop} counters={counters} />}
+        {tab === 'rates' && <RatesTab shop={shop} v2={v2} onSaved={setShop} />}
+        {tab === 'qr' && (
+          <QrTab shop={shop} counters={counters} counterId={params.get('c') || ''}
+            onCounter={(c) => setParams(c ? { tab: 'qr', c } : { tab: 'qr' }, { replace: true })} />
+        )}
         {tab === 'report' && <Report shop={shop} />}
-        {tab === 'settings' && <Settings shop={shop} onSaved={setShop} onLogout={logout} />}
+        {tab === 'settings' && (
+          <>
+            <Settings shop={shop} onSaved={setShop} onLogout={logout} />
+            <CountersCard shop={shop} counters={counters} v2={v2} onChanged={() => loadCounters(shop.id)}
+              onShowQr={(c) => setParams({ tab: 'qr', c })} />
+          </>
+        )}
       </div>
     </div>
   )
@@ -109,9 +135,30 @@ function timeText(iso: string) {
   return new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
 }
 
-function Orders({ shop }: { shop: Shop }) {
+const FILTER_KEY = 'pq_counter_filter'
+/** 'all', 'none' (orders from the main QR, no counter) or a counter id */
+function matchesCounter(o: Order, filter: string) {
+  if (filter === 'all') return true
+  if (filter === 'none') return !o.counter_id
+  return o.counter_id === filter
+}
+
+function Orders({ shop, counters }: { shop: Shop; counters: Counter[] }) {
   const { t, te } = useI18n()
   const [orders, setOrders] = useState<Order[]>([])
+  const [filter, setFilterState] = useState<string>(() => localStorage.getItem(FILTER_KEY) || 'all')
+  function setFilter(f: string) {
+    setFilterState(f)
+    try {
+      localStorage.setItem(FILTER_KEY, f)
+    } catch {
+      /* ignore */
+    }
+  }
+  // A saved filter for a counter that was deleted falls back to all orders.
+  const activeFilter = filter === 'all' || filter === 'none' || counters.some((c) => c.id === filter) ? filter : 'all'
+  const filterRef = useRef(activeFilter)
+  filterRef.current = activeFilter
   const [showDone, setShowDone] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const known = useRef<Set<string> | null>(null)
@@ -134,7 +181,9 @@ function Orders({ shop }: { shop: Shop }) {
     const list = (data || []) as Order[]
     const ids = new Set(list.map((o) => o.id))
     if (known.current) {
-      const fresh = list.filter((o) => o.status === 'received' && !known.current!.has(o.id))
+      // Ring only for orders this screen shows (counter filter, saved per device)
+      const f = filterRef.current
+      const fresh = list.filter((o) => o.status === 'received' && !known.current!.has(o.id) && matchesCounter(o, f))
       if (fresh.length) {
         ding()
         if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
@@ -202,12 +251,23 @@ function Orders({ shop }: { shop: Shop }) {
     void load()
   }
 
-  const active = orders.filter((o) => ['received', 'printing', 'ready'].includes(o.status))
-  const finished = orders.filter((o) => ['done', 'cancelled'].includes(o.status))
+  const shown = orders.filter((o) => matchesCounter(o, activeFilter))
+  const active = shown.filter((o) => ['received', 'printing', 'ready'].includes(o.status))
+  const finished = shown.filter((o) => ['done', 'cancelled'].includes(o.status))
 
   return (
     <section>
       {err && <p className="notice error">{err}</p>}
+      {counters.length > 0 && (
+        <div className="counter-filter">
+          <label className="small muted" htmlFor="counter-filter">{t('cFilter')}</label>
+          <select id="counter-filter" value={activeFilter} onChange={(e) => setFilter(e.target.value)}>
+            <option value="all">{t('cAll')}</option>
+            <option value="none">{t('cMain')}</option>
+            {counters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      )}
       <div className="section-head">
         <h2>{t('dActive')}</h2>
         <span className="count-badge">{active.length}</span>
@@ -258,6 +318,7 @@ function OrderCard(props: {
           <strong>{o.customer_name || t('customer')}</strong>
           <div className="small muted">
             {timeText(o.created_at)} · <span className={`pill tiny s-${o.status}`}>{t(STATUS_TEXT[o.status])}</span>
+            {o.counter_name && <> <span className="pill tiny counter-pill">🧾 {o.counter_name}</span></>}
           </div>
         </div>
         <strong className="amt">{rupees(Number(o.total))}</strong>
@@ -267,11 +328,18 @@ function OrderCard(props: {
         {(o.order_files || []).map((f) => (
           <li key={f.id}>
             <div className="fname">{f.file_name}</div>
-            <div className="small muted">
-              {f.color ? t('color') : t('bw')} · {f.duplex ? t('bothSides') : t('oneSide')} ·{' '}
-              {t('calcLine', { p: f.pages_to_print, c: f.copies })}
-              {f.page_range ? ` (${f.page_range})` : ''} · {rupees(Number(f.price))}
-            </div>
+            {f.item_kind === 'passport' ? (
+              <div className="small muted">
+                <span className="pill tiny pp-pill">🪪 {t('ppSheetLabel')}</span>{' '}
+                {t('ppCalc', { n: f.photos ?? '?', s: f.pages_to_print })} · {rupees(Number(f.price))}
+              </div>
+            ) : (
+              <div className="small muted">
+                {f.color ? t('color') : t('bw')} · {f.duplex ? t('bothSides') : t('oneSide')} ·{' '}
+                {t('calcLine', { p: f.pages_to_print, c: f.copies })}
+                {f.page_range ? ` (${f.page_range})` : ''} · {rupees(Number(f.price))}
+              </div>
+            )}
             {!o.files_deleted && (
               <div className="file-actions">
                 <button type="button" className="btn small soft" onClick={() => onOpen(f.storage_path)}>{t('openPrint')}</button>
@@ -297,24 +365,28 @@ function OrderCard(props: {
 
 /* ------------------------------------------------------------------ */
 
-function RatesTab({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void }) {
+function RatesTab({ shop, v2, onSaved }: { shop: Shop; v2: boolean; onSaved: (s: Shop) => void }) {
   const { t, te } = useI18n()
-  const [r, setR] = useState<Rates>(shop.rates)
+  const [r, setR] = useState<Rates>({ ...shop.rates, passport_sheet: shop.rates.passport_sheet ?? DEFAULT_PASSPORT_RATE })
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
-  const fields: { k: keyof Rates; label: Key }[] = [
-    { k: 'bw_single', label: 'rate_bw_single' },
-    { k: 'bw_double', label: 'rate_bw_double' },
-    { k: 'color_single', label: 'rate_color_single' },
-    { k: 'color_double', label: 'rate_color_double' }
+  const fields: { k: keyof Rates; label: Key; hint: Key }[] = [
+    { k: 'bw_single', label: 'rate_bw_single', hint: 'perPage' },
+    { k: 'bw_double', label: 'rate_bw_double', hint: 'perPage' },
+    { k: 'color_single', label: 'rate_color_single', hint: 'perPage' },
+    { k: 'color_double', label: 'rate_color_double', hint: 'perPage' }
   ]
+  // The passport rate is only used by the server after the v2 database update.
+  if (v2) fields.push({ k: 'passport_sheet', label: 'rate_passport_sheet', hint: 'perSheet' })
   async function save(e: FormEvent) {
     e.preventDefault()
     const clean: Rates = {
+      ...shop.rates,
       bw_single: Math.max(0, Number(r.bw_single) || 0),
       bw_double: Math.max(0, Number(r.bw_double) || 0),
       color_single: Math.max(0, Number(r.color_single) || 0),
       color_double: Math.max(0, Number(r.color_double) || 0)
     }
+    if (v2) clean.passport_sheet = Math.max(0, Number(r.passport_sheet) || 0)
     const { data, error } = await supabase.from('shops').update({ rates: clean }).eq('id', shop.id).select().single()
     if (error) return setMsg({ text: te(error), error: true })
     onSaved(data as Shop)
@@ -330,10 +402,10 @@ function RatesTab({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void })
             <span>{t(f.label)}</span>
             <div className="input-affix">
               <span className="affix">₹</span>
-              <input type="number" step="0.5" min={0} value={r[f.k]} inputMode="decimal"
+              <input type="number" step="0.5" min={0} value={r[f.k] ?? 0} inputMode="decimal"
                 onChange={(e) => setR({ ...r, [f.k]: e.target.value as unknown as number })} />
             </div>
-            <small className="hint">{t('perPage')}</small>
+            <small className="hint">{t(f.hint)}</small>
           </label>
         ))}
       </div>
@@ -345,9 +417,16 @@ function RatesTab({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void })
 
 /* ------------------------------------------------------------------ */
 
-function QrTab({ shop }: { shop: Shop }) {
+function QrTab({ shop, counters, counterId, onCounter }: {
+  shop: Shop
+  counters: Counter[]
+  counterId: string
+  onCounter: (id: string) => void
+}) {
   const { t } = useI18n()
-  const url = shopUrl(shop.slug)
+  const counter = counters.find((c) => c.id === counterId) || null
+  const counterName = counter?.name || ''
+  const url = shopUrl(shop.slug, counter?.id)
   const [img, setImg] = useState('')
   const [copied, setCopied] = useState(false)
   const [card, setCard] = useState('')
@@ -371,7 +450,9 @@ function QrTab({ shop }: { shop: Shop }) {
     const m = qr.modules as unknown as { size: number; data: ArrayLike<number> }
     const n = m.size
     const dark = (r: number, c: number) => !!m.data[r * n + c]
-    const W = 1080, H = 1500
+    // Extra band for the counter name when this is a counter QR
+    const off = counterName ? 80 : 0
+    const W = 1080, H = 1500 + off
     const c = document.createElement('canvas')
     c.width = W
     c.height = H
@@ -439,8 +520,23 @@ function QrTab({ shop }: { shop: Shop }) {
       g.fillText('📍 ' + shop.address, W / 2, 268, W - 140)
     }
 
+    // Counter name pill
+    if (counterName) {
+      const label = '🧾 ' + counterName
+      fitText(label, 800, 40, 26, W - 260)
+      const cw = Math.min(g.measureText(label).width + 80, W - 160)
+      const grad = g.createLinearGradient((W - cw) / 2, 0, (W + cw) / 2, 0)
+      grad.addColorStop(0, '#2348e0')
+      grad.addColorStop(1, '#7c3aed')
+      rr((W - cw) / 2, 300, cw, 68, 34)
+      g.fillStyle = grad
+      g.fill()
+      g.fillStyle = '#ffffff'
+      g.fillText(label, W / 2, 335, cw - 50)
+    }
+
     // White QR card with shadow
-    const cardS = 760, cx = (W - cardS) / 2, cy = 320
+    const cardS = 760, cx = (W - cardS) / 2, cy = 320 + off
     g.save()
     g.shadowColor = 'rgba(35,72,224,0.18)'
     g.shadowBlur = 50
@@ -538,7 +634,7 @@ function QrTab({ shop }: { shop: Shop }) {
     g.fillText(rates, W / 2, y + 1, W - 130)
 
     setCard(c.toDataURL('image/png'))
-  }, [url, shop.name, shop.address, shop.rates.bw_single, shop.rates.color_single, t, logoEl])
+  }, [url, counterName, shop.name, shop.address, shop.rates.bw_single, shop.rates.color_single, t, logoEl])
   function copy() {
     void navigator.clipboard?.writeText(url).then(() => {
       setCopied(true)
@@ -549,15 +645,30 @@ function QrTab({ shop }: { shop: Shop }) {
     <section>
       <div className="card no-print qr-actions">
         <p className="small muted">{t('qrHint')}</p>
+        {counters.length > 0 && (
+          <label className="field">
+            <span>{t('cQrFor')}</span>
+            <select value={counter?.id || ''} onChange={(e) => onCounter(e.target.value)}>
+              <option value="">{t('cMain')}</option>
+              {counters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+        )}
         <div className="btn-row">
           <button type="button" className="btn primary" onClick={() => window.print()}>{t('printPoster')}</button>
-          {card && <a className="btn" href={card} download={`${shop.slug}-qr.png`}>{t('downloadQr')}</a>}
+          {card && (
+            <a className="btn" href={card}
+              download={`${shop.slug}${counterName ? '-' + (counterName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'counter') : ''}-qr.png`}>
+              {t('downloadQr')}
+            </a>
+          )}
           <button type="button" className="btn" onClick={copy}>{copied ? t('linkCopied') : t('copyLink')}</button>
         </div>
       </div>
       <div className="poster">
         <div className="poster-brand"><LogoMark size={26} /> PrintQR</div>
         <div className="poster-top">{shop.name}</div>
+        {counterName && <div className="poster-counter">🧾 {counterName}</div>}
         <h2>{t('posterHeadline')}</h2>
         <div className="poster-qr">{img && <img src={img} alt="Shop QR code" />}</div>
         <div className="poster-rates">
@@ -673,5 +784,93 @@ function Settings({ shop, onSaved, onLogout }: { shop: Shop; onSaved: (s: Shop) 
       <button className="btn primary block lg">{t('save')}</button>
       <button type="button" className="btn block lg" onClick={onLogout}>{t('logout')}</button>
     </form>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+
+const MAX_COUNTERS = 20
+
+function CountersCard({ shop, counters, v2, onChanged, onShowQr }: {
+  shop: Shop
+  counters: Counter[]
+  v2: boolean
+  onChanged: () => Promise<void> | void
+  onShowQr: (id: string) => void
+}) {
+  const { t, te } = useI18n()
+  const [names, setNames] = useState<Record<string, string>>({})
+  const [newName, setNewName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
+
+  async function run(fn: () => PromiseLike<{ error: unknown }>, ok: Key): Promise<boolean> {
+    setBusy(true)
+    setMsg(null)
+    const { error } = await fn()
+    setBusy(false)
+    if (error) {
+      setMsg({ text: te(error), error: true })
+      return false
+    }
+    setMsg({ text: t(ok), error: false })
+    await onChanged()
+    return true
+  }
+
+  function add(e: FormEvent) {
+    e.preventDefault()
+    const name = newName.trim().slice(0, 40)
+    if (!name) return
+    void run(() => supabase.from('counters').insert({ shop_id: shop.id, name }), 'cAdded').then((ok) => ok && setNewName(''))
+  }
+
+  function rename(c: Counter) {
+    const name = (names[c.id] ?? c.name).trim().slice(0, 40)
+    if (!name || name === c.name) return
+    void run(() => supabase.from('counters').update({ name }).eq('id', c.id), 'saved')
+  }
+
+  function remove(c: Counter) {
+    if (!confirm(t('cConfirmDelete', { name: c.name }))) return
+    void run(() => supabase.from('counters').delete().eq('id', c.id), 'cDeleted')
+  }
+
+  return (
+    <div className="card form-card">
+      <h2 className="card-title">{t('cTitle')}</h2>
+      <p className="small muted">{t('cSub')}</p>
+      {!v2 ? (
+        <p className="notice">{t('cNeedsUpdate')}</p>
+      ) : (
+        <>
+          {counters.length > 0 && (
+            <ul className="counter-list">
+              {counters.map((c) => (
+                <li key={c.id}>
+                  <input value={names[c.id] ?? c.name} maxLength={40} aria-label={t('cName')}
+                    onChange={(e) => setNames({ ...names, [c.id]: e.target.value })}
+                    onBlur={() => rename(c)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); rename(c) } }} />
+                  <div className="counter-actions">
+                    <button type="button" className="btn small soft" onClick={() => onShowQr(c.id)}>{t('cQr')}</button>
+                    <button type="button" className="btn small danger-outline" onClick={() => remove(c)} disabled={busy}>{t('cDelete')}</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {counters.length < MAX_COUNTERS && (
+            <form className="counter-add" onSubmit={add}>
+              <input value={newName} maxLength={40} placeholder={t('cNamePh')} aria-label={t('cName')}
+                onChange={(e) => setNewName(e.target.value)} />
+              <button className="btn primary" disabled={busy || !newName.trim()}>{t('cAdd')}</button>
+            </form>
+          )}
+          <p className="small muted">{t('cMainHint')}</p>
+        </>
+      )}
+      {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
+    </div>
   )
 }
