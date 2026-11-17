@@ -1,20 +1,23 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
-import { Counter, DEFAULT_PASSPORT_RATE, Order, OrderStatus, Rates, Shop, shopUrl, supabase } from '../lib/supabase'
+import { Counter, DEFAULT_PASSPORT_RATE, FREE_COUNTER_LIMIT, Order, OrderStatus, plansReady, Rates, Shop, shopIsPro, shopUrl, supabase } from '../lib/supabase'
 import { useSession } from '../lib/useSession'
 import { rupees } from '../lib/pricing'
 import { ding, unlockAudio } from '../lib/sound'
 import { Key, useI18n } from '../lib/i18n'
 import { LogoMark, TopBar } from '../components/TopBar'
+import AdSlot from '../components/AdSlot'
+import { Period, PLAN_PRICES, startUpgrade, callFn } from '../lib/billing'
 
-type Tab = 'orders' | 'rates' | 'qr' | 'report' | 'settings'
+type Tab = 'orders' | 'rates' | 'qr' | 'report' | 'settings' | 'plan'
 const TABS: { id: Tab; label: Key }[] = [
   { id: 'orders', label: 'tabOrders' },
   { id: 'rates', label: 'tabRates' },
   { id: 'qr', label: 'tabQr' },
   { id: 'report', label: 'tabReport' },
-  { id: 'settings', label: 'tabSettings' }
+  { id: 'settings', label: 'tabSettings' },
+  { id: 'plan', label: 'tabPlan' }
 ]
 
 export default function Dashboard() {
@@ -75,6 +78,14 @@ export default function Dashboard() {
     )
   }
 
+  // Before the v3 database update there are no plans: no ads, no locks (old behaviour).
+  const ready = plansReady(shop)
+  const pro = shopIsPro(shop)
+  const free = ready && !pro
+  // Free shops can use only the first FREE_COUNTER_LIMIT counters (the rest show a lock).
+  const usable = free ? counters.slice(0, FREE_COUNTER_LIMIT) : counters
+  const goPlan = () => setParams({ tab: 'plan' })
+
   return (
     <div className="app-page dash" onClick={unlockAudio}>
       <TopBar to={null} wide>
@@ -96,19 +107,22 @@ export default function Dashboard() {
           ))}
         </nav>
         {tab === 'orders' && <Orders shop={shop} counters={counters} />}
-        {tab === 'rates' && <RatesTab shop={shop} v2={v2} onSaved={setShop} />}
+        {tab === 'rates' && <RatesTab shop={shop} v2={v2} passportLocked={free} onUpgrade={goPlan} onSaved={setShop} />}
         {tab === 'qr' && (
-          <QrTab shop={shop} counters={counters} counterId={params.get('c') || ''}
+          <QrTab shop={shop} counters={usable} counterId={params.get('c') || ''}
             onCounter={(c) => setParams(c ? { tab: 'qr', c } : { tab: 'qr' }, { replace: true })} />
         )}
         {tab === 'report' && <Report shop={shop} />}
         {tab === 'settings' && (
           <>
             <Settings shop={shop} onSaved={setShop} onLogout={logout} />
-            <CountersCard shop={shop} counters={counters} v2={v2} onChanged={() => loadCounters(shop.id)}
+            <CountersCard shop={shop} counters={counters} usable={usable.length} locked={free} v2={v2}
+              onChanged={() => loadCounters(shop.id)} onUpgrade={goPlan}
               onShowQr={(c) => setParams({ tab: 'qr', c })} />
           </>
         )}
+        {tab === 'plan' && <PlanTab shop={shop} email={session?.user.email} onChanged={loadShop} />}
+        {free && <AdSlot className="dash-ad" />}
       </div>
     </div>
   )
@@ -365,7 +379,13 @@ function OrderCard(props: {
 
 /* ------------------------------------------------------------------ */
 
-function RatesTab({ shop, v2, onSaved }: { shop: Shop; v2: boolean; onSaved: (s: Shop) => void }) {
+function RatesTab({ shop, v2, passportLocked, onUpgrade, onSaved }: {
+  shop: Shop
+  v2: boolean
+  passportLocked: boolean
+  onUpgrade: () => void
+  onSaved: (s: Shop) => void
+}) {
   const { t, te } = useI18n()
   const [r, setR] = useState<Rates>({ ...shop.rates, passport_sheet: shop.rates.passport_sheet ?? DEFAULT_PASSPORT_RATE })
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
@@ -376,7 +396,8 @@ function RatesTab({ shop, v2, onSaved }: { shop: Shop; v2: boolean; onSaved: (s:
     { k: 'color_double', label: 'rate_color_double', hint: 'perPage' }
   ]
   // The passport rate is only used by the server after the v2 database update.
-  if (v2) fields.push({ k: 'passport_sheet', label: 'rate_passport_sheet', hint: 'perSheet' })
+  // Free plan: passport sheet is a Pro feature (shown locked below, not editable).
+  if (v2 && !passportLocked) fields.push({ k: 'passport_sheet', label: 'rate_passport_sheet', hint: 'perSheet' })
   async function save(e: FormEvent) {
     e.preventDefault()
     const clean: Rates = {
@@ -386,7 +407,7 @@ function RatesTab({ shop, v2, onSaved }: { shop: Shop; v2: boolean; onSaved: (s:
       color_single: Math.max(0, Number(r.color_single) || 0),
       color_double: Math.max(0, Number(r.color_double) || 0)
     }
-    if (v2) clean.passport_sheet = Math.max(0, Number(r.passport_sheet) || 0)
+    if (v2 && !passportLocked) clean.passport_sheet = Math.max(0, Number(r.passport_sheet) || 0)
     const { data, error } = await supabase.from('shops').update({ rates: clean }).eq('id', shop.id).select().single()
     if (error) return setMsg({ text: te(error), error: true })
     onSaved(data as Shop)
@@ -408,6 +429,19 @@ function RatesTab({ shop, v2, onSaved }: { shop: Shop; v2: boolean; onSaved: (s:
             <small className="hint">{t(f.hint)}</small>
           </label>
         ))}
+        {v2 && passportLocked && (
+          <div className="field locked-field">
+            <span>{t('rate_passport_sheet')} <span className="pro-badge">{t('planPro')}</span></span>
+            <div className="input-affix">
+              <span className="affix">🔒</span>
+              <input value="" disabled placeholder={t('proFeature')} aria-label={t('rate_passport_sheet')} />
+            </div>
+            <small className="hint">
+              {t('ppProOnly')}{' '}
+              <button type="button" className="link small" onClick={onUpgrade}>{t('seePlans')}</button>
+            </small>
+          </div>
+        )}
       </div>
       {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
       <button className="btn primary block lg">{t('save')}</button>
@@ -791,11 +825,16 @@ function Settings({ shop, onSaved, onLogout }: { shop: Shop; onSaved: (s: Shop) 
 
 const MAX_COUNTERS = 20
 
-function CountersCard({ shop, counters, v2, onChanged, onShowQr }: {
+function CountersCard({ shop, counters, usable, locked, v2, onChanged, onUpgrade, onShowQr }: {
   shop: Shop
   counters: Counter[]
+  /** How many of `counters` (oldest first) can be used. The rest are locked on the Free plan. */
+  usable: number
+  /** Free plan: no new counters beyond the free limit. */
+  locked: boolean
   v2: boolean
   onChanged: () => Promise<void> | void
+  onUpgrade: () => void
   onShowQr: (id: string) => void
 }) {
   const { t, te } = useI18n()
@@ -846,7 +885,7 @@ function CountersCard({ shop, counters, v2, onChanged, onShowQr }: {
         <>
           {counters.length > 0 && (
             <ul className="counter-list">
-              {counters.map((c) => (
+              {counters.map((c, i) => i < usable ? (
                 <li key={c.id}>
                   <input value={names[c.id] ?? c.name} maxLength={40} aria-label={t('cName')}
                     onChange={(e) => setNames({ ...names, [c.id]: e.target.value })}
@@ -857,10 +896,23 @@ function CountersCard({ shop, counters, v2, onChanged, onShowQr }: {
                     <button type="button" className="btn small danger-outline" onClick={() => remove(c)} disabled={busy}>{t('cDelete')}</button>
                   </div>
                 </li>
+              ) : (
+                <li key={c.id} className="counter-locked">
+                  <span className="counter-locked-name">🔒 {c.name} <span className="small muted">· {t('cLocked')}</span></span>
+                  <div className="counter-actions">
+                    <button type="button" className="btn small soft" onClick={onUpgrade}>{t('seePlans')}</button>
+                    <button type="button" className="btn small danger-outline" onClick={() => remove(c)} disabled={busy}>{t('cDelete')}</button>
+                  </div>
+                </li>
               ))}
             </ul>
           )}
-          {counters.length < MAX_COUNTERS && (
+          {locked && counters.length >= FREE_COUNTER_LIMIT ? (
+            <div className="upgrade-prompt">
+              <span>🔒 {t('cUpgradePrompt')} <span className="pro-badge">{t('planPro')}</span></span>
+              <button type="button" className="btn primary small" onClick={onUpgrade}>{t('seePlans')}</button>
+            </div>
+          ) : counters.length < MAX_COUNTERS && (
             <form className="counter-add" onSubmit={add}>
               <input value={newName} maxLength={40} placeholder={t('cNamePh')} aria-label={t('cName')}
                 onChange={(e) => setNewName(e.target.value)} />
@@ -872,5 +924,130 @@ function CountersCard({ shop, counters, v2, onChanged, onShowQr }: {
       )}
       {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
     </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+
+const ENDED = ['cancelled', 'completed', 'expired']
+
+function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onChanged: () => Promise<void> | void }) {
+  const { t, lang } = useI18n()
+  const [busy, setBusy] = useState<Period | 'cancel' | null>(null)
+  const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
+
+  if (!plansReady(shop)) {
+    return (
+      <div className="card form-card">
+        <h2 className="card-title">{t('planTitle')}</h2>
+        <p className="notice">{t('planNeedsUpdate')}</p>
+      </div>
+    )
+  }
+
+  const pro = shopIsPro(shop)
+  const ended = ENDED.includes(shop.subscription_status || '')
+  const until = shop.plan_expires_at
+    ? new Date(shop.plan_expires_at).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    : ''
+  const periodText = shop.plan_period === 'yearly' ? t('planYearly') : t('planMonthly')
+
+  function errText(e: unknown): string {
+    const code = (e as { code?: string }).code
+    if (code === 'already_pro') return t('planAlreadyPro')
+    if (code === 'needs_migration') return t('planNeedsUpdate')
+    if (code === 'checkout_load_failed') return t('planCheckoutFail')
+    if (code === 'not_deployed' || code === 'missing_env') return t('planNotReady')
+    return (e as Error)?.message || t('errGeneric')
+  }
+
+  async function upgrade(period: Period) {
+    setBusy(period)
+    setMsg(null)
+    try {
+      const desc = `PrintQR Pro · ${period === 'yearly' ? t('planYearly') : t('planMonthly')}`
+      const ok = await startUpgrade(period, { email, description: desc })
+      if (ok) {
+        setMsg({ text: t('planActivated'), error: false })
+        await onChanged()
+      }
+    } catch (e) {
+      setMsg({ text: errText(e), error: true })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function cancel() {
+    if (!confirm(t('planConfirmCancel', { date: until }))) return
+    setBusy('cancel')
+    setMsg(null)
+    try {
+      await callFn('cancel-subscription')
+      setMsg({ text: t('planCancelledUntil', { date: until }), error: false })
+      await onChanged()
+    } catch (e) {
+      setMsg({ text: errText(e), error: true })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const options: { p: Period; label: string; per: string; save?: boolean }[] = [
+    { p: 'monthly', label: t('planMonthly'), per: t('perMonth') },
+    { p: 'yearly', label: t('planYearly'), per: t('perYear'), save: true }
+  ]
+
+  return (
+    <section>
+      <div className={`card plan-current${pro ? ' is-pro' : ''}`}>
+        <div className="plan-current-top">
+          <div>
+            <div className="small muted">{t('planTitle')}</div>
+            <h2 className="plan-name">{pro ? t('planPro') : t('planFree')} {pro && <span className="pro-badge">{periodText}</span>}</h2>
+          </div>
+          <span className="plan-icon" aria-hidden="true">{pro ? '⭐' : '🆓'}</span>
+        </div>
+        {pro ? (
+          <>
+            <p>{ended ? t('planCancelledUntil', { date: until }) : t('planProUntil', { date: until })}</p>
+            {!ended && <p className="small muted">{t('planRenews', { period: periodText })}</p>}
+            {ended && <p className="small muted">{t('planResubNote')}</p>}
+          </>
+        ) : (
+          <p className="muted">{t('planFreeSub')}</p>
+        )}
+      </div>
+
+      {!pro && (
+        <div className="plan-grid">
+          {options.map((o) => (
+            <div key={o.p} className={`card plan-card${o.save ? ' best' : ''}`}>
+              {o.save && <span className="plan-save">{t('oneMonthFree')}</span>}
+              <div className="small muted plan-period">{o.label}</div>
+              <div className="plan-price">₹{PLAN_PRICES[o.p]}<span>{o.per}</span></div>
+              <ul className="plan-feats">
+                <li>✓ {t('planFeatNoAds')}</li>
+                <li>✓ {t('planFeatCounters')}</li>
+                <li>✓ {t('planFeatPassport')}</li>
+              </ul>
+              <button type="button" className={`btn block lg${o.save ? ' primary' : ''}`} disabled={busy !== null}
+                onClick={() => void upgrade(o.p)}>
+                {busy === o.p ? t('pleaseWait') : `${t('planGetPro')} · ₹${PLAN_PRICES[o.p]}${o.per}`}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
+      {!pro && <p className="small muted">{t('planPayNote')}</p>}
+
+      {pro && !ended && shop.razorpay_subscription_id && (
+        <button type="button" className="btn danger-outline" disabled={busy !== null} onClick={() => void cancel()}>
+          {busy === 'cancel' ? t('pleaseWait') : t('planCancel')}
+        </button>
+      )}
+    </section>
   )
 }

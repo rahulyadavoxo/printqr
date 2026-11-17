@@ -46,6 +46,20 @@ Customer ko shop ka WhatsApp number save nahi karna padta. Shop wala apna QR pos
 ### 1b. Purane database ka upgrade (v2: counters, passport photo, forgot password)
 Agar `schema.sql` pehle chala chuke ho, to **SQL Editor** mein `supabase/migrations/2026-11-17-v2.sql` ka poora content paste karke **Run** karo. Ye file kitni bhi baar chala sakte ho.
 
+### 1c. Plans (v3: Free + Pro, Razorpay subscriptions)
+1. **SQL Editor** mein `supabase/migrations/2026-11-17-v3-plans.sql` paste karke **Run** karo (v2 ke baad). Isse pehle app purane tarike se chalta hai (koi ads/lock nahi).
+2. Supabase → **Edge Functions → Secrets**: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`.
+3. GitHub secret `SUPABASE_ACCESS_TOKEN` (Supabase → Account → Access Tokens). Workflow **"Deploy Supabase Edge Functions"** functions deploy karta hai: `create-subscription`, `verify-payment`, `cancel-subscription`, `razorpay-webhook`.
+4. Razorpay Dashboard → **Settings → Webhooks → Add**: URL `https://<project-ref>.supabase.co/functions/v1/razorpay-webhook`, secret = `RAZORPAY_WEBHOOK_SECRET`, events: `subscription.activated`, `subscription.charged`, `subscription.cancelled`, `subscription.halted`, `subscription.completed` (optional: `subscription.pending`, `subscription.paused`, `subscription.resumed`).
+5. Ads (optional): GitHub repo **variables** (ya secrets) `VITE_ADSENSE_CLIENT` (`ca-pub-…`) aur `VITE_ADSENSE_SLOT` (ad unit id). Dono na ho to koi ad nahi dikhta. Client id milne par `public/ads.txt` bhi add karna.
+
+| Plan | Price | Features |
+|---|---|---|
+| Free | ₹0 | Ads, sirf main QR queue, passport sheet nahi |
+| Pro | ₹49/month ya ₹539/year (1 month free) | No ads, unlimited counters, passport photo sheet |
+
+Limits server pe bhi lagte hain (counter trigger, `create_order`, `get_shop_public.is_pro`). Owner plan columns khud update nahi kar sakta.
+
 ### 2. GitHub secrets
 Repo → **Settings → Secrets and variables → Actions → New repository secret**:
 

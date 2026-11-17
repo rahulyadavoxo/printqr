@@ -39,7 +39,26 @@ export type Shop = {
   rates: Rates
   auto_delete_hours: number
   created_at: string
+  /** Plan columns: present once the v3 database update (2026-11-17-v3-plans.sql) has run. */
+  plan?: 'free' | 'pro'
+  plan_period?: 'monthly' | 'yearly' | null
+  plan_expires_at?: string | null
+  razorpay_subscription_id?: string | null
+  subscription_status?: string | null
 }
+
+/** Plans exist in the database (v3 update ran). Before that the app behaves as before: no ads, no locks. */
+export function plansReady(s: Shop): boolean {
+  return s.plan !== undefined
+}
+
+/** Pro = plan 'pro' and not expired (same rule as public.is_pro in the database). */
+export function shopIsPro(s: Shop): boolean {
+  return s.plan === 'pro' && !!s.plan_expires_at && new Date(s.plan_expires_at).getTime() > Date.now()
+}
+
+/** Named counters a free shop may use (main queue not counted). Must match public.free_counter_limit(). */
+export const FREE_COUNTER_LIMIT = 0
 
 export type OrderStatus = 'uploading' | 'received' | 'printing' | 'ready' | 'done' | 'cancelled'
 

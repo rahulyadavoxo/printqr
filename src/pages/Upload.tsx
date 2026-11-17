@@ -6,8 +6,18 @@ import { countRange, rateFor, rupees } from '../lib/pricing'
 import { imagesToPdf, PASSPORT_OPTIONS, passportPreview, passportSheetPdf, passportSheets } from '../lib/imagePdf'
 import { useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
+import AdSlot from '../components/AdSlot'
 
-type ShopPublic = { id: string; name: string; address: string | null; is_open: boolean; rates: Rates; upi_id: string | null }
+type ShopPublic = {
+  id: string
+  name: string
+  address: string | null
+  is_open: boolean
+  rates: Rates
+  upi_id: string | null
+  /** From the v3 database update. undefined = older database (no plans: no ads, passport as before). */
+  is_pro?: boolean
+}
 
 type Item = {
   key: string
@@ -194,7 +204,8 @@ export default function Upload() {
   const images = items.filter((it) => it.kind === 'image')
   const combineOn = combine && images.length >= 2
   const passportRate = shop?.rates.passport_sheet
-  const passportEnabled = passportRate !== undefined && passportRate !== null
+  // Passport sheet is a Pro feature (free shops also get no passport_sheet rate from the server).
+  const passportEnabled = passportRate !== undefined && passportRate !== null && shop?.is_pro !== false
 
   const priced = useMemo(() => {
     if (!shop) return []
@@ -547,6 +558,9 @@ export default function Upload() {
           )}
         </>
       )}
+
+      {/* Free-plan shops show an ad below the form. It never covers the upload controls. */}
+      {shop.is_pro === false && <AdSlot className="upload-ad" />}
     </>,
     hasItems ? 'has-sticky' : ''
   )
