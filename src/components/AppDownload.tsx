@@ -13,7 +13,7 @@ export function appPlatform(): Platform {
   if (typeof navigator === 'undefined') return null
   const ua = navigator.userAgent || ''
   const inApp =
-    /Electron/i.test(ua) ||
+    /Electron|PrintQRApp/i.test(ua) ||
     document.referrer.startsWith('android-app://') ||
     window.matchMedia?.('(display-mode: standalone)').matches
   if (inApp) return null
