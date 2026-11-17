@@ -29,7 +29,7 @@ jobs:
             echo "::error::Add the SUPABASE_ACCESS_TOKEN repository secret (Supabase -> Account -> Access Tokens)."
             exit 1
           fi
-      - run: supabase functions deploy create-subscription --project-ref "$PROJECT_REF"
-      - run: supabase functions deploy verify-payment --project-ref "$PROJECT_REF"
-      - run: supabase functions deploy cancel-subscription --project-ref "$PROJECT_REF"
-      - run: supabase functions deploy razorpay-webhook --no-verify-jwt --project-ref "$PROJECT_REF"
+      - run: supabase functions deploy create-subscription --project-ref "$PROJECT_REF" --yes
+      - run: supabase functions deploy verify-payment --project-ref "$PROJECT_REF" --yes
+      - run: supabase functions deploy cancel-subscription --project-ref "$PROJECT_REF" --yes
+      - run: supabase functions deploy razorpay-webhook --no-verify-jwt --project-ref "$PROJECT_REF" --yes
