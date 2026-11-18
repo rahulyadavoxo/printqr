@@ -30,14 +30,6 @@ const NAV: { group: Key; items: Tab[] }[] = [
 ]
 
 
-function greeting(t: (k: Key) => string): string {
-  const h = new Date().getHours()
-  return t(h < 12 ? 'goodMorning' : h < 17 ? 'goodAfternoon' : 'goodEvening')
-}
-function today(lang: string): string {
-  return new Date().toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
-}
-
 function ShopAvatar({ shop, size }: { shop: Shop; size: number }) {
   const [broken, setBroken] = useState(false)
   useEffect(() => setBroken(false), [shop.logo_url])
@@ -369,7 +361,7 @@ function LangMenu() {
 function ProfileMenu({ shop, planChip, onSettings, onLogout }: {
   shop: Shop; planChip: ReactNode; onSettings: () => void; onLogout: () => void
 }) {
-  const { t, lang } = useI18n()
+  const { t } = useI18n()
   const p = usePopover()
   return (
     <div className="pop-wrap" ref={p.ref} {...p.hover}>
@@ -382,7 +374,6 @@ function ProfileMenu({ shop, planChip, onSettings, onLogout }: {
             <ShopAvatar shop={shop} size={40} />
             <div><strong>{shop.name}</strong>{planChip}</div>
           </div>
-          <p className="pop-greet">{greeting(t)} · {today(lang)}</p>
           <button type="button" onClick={() => { p.setOpen(false); onSettings() }}><Icon name="settings" size={16} /> <span>{t('tabSettings')}</span></button>
           <button type="button" className="danger-item" onClick={onLogout}><Icon name="logout" size={16} /> <span>{t('logout')}</span></button>
         </div>
