@@ -553,8 +553,8 @@ export default function Dashboard() {
             <h1>{t(current.label)}</h1>
           </div>
           <div className="bar-actions">
-            <LangMenu />
             {openToggle}
+            <LangMenu />
             <ThemeMenu />
             <ProfileMenu shop={shop} onSettings={() => go('settings')} onLogout={logout}
               planChip={ready ? <span className={`plan-chip${pro ? ' is-pro' : ''}`}>{pro ? t('planPro') : t('planFree')}</span> : null} />
