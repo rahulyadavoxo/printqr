@@ -705,11 +705,23 @@ body.no-scroll { overflow: hidden; }
 .theme-seg button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; border: none; background: none; border-radius: var(--r-pill); font: inherit; font-size: 13.5px; font-weight: 700; color: var(--c-muted); cursor: pointer; }
 .theme-seg button.on { background: var(--c-surface); color: var(--c-ink); box-shadow: var(--sh-1); }
 
+/* Desktop: floating rounded menu like the app drawer, collapsed to icons and
+   expanding over the page on hover (Supabase-style). */
 @media (min-width: 1024px) {
-  .dash .drawer { top: 0; bottom: 0; left: 0; width: 280px; border-radius: 0; border-width: 0 1px 0 0; box-shadow: none; transform: none; }
-  .dash .drawer-scrim, .dash .menu-btn, .dash .drawer-close { display: none; }
-  .dash .dash-bar, .dash .dash-main { margin-left: 280px; }
-  .dash .dash-main { max-width: none; padding-left: 32px; padding-right: 32px; }
+  .dash .drawer { top: 12px; bottom: 12px; left: 12px; width: 72px; transform: none; box-shadow: var(--sh-1);
+    transition: width .22s cubic-bezier(.2, .8, .2, 1), box-shadow .22s; }
+  .dash .drawer:hover, .dash .drawer:focus-within { width: 300px; box-shadow: var(--sh-3); }
+  .dash .drawer-scrim, .dash .menu-btn, .dash .drawer-close, .dash .dash-bar { display: none; }
+  .dash .dash-main { margin-left: 96px; max-width: none; padding-left: 24px; padding-right: 32px; padding-top: 24px; }
+  .dash .drawer-head { padding: 14px; }
+  .dash .drawer-nav { padding: 4px 12px 12px; overflow-x: hidden; }
+  .dash .drawer-item { padding-left: 13px; white-space: nowrap; overflow: hidden; }
+  .dash .drawer-label, .dash .drawer-title, .dash .drawer-item span, .dash .drawer-foot > * { white-space: nowrap; transition: opacity .15s; }
+  .dash .drawer:not(:hover):not(:focus-within) .drawer-label,
+  .dash .drawer:not(:hover):not(:focus-within) .drawer-title,
+  .dash .drawer:not(:hover):not(:focus-within) .drawer-item span { opacity: 0; }
+  .dash .drawer:not(:hover):not(:focus-within) .drawer-foot { opacity: 0; pointer-events: none; }
+  .dash .drawer-foot { min-width: 268px; transition: opacity .15s; }
 }
 @media print {
   .drawer, .drawer-scrim, .dash-bar { display: none !important; }
@@ -824,3 +836,9 @@ body.no-scroll { overflow: hidden; }
 .btn.danger:hover { background: #b91c1c; border-color: #b91c1c; }
 .logout-btn { max-width: 720px; margin-top: 16px; }
 .app-version { max-width: 720px; text-align: center; color: var(--c-muted, #888); font-size: 13px; margin: 12px 0 4px; }
+/* Touch screens (tablets) can't hover: keep the desktop menu open. */
+@media (min-width: 1024px) and (hover: none) {
+  .dash .drawer { width: 300px; }
+  .dash .drawer .drawer-label, .dash .drawer .drawer-title, .dash .drawer .drawer-item span, .dash .drawer .drawer-foot { opacity: 1 !important; pointer-events: auto !important; }
+  .dash .dash-main { margin-left: 324px; }
+}
