@@ -36,6 +36,11 @@ import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import androidx.core.content.FileProvider;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.razorpay.Checkout;
 import com.razorpay.PaymentData;
@@ -94,10 +99,22 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Window w = getWindow();
-        w.setStatusBarColor(0xFF0B1210);
-        w.setNavigationBarColor(0xFF0B1210);
+        w.setStatusBarColor(0xFFFAF9F6);
+        w.setNavigationBarColor(0xFFFAF9F6);
+        // Android 15+ draws edge-to-edge: dark icons on the light bar, and keep content clear of the bars.
+        WindowCompat.setDecorFitsSystemWindows(w, false);
+        WindowInsetsControllerCompat bars = WindowCompat.getInsetsController(w, w.getDecorView());
+        bars.setAppearanceLightStatusBars(true);
+        bars.setAppearanceLightNavigationBars(true);
 
         root = new FrameLayout(this);
+        root.setBackgroundColor(0xFFFAF9F6);
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+            Insets sys = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
+            v.setPadding(sys.left, sys.top, sys.right, Math.max(sys.bottom, ime.bottom));
+            return WindowInsetsCompat.CONSUMED;
+        });
         web = new WebView(this);
         root.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(root);
