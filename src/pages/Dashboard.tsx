@@ -161,11 +161,6 @@ export default function Dashboard() {
           <button type="button" className="menu-btn" onClick={() => setMenu(true)} aria-label={t('menu')} aria-expanded={menu}>
             <Icon name="menu" size={24} />
           </button>
-          <div className="dash-brand">
-            <LogoMark size={40} />
-            <span className="dash-shop">{shop.name}</span>
-          </div>
-          {openToggle}
         </div>
       </header>
 
@@ -986,15 +981,6 @@ function Settings({ shop, onSaved, onLogout }: { shop: Shop; onSaved: (s: Shop) 
   return (
     <form className="card form-card" onSubmit={save}>
       <h2 className="card-title">{t('settingsTitle')}</h2>
-      <div className="field">
-        <span>{t('language')}</span>
-        <LangToggle />
-        <small className="hint">{t('langHint')}</small>
-      </div>
-      <div className="field">
-        <span>{t('theme')}</span>
-        <ThemeToggle />
-      </div>
       <label className="field"><span>{t('shopName')}</span><input required minLength={2} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
       <label className="field"><span>{t('address')}</span><input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></label>
       <div className="grid2">
