@@ -13,6 +13,12 @@ export type NativeBridge = {
   openExternal?: (url: string) => void
   toast?: (msg: string) => void
   razorpay?: (optionsJson: string) => void
+  // in-app update (UpdateGate); results come back through window.__pqUpd
+  appVersion?: () => string
+  checkUpdate?: () => void
+  downloadUpdate?: (version: string) => void
+  canInstall?: () => boolean
+  installUpdate?: () => string
 }
 export function nativeBridge(): NativeBridge | undefined {
   return (window as unknown as { PQ?: NativeBridge }).PQ

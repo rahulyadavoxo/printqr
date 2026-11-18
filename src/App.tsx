@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { isConfigured, supabase } from './lib/supabase'
 import { useI18n } from './lib/i18n'
 import { TopBar } from './components/TopBar'
+import UpdateGate from './components/UpdateGate'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Upload from './pages/Upload'
@@ -41,6 +42,7 @@ export default function App() {
     )
   }
   return (
+    <UpdateGate>
     <Suspense fallback={<div className="page"><div className="skel" style={{ height: 160, borderRadius: 16 }} /></div>}>
     <Routes>
       <Route path="/" element={<Home />} />
@@ -54,5 +56,6 @@ export default function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </Suspense>
+    </UpdateGate>
   )
 }

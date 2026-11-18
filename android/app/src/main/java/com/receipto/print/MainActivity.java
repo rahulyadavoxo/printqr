@@ -6,6 +6,10 @@ import android.app.DownloadManager;
 import android.content.ActivityNotFoundException;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
+import android.content.pm.SigningInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -14,6 +18,7 @@ import android.os.Environment;
 import android.print.PrintAttributes;
 import android.print.PrintManager;
 import android.provider.MediaStore;
+import android.provider.Settings;
 import android.util.Base64;
 import android.view.View;
 import android.view.ViewGroup;
@@ -30,6 +35,8 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
+import androidx.core.content.FileProvider;
+
 import com.razorpay.Checkout;
 import com.razorpay.PaymentData;
 import com.razorpay.PaymentResultWithDataListener;
@@ -41,6 +48,12 @@ import java.io.File;
 import java.io.InputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * PrintQR Android app. The whole web app is bundled inside the APK (assets/www, built by
@@ -197,6 +210,226 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         if (n.endsWith(".woff")) return "font/woff";
         if (n.endsWith(".txt")) return "text/plain";
         return "application/octet-stream";
+    }
+
+    // ---------------- In-app update (same system as Dairy Diary) ----------------
+    // The newest GitHub release (tag app-vX.Y.Z) carries PrintQR-X.Y.Z.apk. The web code asks
+    // checkUpdate(), downloadUpdate(version), installUpdate(); answers arrive via window.__pqUpd.
+    private static final String REPO_PAGE = "https://github.com/rahulyadavoxo/printqr";
+    private static final String UPD_FILE = "pq-update.apk";
+    private static final int CONNECT_TIMEOUT_MS = 4000;
+    private static final int CONNECT_TRIES = 4;
+    private static final long MIN_APK_BYTES = 1024L * 1024L;
+    private volatile boolean updBusy = false;
+
+    private File updFile() {
+        File dir = new File(getCacheDir(), "updates");
+        if (!dir.exists()) dir.mkdirs();
+        return new File(dir, UPD_FILE);
+    }
+
+    private void updEvent(String json) {
+        js("window.__pqUpd&&window.__pqUpd(" + json + ")");
+    }
+
+    @SuppressWarnings("deprecation")
+    private long installedVersionCode() throws PackageManager.NameNotFoundException {
+        PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
+        return Build.VERSION.SDK_INT >= 28 ? pi.getLongVersionCode() : pi.versionCode;
+    }
+
+    private static Set<String> certs(PackageInfo pi) {
+        try {
+            if (pi == null || Build.VERSION.SDK_INT < 28) return null;
+            SigningInfo si = pi.signingInfo;
+            if (si == null) return null;
+            Signature[] sigs = si.hasMultipleSigners() ? si.getApkContentsSigners() : si.getSigningCertificateHistory();
+            if (sigs == null || sigs.length == 0) return null;
+            Set<String> out = new HashSet<>();
+            for (Signature g : sigs) out.add(Arrays.toString(g.toByteArray()));
+            return out;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Only GitHub may serve the update (also after redirects). */
+    private static boolean allowedUrl(String u, boolean first) {
+        try {
+            URL url = new URL(u);
+            if (!"https".equals(url.getProtocol())) return false;
+            String host = url.getHost().toLowerCase(Locale.ROOT);
+            String path = url.getPath();
+            if (path.contains("..") || path.toLowerCase(Locale.ROOT).contains("%2e")) return false;
+            if (first) return host.equals("github.com") && path.startsWith("/rahulyadavoxo/printqr/releases/download/");
+            return host.equals("github.com") || host.endsWith(".githubusercontent.com");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** null when the file is a newer build of this same app with the same signing key. */
+    @SuppressWarnings("deprecation")
+    private String checkApk(File f) {
+        try {
+            PackageManager pm = getPackageManager();
+            int flags = Build.VERSION.SDK_INT >= 28 ? PackageManager.GET_SIGNING_CERTIFICATES : 0;
+            PackageInfo pi = pm.getPackageArchiveInfo(f.getAbsolutePath(), flags);
+            if (pi == null) return "NOT_APK";
+            if (!getPackageName().equals(pi.packageName)) return "WRONG_APP";
+            long code = Build.VERSION.SDK_INT >= 28 ? pi.getLongVersionCode() : pi.versionCode;
+            if (code <= installedVersionCode()) return "NOT_NEWER";
+            Set<String> mine = certs(pm.getPackageInfo(getPackageName(), flags));
+            Set<String> theirs = certs(pi);
+            if (mine != null && theirs != null && java.util.Collections.disjoint(mine, theirs)) return "WRONG_SIGNER";
+            return null;
+        } catch (Exception e) {
+            return "NOT_APK";
+        }
+    }
+
+    private static String[] head(String u) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(u).openConnection();
+        try {
+            c.setInstanceFollowRedirects(false);
+            c.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            c.setReadTimeout(10000);
+            c.setRequestMethod("HEAD");
+            c.setRequestProperty("User-Agent", "PrintQR-Updater");
+            return new String[] { String.valueOf(c.getResponseCode()), c.getHeaderField("Location") };
+        } finally {
+            c.disconnect();
+        }
+    }
+
+    private static String apkUrl(String version) {
+        return REPO_PAGE + "/releases/download/app-v" + version + "/PrintQR-" + version + ".apk";
+    }
+
+    /** github.com/.../releases/latest redirects to .../releases/tag/app-vX.Y.Z (no API rate limit). */
+    private void checkUpdateAsync() {
+        new Thread(() -> {
+            try {
+                String[] r = head(REPO_PAGE + "/releases/latest");
+                String loc = r[1];
+                String tag = loc != null && loc.contains("/releases/tag/") ? loc.substring(loc.lastIndexOf('/') + 1) : null;
+                if (tag == null || !tag.matches("app-v\\d+\\.\\d+\\.\\d+")) {
+                    updEvent("{\"type\":\"check\",\"error\":\"NO_TAG\"}");
+                    return;
+                }
+                String version = tag.substring(5);
+                int code = Integer.parseInt(head(apkUrl(version))[0]);
+                boolean apk = code >= 200 && code < 400; // the APK is uploaded a little after the release
+                updEvent("{\"type\":\"check\",\"version\":" + JSONObject.quote(version) + ",\"apk\":" + apk + "}");
+            } catch (Exception e) {
+                updEvent("{\"type\":\"check\",\"error\":\"OFFLINE\"}");
+            }
+        }).start();
+    }
+
+    private void downloadUpdateAsync(String version) {
+        if (version == null || !version.matches("\\d+\\.\\d+\\.\\d+") || !allowedUrl(apkUrl(version), true)) {
+            updEvent("{\"type\":\"error\",\"code\":\"BAD_URL\"}");
+            return;
+        }
+        if (updBusy) return;
+        updBusy = true;
+        new Thread(() -> {
+            File out = updFile();
+            File part = new File(out.getParentFile(), UPD_FILE + ".part");
+            HttpURLConnection con = null;
+            try {
+                String next = apkUrl(version);
+                int hops = 0, tries = 0;
+                while (true) {
+                    con = (HttpURLConnection) new URL(next).openConnection();
+                    con.setInstanceFollowRedirects(false);
+                    con.setConnectTimeout(CONNECT_TIMEOUT_MS);
+                    con.setReadTimeout(30000);
+                    con.setRequestProperty("User-Agent", "PrintQR-Updater");
+                    int st;
+                    try {
+                        st = con.getResponseCode();
+                    } catch (java.io.IOException ce) {
+                        con.disconnect();
+                        if (++tries >= CONNECT_TRIES) throw ce;
+                        continue;
+                    }
+                    if (st >= 300 && st < 400) {
+                        String loc = con.getHeaderField("Location");
+                        con.disconnect();
+                        if (loc == null || ++hops > 5) throw new Exception("redirect");
+                        next = new URL(new URL(next), loc).toString();
+                        if (!allowedUrl(next, false)) throw new Exception("redirect host");
+                        continue;
+                    }
+                    if (st != 200) throw new Exception("HTTP " + st);
+                    break;
+                }
+                long total = con.getContentLengthLong();
+                long done = 0;
+                int lastPct = -1;
+                try (InputStream in = con.getInputStream(); OutputStream os = new FileOutputStream(part)) {
+                    byte[] buf = new byte[64 * 1024];
+                    int n;
+                    while ((n = in.read(buf)) != -1) {
+                        os.write(buf, 0, n);
+                        done += n;
+                        if (total > 0) {
+                            int pct = (int) (done * 100 / total);
+                            if (pct != lastPct) {
+                                lastPct = pct;
+                                updEvent("{\"type\":\"progress\",\"percent\":" + pct + "}");
+                            }
+                        }
+                    }
+                }
+                if (total > 0 && done != total) throw new Exception("incomplete");
+                if (total <= 0 && done < MIN_APK_BYTES) throw new Exception("incomplete");
+                if (out.exists()) out.delete();
+                if (!part.renameTo(out)) throw new Exception("rename failed");
+                String bad = checkApk(out);
+                if (bad != null) {
+                    out.delete();
+                    updEvent("{\"type\":\"error\",\"code\":\"" + bad + "\"}");
+                    return;
+                }
+                updEvent("{\"type\":\"downloaded\"}");
+            } catch (Exception e) {
+                part.delete();
+                updEvent("{\"type\":\"error\",\"code\":\"DOWNLOAD_FAILED\"}");
+            } finally {
+                if (con != null) con.disconnect();
+                updBusy = false;
+            }
+        }).start();
+    }
+
+    /** "started", "perm" (opened the allow-installs setting) or "error:CODE". */
+    private String installUpdateNow() {
+        File f = updFile();
+        if (!f.exists()) return "error:NO_FILE";
+        String bad = checkApk(f);
+        if (bad != null) {
+            f.delete();
+            return "error:" + bad;
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+                startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName())));
+                return "perm";
+            }
+            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", f);
+            Intent i = new Intent(Intent.ACTION_VIEW);
+            i.setDataAndType(uri, "application/vnd.android.package-archive");
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(i);
+            return "started";
+        } catch (ActivityNotFoundException e) {
+            return "error:NO_INSTALLER";
+        } catch (Exception e) {
+            return "error:INSTALL_FAILED";
+        }
     }
 
     /** Runs JavaScript in the app page (used to hand Razorpay's result back to the web code). */
@@ -362,6 +595,46 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         }
 
         @JavascriptInterface
+        public String appVersion() {
+            try {
+                return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
+        @JavascriptInterface
+        public void checkUpdate() {
+            checkUpdateAsync();
+        }
+
+        @JavascriptInterface
+        public void downloadUpdate(String version) {
+            downloadUpdateAsync(version);
+        }
+
+        @JavascriptInterface
+        public boolean canInstall() {
+            try {
+                return Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls();
+            } catch (Exception e) {
+                return true;
+            }
+        }
+
+        @JavascriptInterface
+        public String installUpdate() {
+            final String[] res = { "error:INSTALL_FAILED" };
+            final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+            runOnUiThread(() -> {
+                res[0] = installUpdateNow();
+                done.countDown();
+            });
+            try { done.await(5, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException ignored) { }
+            return res[0];
+        }
+
+        @JavascriptInterface
         public void toast(String msg) {
             runOnUiThread(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show());
         }
@@ -434,6 +707,12 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
     protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
         if (web != null) web.saveState(out);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (web != null) web.evaluateJavascript("window.__pqResume&&window.__pqResume()", null);
     }
 
     @Override

@@ -313,7 +313,20 @@ const en = {
   sLive: 'Live',
   homeCtaTitle: 'Ready for a calmer counter?',
   homeCtaSub: 'Set up your shop in two minutes and start with the Free plan.',
-  setupStep: 'Step 1 of 2 · next you set your rates'
+  setupStep: 'Step 1 of 2 · next you set your rates',
+  updTitle: 'Update available',
+  updBody: 'Print by Receipto {v} is out. Update to keep using the app.',
+  updCurrent: 'On this phone: {v}',
+  updNow: 'Update now',
+  updDownloading: 'Downloading…',
+  updConnecting: 'Connecting…',
+  updInstallHint: 'Tap "Install" on the screen that opened. Your shop and orders stay as they are.',
+  updPermHint: 'Turn on "Allow from this source" in Settings, then come back.',
+  updInstallFailedHint: 'Update did not install? Free some space on the phone, then tap "Update" again.',
+  updFailed: 'Download failed. Check the internet and tap again.',
+  updLater: 'Use the app now (update when online)',
+  updRejected: 'This update cannot be installed on this phone. Keep using the app; the next update will come by itself.',
+  updRetry: 'Try again'
 }
 
 export type Key = keyof typeof en
@@ -620,7 +633,20 @@ const hi: Record<Key, string> = {
   sLive: 'लाइव',
   homeCtaTitle: 'काउंटर पर भीड़ कम करनी है?',
   homeCtaSub: 'दो मिनट में दुकान सेट करें और फ़्री प्लान से शुरू करें।',
-  setupStep: 'चरण 1 / 2 · इसके बाद रेट सेट करें'
+  setupStep: 'चरण 1 / 2 · इसके बाद रेट सेट करें',
+  updTitle: 'नया अपडेट आया है',
+  updBody: 'Print by Receipto {v} आ गया है। ऐप चलाने के लिए पहले अपडेट करें।',
+  updCurrent: 'अभी फ़ोन में: {v}',
+  updNow: 'अपडेट करें',
+  updDownloading: 'डाउनलोड हो रहा है…',
+  updConnecting: 'जुड़ रहा है…',
+  updInstallHint: 'खुली स्क्रीन में "Install" दबाएँ। दुकान और ऑर्डर वैसे ही रहेंगे।',
+  updPermHint: 'Settings में "इस source से install की अनुमति" चालू करें, फिर वापस आएँ।',
+  updInstallFailedHint: 'अपडेट install नहीं हुआ? फ़ोन में जगह खाली करें, फिर दोबारा "अपडेट" दबाएँ।',
+  updFailed: 'डाउनलोड नहीं हुआ। इंटरनेट देखकर फिर दबाएँ।',
+  updLater: 'अभी ऐप चलाएँ (नेट आने पर अपडेट)',
+  updRejected: 'यह अपडेट इस फ़ोन पर नहीं लग सकता। अभी पुराना ऐप चलाएँ, अगला अपडेट अपने आप आएगा।',
+  updRetry: 'फिर से कोशिश करें'
 }
 
 export type Lang = 'en' | 'hi'

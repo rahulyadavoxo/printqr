@@ -646,3 +646,13 @@ input:focus, select:focus { outline: none; border-color: var(--c-brand); box-sha
 .app-banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--brand-soft); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0 0 14px; font-size: 14px; }
 .app-banner > span { flex: 1 1 180px; min-width: 0; }
 .app-banner-x { background: transparent; border: 0; font-size: 22px; line-height: 1; color: var(--ink-2); cursor: pointer; padding: 4px 8px; min-height: 36px; }
+
+/* In-app update wall (Android app) */
+.update-gate { position: fixed; inset: 0; z-index: 1000; background: var(--c-bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; }
+.update-gate h2 { margin: 6px 0 0; }
+.update-gate p { max-width: 360px; margin: 0; }
+.update-icon { width: 76px; height: 76px; border-radius: 24px; background: #0b1210; color: var(--c-lime); display: grid; place-items: center; font-size: 38px; font-weight: 800; }
+.upd-progress { width: min(320px, 100%); height: 10px; border-radius: 6px; background: var(--c-sunken); overflow: hidden; margin-top: 6px; }
+.upd-bar { height: 100%; background: var(--c-lime); transition: width .2s; }
+.update-gate .btn { width: min(320px, 100%); }
+.update-toast { position: fixed; left: 12px; right: 12px; bottom: 16px; z-index: 1001; background: #0b1210; color: #fff; padding: 12px 14px; border-radius: 12px; font-size: 14px; }
