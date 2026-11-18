@@ -1,3 +1,4 @@
+import { IN_APP, nativeBridge } from './app'
 import { supabase } from './supabase'
 
 export type Period = 'monthly' | 'yearly'
@@ -76,6 +77,8 @@ export async function callFn<T>(name: string, body: Record<string, unknown> = {}
  */
 export async function startUpgrade(period: Period, opts: { email?: string; description: string }): Promise<boolean> {
   const { subscription_id, key_id } = await callFn<{ subscription_id: string; key_id: string }>('create-subscription', { period })
+  const bridge = nativeBridge()
+  if (IN_APP && bridge?.razorpay) return nativeCheckout(bridge.razorpay, { key: key_id, subscription_id, description: opts.description, email: opts.email })
   await loadRazorpay()
   if (!window.Razorpay) throw Object.assign(new Error('checkout_load_failed'), { code: 'checkout_load_failed' })
   const Razorpay = window.Razorpay
@@ -88,12 +91,52 @@ export async function startUpgrade(period: Period, opts: { email?: string; descr
       image: `${window.location.origin}${import.meta.env.BASE_URL}icon-192.png`,
       prefill: opts.email ? { email: opts.email } : undefined,
       theme: { color: '#3f6212' },
-      ...(/PrintQRApp\/Android/.test(navigator.userAgent) ? { webview_intent: true } : {}),
       handler: (r) => {
         callFn('verify-payment', { ...r }).then(() => resolve(true), reject)
       },
       modal: { ondismiss: () => resolve(false) }
     })
     rz.open()
+  })
+}
+
+type NativeResult = { razorpay_payment_id?: string; razorpay_subscription_id?: string; razorpay_signature?: string }
+declare global {
+  interface Window {
+    __pqRzpDone?: (r: NativeResult) => void
+    __pqRzpFail?: (cancelled: boolean, message: string) => void
+  }
+}
+
+/** Android app: opens Razorpay's native checkout (UPI apps, cards, net banking) through the app bridge. */
+function nativeCheckout(
+  open: (json: string) => void,
+  o: { key: string; subscription_id: string; description: string; email?: string }
+): Promise<boolean> {
+  return new Promise<boolean>((resolve, reject) => {
+    window.__pqRzpDone = (r) => {
+      window.__pqRzpDone = window.__pqRzpFail = undefined
+      const body = {
+        razorpay_payment_id: r.razorpay_payment_id,
+        razorpay_subscription_id: r.razorpay_subscription_id || o.subscription_id,
+        razorpay_signature: r.razorpay_signature
+      }
+      callFn('verify-payment', body).then(() => resolve(true), reject)
+    }
+    window.__pqRzpFail = (cancelled, message) => {
+      window.__pqRzpDone = window.__pqRzpFail = undefined
+      if (cancelled) resolve(false)
+      else reject(Object.assign(new Error(message || 'Payment failed'), { code: 'payment_failed' }))
+    }
+    open(
+      JSON.stringify({
+        key: o.key,
+        subscription_id: o.subscription_id,
+        name: 'PrintQR',
+        description: o.description,
+        prefill: o.email ? { email: o.email } : undefined,
+        theme: { color: '#3f6212' }
+      })
+    )
   })
 }

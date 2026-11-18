@@ -1,3 +1,4 @@
+import { IN_APP } from '../lib/app'
 import { useEffect, useRef } from 'react'
 import { useI18n } from '../lib/i18n'
 
@@ -26,6 +27,11 @@ function loadScript() {
  * at build time. Callers decide whether the shop is on the free plan. An unfilled ad hides itself (CSS).
  */
 export default function AdSlot({ className = '' }: { className?: string }) {
+  if (IN_APP) return null // AdSense does not serve inside the app's bundled pages
+  return <AdSlotInner className={className} />
+}
+
+function AdSlotInner({ className = '' }: { className?: string }) {
   const { t } = useI18n()
   const ref = useRef<HTMLModElement>(null)
   useEffect(() => {

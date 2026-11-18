@@ -56,6 +56,24 @@ jobs:
           if [ -z "$PQ_KEYSTORE_B64" ]; then echo "::error::PQ_KEYSTORE_B64 secret is missing"; exit 1; fi
           echo "$PQ_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.p12"
           echo "PQ_KEYSTORE=$RUNNER_TEMP/upload.p12" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Bundle the web app into the APK (assets/www)
+        env:
+          BASE_PATH: /
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          npm install --no-audit --no-fund
+          npx tsc --noEmit
+          npm run build
+          rm -rf android/app/src/main/assets/www
+          mkdir -p android/app/src/main/assets
+          cp -r dist android/app/src/main/assets/www
+          # No service worker inside the app (files are already on the phone)
+          echo "" > android/app/src/main/assets/www/registerSW.js
+          rm -f android/app/src/main/assets/www/sw.js android/app/src/main/assets/www/workbox-*.js
+          test -f android/app/src/main/assets/www/index.html
       - name: Build AAB and APK
         env:
           PQ_KEY_PASS: ${{ secrets.PQ_KEY_PASS }}

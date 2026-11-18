@@ -1,3 +1,4 @@
+import { PUBLIC_BASE } from '../lib/app'
 import { FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -44,7 +45,7 @@ export default function Login() {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin + import.meta.env.BASE_URL }
+          options: { emailRedirectTo: PUBLIC_BASE }
         })
         if (error) throw error
         if (!data.session) {

@@ -1,5 +1,5 @@
-// PrintQR Android app: a Trusted Web Activity that opens https://print.receipto.in full screen.
-// Website updates reach the app instantly; only bump versionCode when this wrapper changes.
+// PrintQR Android app: the web app is bundled in assets/www (copied from dist/ by apps.yml),
+// so the app never loads print.receipto.in. Website changes reach the app with a new APK (push an app-v* tag).
 plugins {
     id 'com.android.application'
 }
@@ -44,4 +44,5 @@ android {
 }
 
 dependencies {
+    implementation 'com.razorpay:checkout:1.6.41'
 }

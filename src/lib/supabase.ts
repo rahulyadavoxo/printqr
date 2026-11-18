@@ -1,3 +1,4 @@
+import { PUBLIC_BASE } from './app'
 import { createClient } from '@supabase/supabase-js'
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
@@ -110,6 +111,6 @@ export function errMsg(e: unknown): string {
 
 /** Customer link for the shop. With a counter id the order is tagged with that counter (?c=<id>). */
 export function shopUrl(slug: string, counterId?: string | null): string {
-  const base = `${window.location.origin}${import.meta.env.BASE_URL}#/s/${slug}`
+  const base = `${PUBLIC_BASE}#/s/${slug}`
   return counterId ? `${base}?c=${counterId}` : base
 }

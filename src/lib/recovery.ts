@@ -1,3 +1,4 @@
+import { PUBLIC_BASE } from './app'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { SUPABASE_KEY, SUPABASE_URL, supabase } from './supabase'
 
@@ -81,6 +82,6 @@ export async function sendResetEmail(email: string) {
     })
   }
   return recoveryClient.auth.resetPasswordForEmail(email.trim(), {
-    redirectTo: window.location.origin + import.meta.env.BASE_URL
+    redirectTo: PUBLIC_BASE
   })
 }

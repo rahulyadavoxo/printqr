@@ -23,23 +23,34 @@ import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
+import com.razorpay.Checkout;
+import com.razorpay.PaymentData;
+import com.razorpay.PaymentResultWithDataListener;
+
+import org.json.JSONObject;
+
+import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.InputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 
 /**
- * PrintQR Android app: shows https://print.receipto.in in the app's own WebView
- * (no Chrome needed). Adds what a plain WebView lacks: file picking for uploads,
- * saving downloads, printing, opening uploaded files, and UPI / external links.
+ * PrintQR Android app. The whole web app is bundled inside the APK (assets/www, built by
+ * .github/workflows/apps.yml) and served from https://appassets.androidplatform.net, so nothing is
+ * loaded from print.receipto.in. Data still comes from Supabase. Payments use Razorpay's native SDK.
+ * Adds what a plain WebView lacks: file picking, downloads, printing, and UPI / external links.
  */
-public class MainActivity extends Activity {
-    private static final String START = "https://print.receipto.in/";
+public class MainActivity extends Activity implements PaymentResultWithDataListener {
+    private static final String APP_HOST = "appassets.androidplatform.net";
+    private static final String START = "https://" + APP_HOST + "/#/dashboard";
     private static final int PICK_FILES = 1001;
 
     private FrameLayout root;
@@ -98,6 +109,11 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
+                return serveAsset(req.getUrl());
+            }
+
+            @Override
             public void onPageFinished(WebView view, String url) {
                 view.evaluateJavascript(BRIDGE_JS, null);
             }
@@ -141,8 +157,74 @@ public class MainActivity extends Activity {
             if (url.startsWith("http")) openExternal(url);
         });
 
+        Checkout.preload(getApplicationContext());
+
         if (savedInstanceState != null) web.restoreState(savedInstanceState);
         else web.loadUrl(START);
+    }
+
+    /** Serves the bundled web app (assets/www) for https://appassets.androidplatform.net/... */
+    private WebResourceResponse serveAsset(Uri uri) {
+        if (!APP_HOST.equals(uri.getHost())) return null;
+        String path = uri.getPath() == null ? "/" : uri.getPath();
+        if (path.equals("/") || path.isEmpty()) path = "/index.html";
+        String file = "www" + path;
+        try {
+            InputStream in = getAssets().open(file);
+            WebResourceResponse r = new WebResourceResponse(mimeFor(file), mimeFor(file).startsWith("text/") || mimeFor(file).endsWith("javascript") ? "utf-8" : null, in);
+            java.util.Map<String, String> h = new java.util.HashMap<>();
+            h.put("Cache-Control", file.endsWith("index.html") ? "no-cache" : "max-age=31536000");
+            r.setResponseHeaders(h);
+            return r;
+        } catch (Exception e) {
+            // Unknown file: answer 404 instead of trying the network (this host does not exist online).
+            return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found", null, new ByteArrayInputStream(new byte[0]));
+        }
+    }
+
+    private static String mimeFor(String f) {
+        String n = f.toLowerCase();
+        if (n.endsWith(".html")) return "text/html";
+        if (n.endsWith(".js") || n.endsWith(".mjs")) return "text/javascript";
+        if (n.endsWith(".css")) return "text/css";
+        if (n.endsWith(".svg")) return "image/svg+xml";
+        if (n.endsWith(".png")) return "image/png";
+        if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
+        if (n.endsWith(".webp")) return "image/webp";
+        if (n.endsWith(".ico")) return "image/x-icon";
+        if (n.endsWith(".json") || n.endsWith(".webmanifest")) return "application/json";
+        if (n.endsWith(".woff2")) return "font/woff2";
+        if (n.endsWith(".woff")) return "font/woff";
+        if (n.endsWith(".txt")) return "text/plain";
+        return "application/octet-stream";
+    }
+
+    /** Runs JavaScript in the app page (used to hand Razorpay's result back to the web code). */
+    private void js(String code) {
+        runOnUiThread(() -> { if (web != null) web.evaluateJavascript(code, null); });
+    }
+
+    @Override
+    public void onPaymentSuccess(String paymentId, PaymentData data) {
+        try {
+            JSONObject r = data != null && data.getData() != null ? data.getData() : new JSONObject();
+            if (!r.has("razorpay_payment_id")) r.put("razorpay_payment_id", paymentId);
+            if (data != null && data.getSignature() != null && !r.has("razorpay_signature")) r.put("razorpay_signature", data.getSignature());
+            js("window.__pqRzpDone&&window.__pqRzpDone(" + r.toString() + ")");
+        } catch (Exception e) {
+            js("window.__pqRzpFail&&window.__pqRzpFail(false," + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
+        }
+    }
+
+    @Override
+    public void onPaymentError(int code, String response, PaymentData data) {
+        boolean cancelled = code == Checkout.PAYMENT_CANCELED;
+        String msg = "Payment failed";
+        try {
+            JSONObject err = new JSONObject(response).optJSONObject("error");
+            if (err != null && err.optString("description", "").length() > 0) msg = err.optString("description");
+        } catch (Exception ignored) { }
+        js("window.__pqRzpFail&&window.__pqRzpFail(" + cancelled + "," + JSONObject.quote(msg) + ")");
     }
 
     /** Shows a Razorpay pop-up (bank page, OTP, wallet) on top of the app, the way a browser tab would. */
@@ -193,7 +275,7 @@ public class MainActivity extends Activity {
         String scheme = uri.getScheme() == null ? "" : uri.getScheme();
         String host = uri.getHost() == null ? "" : uri.getHost();
         if (scheme.equals("http") || scheme.equals("https")) {
-            if (host.endsWith("receipto.in") || host.endsWith("razorpay.com")) return false;
+            if (host.equals(APP_HOST) || host.endsWith("razorpay.com")) return false;
             if (host.endsWith("supabase.co") && !uri.getPath().contains("/storage/")) return false;
             openExternal(uri.toString());
             return true;
@@ -263,6 +345,20 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void openExternal(String url) {
             runOnUiThread(() -> MainActivity.this.openExternal(url));
+        }
+
+        @JavascriptInterface
+        public void razorpay(String optionsJson) {
+            runOnUiThread(() -> {
+                try {
+                    JSONObject o = new JSONObject(optionsJson);
+                    Checkout co = new Checkout();
+                    co.setKeyID(o.getString("key"));
+                    co.open(MainActivity.this, o);
+                } catch (Exception e) {
+                    js("window.__pqRzpFail&&window.__pqRzpFail(false," + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
+                }
+            });
         }
 
         @JavascriptInterface
