@@ -78,7 +78,7 @@ export async function callFn<T>(name: string, body: Record<string, unknown> = {}
 export async function startUpgrade(period: Period, opts: { email?: string; description: string }): Promise<boolean> {
   const { subscription_id, key_id } = await callFn<{ subscription_id: string; key_id: string }>('create-subscription', { period })
   const bridge = nativeBridge()
-  if (IN_APP && bridge?.razorpay) return nativeCheckout(bridge.razorpay, { key: key_id, subscription_id, description: opts.description, email: opts.email })
+  if (IN_APP && bridge?.razorpay) return nativeCheckout((json: string) => bridge.razorpay!(json), { key: key_id, subscription_id, description: opts.description, email: opts.email })
   await loadRazorpay()
   if (!window.Razorpay) throw Object.assign(new Error('checkout_load_failed'), { code: 'checkout_load_failed' })
   const Razorpay = window.Razorpay
