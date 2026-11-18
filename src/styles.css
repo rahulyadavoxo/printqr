@@ -818,3 +818,8 @@ body.no-scroll { overflow: hidden; }
 
 /* Cloudflare Turnstile bot check */
 .turnstile-box { display: flex; justify-content: center; min-height: 65px; margin: 4px 0 8px; }
+
+/* Red log out button at the bottom of Settings */
+.btn.danger { background: var(--c-red); border-color: var(--c-red); color: #fff; }
+.btn.danger:hover { background: #b91c1c; border-color: #b91c1c; }
+.logout-btn { max-width: 720px; margin-top: 16px; }

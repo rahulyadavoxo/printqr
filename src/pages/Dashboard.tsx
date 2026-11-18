@@ -460,7 +460,6 @@ export default function Dashboard() {
             <LangToggle />
           </div>
           <ThemeToggle />
-          <button type="button" className="btn block" onClick={logout}><Icon name="logout" size={18} /> {t('logout')}</button>
         </div>
       </aside>
 
@@ -481,10 +480,11 @@ export default function Dashboard() {
         {tab === 'report' && <Report shop={shop} />}
         {tab === 'settings' && (
           <>
-            <Settings shop={shop} onSaved={setShop} onLogout={logout} />
+            <Settings shop={shop} onSaved={setShop} />
             <CountersCard shop={shop} counters={counters} usable={usable.length} locked={free} v2={v2}
               onChanged={() => loadCounters(shop.id)} onUpgrade={goPlan}
               onShowQr={(c) => setParams({ tab: 'qr', c })} />
+            <button type="button" className="btn danger block lg logout-btn" onClick={logout}><Icon name="logout" size={18} /> {t('logout')}</button>
           </>
         )}
         {tab === 'plan' && <PlanTab shop={shop} email={session?.user.email} onChanged={loadShop} />}
@@ -1248,7 +1248,7 @@ function Report({ shop }: { shop: Shop }) {
 
 /* ------------------------------------------------------------------ */
 
-function Settings({ shop, onSaved, onLogout }: { shop: Shop; onSaved: (s: Shop) => void; onLogout: () => void }) {
+function Settings({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void }) {
   const { t, tn, te } = useI18n()
   const [f, setF] = useState({
     name: shop.name,
@@ -1294,7 +1294,6 @@ function Settings({ shop, onSaved, onLogout }: { shop: Shop; onSaved: (s: Shop) 
       </label>
       {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
       <button className="btn primary block lg">{t('save')}</button>
-      <button type="button" className="btn block lg" onClick={onLogout}><Icon name="logout" size={18} /> {t('logout')}</button>
     </form>
   )
 }
