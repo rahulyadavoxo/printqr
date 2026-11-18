@@ -135,6 +135,8 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         web.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
+                // Cloudflare Turnstile (bot check) runs in its own frame: let that frame load in place.
+                if (!req.isForMainFrame() && "challenges.cloudflare.com".equals(req.getUrl().getHost())) return false;
                 return handleUrl(req.getUrl());
             }
 

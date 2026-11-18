@@ -8,6 +8,7 @@ import { useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
 import AdSlot from '../components/AdSlot'
 import Icon from '../components/Icon'
+import { isCaptchaError, Turnstile } from '../components/Turnstile'
 
 type ShopPublic = {
   id: string
@@ -132,13 +133,15 @@ export default function Upload() {
   const rawCounter = params.get('c')
   const counterId = rawCounter && UUID_RE.test(rawCounter) ? rawCounter : null
   const nav = useNavigate()
-  const { t, tn, te } = useI18n()
+  const { t, tn, te, lang } = useI18n()
   const [shop, setShop] = useState<ShopPublic | null>(null)
   const [loadErr, setLoadErr] = useState<{ text?: string; notFound?: boolean } | null>(null)
   const [items, setItems] = useState<Item[]>([])
   const [name, setName] = useState(() => localStorage.getItem('pq_name') || '')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
+  const [captcha, setCaptcha] = useState<string | null>(null)
+  const [captchaReset, setCaptchaReset] = useState(0)
   const [progress, setProgress] = useState<Progress | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
@@ -336,9 +339,21 @@ export default function Upload() {
       setProgress(null)
 
       const args = { p_slug: slug, p_customer_name: name, p_note: note, p_files: uploads.map((u) => u.payload) }
-      let res = counterId
-        ? await supabase.rpc('create_order', { ...args, p_counter: counterId })
-        : await supabase.rpc('create_order', args)
+      // Bot check: the server swaps the Turnstile token for a one-time pass (tokens work only once).
+      let pass: string | null = null
+      if (captcha) {
+        const { data: pd, error: pe } = await supabase.functions.invoke('upload-pass', { body: { token: captcha } })
+        if (!pe && pd && typeof (pd as { pass?: unknown }).pass === 'string') pass = (pd as { pass: string }).pass
+      }
+      let res: { data: unknown; error: { code?: string; message: string } | null } | null = pass
+        ? await supabase.rpc('create_order_checked', { ...args, p_pass: pass, p_counter: counterId || null })
+        : null
+      // Database without the v9 check yet: use the old entry point.
+      if (!res || (res.error && res.error.code === 'PGRST202')) {
+        res = counterId
+          ? await supabase.rpc('create_order', { ...args, p_counter: counterId })
+          : await supabase.rpc('create_order', args)
+      }
       // Database not updated to v2 yet: the counter argument is unknown. Send the order without it.
       if (counterId && res.error && res.error.code === 'PGRST202') res = await supabase.rpc('create_order', args)
       const { data, error } = res
@@ -360,10 +375,11 @@ export default function Upload() {
       localStorage.setItem('pq_orders', JSON.stringify([{ id: order.order_id, key: order.access_key, shop: shop.name, at: Date.now() }, ...saved].slice(0, 10)))
       nav(`/o/${order.order_id}/${order.access_key}`, { replace: true })
     } catch (e) {
-      setMsg(te(e))
+      setMsg(isCaptchaError(e) ? t('captchaFail') : te(e))
     } finally {
       setBusy(false)
       setProgress(null)
+      setCaptchaReset((n) => n + 1)
     }
   }
 
@@ -620,6 +636,8 @@ export default function Upload() {
               <p className="privacy-line"><Icon name="shield" size={18} /> <span>{t('uAutoDelete')}</span></p>
             </div>
           )}
+
+          {hasItems && <Turnstile action="upload" onToken={setCaptcha} resetKey={captchaReset} lang={lang} />}
 
           {msg && <p className="notice error" role="alert"><Icon name="alert" size={18} /> <span>{msg}</span></p>}
 

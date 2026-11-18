@@ -815,3 +815,6 @@ body.no-scroll { overflow: hidden; }
 .crop-zoom { display: flex; align-items: center; gap: 10px; color: var(--c-muted); }
 .crop-zoom input { flex: 1; accent-color: var(--c-lime); }
 .crop-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* Cloudflare Turnstile bot check */
+.turnstile-box { display: flex; justify-content: center; min-height: 65px; margin: 4px 0 8px; }

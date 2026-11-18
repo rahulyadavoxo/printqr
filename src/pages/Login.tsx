@@ -5,10 +5,11 @@ import { supabase } from '../lib/supabase'
 import { clearAuthUrlError, peekAuthUrlError, sendResetEmail } from '../lib/recovery'
 import { useI18n } from '../lib/i18n'
 import { LogoMark, TopBar } from '../components/TopBar'
+import { isCaptchaError, Turnstile } from '../components/Turnstile'
 
 export default function Login() {
   const [params] = useSearchParams()
-  const { t, te } = useI18n()
+  const { t, te, lang } = useI18n()
   const initialMode = params.get('mode')
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(
     initialMode === 'signup' ? 'signup' : initialMode === 'forgot' ? 'forgot' : 'login'
@@ -16,6 +17,8 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
+  const [captcha, setCaptcha] = useState<string | null>(null)
+  const [captchaReset, setCaptchaReset] = useState(0)
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(() => {
     const e = peekAuthUrlError()
     return e ? { text: e, error: true } : null
@@ -36,7 +39,7 @@ export default function Login() {
     setMsg(null)
     try {
       if (mode === 'forgot') {
-        const { error } = await sendResetEmail(email)
+        const { error } = await sendResetEmail(email, captcha)
         if (error) throw error
         setMsg({ text: t('fpSent'), error: false })
         return
@@ -45,7 +48,7 @@ export default function Login() {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: PUBLIC_BASE }
+          options: { emailRedirectTo: PUBLIC_BASE, captchaToken: captcha || undefined }
         })
         if (error) throw error
         if (!data.session) {
@@ -55,14 +58,15 @@ export default function Login() {
         }
         nav('/setup')
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        const { error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken: captcha || undefined } })
         if (error) throw error
         nav('/dashboard')
       }
     } catch (e) {
-      setMsg({ text: te(e), error: true })
+      setMsg({ text: isCaptchaError(e) ? t('captchaFail') : te(e), error: true })
     } finally {
       setBusy(false)
+      setCaptchaReset((n) => n + 1)
     }
   }
 
@@ -86,6 +90,7 @@ export default function Login() {
               <span>{t('email')}</span>
               <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" />
             </label>
+            <Turnstile key="reset" action="reset" onToken={setCaptcha} resetKey={captchaReset} lang={lang} />
             {msg && <p className={`notice${msg.error ? ' error' : ' success'}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
             <button className="btn primary block lg" disabled={busy}>{busy ? t('pleaseWait') : t('fpSend')}</button>
             <p className="center small switch-line">
@@ -120,6 +125,7 @@ export default function Login() {
               <button type="button" className="link small" onClick={() => switchTo('forgot')}>{t('forgotLink')}</button>
             </p>
           )}
+          <Turnstile key={mode} action={signup ? 'signup' : 'login'} onToken={setCaptcha} resetKey={captchaReset} lang={lang} />
           {msg && <p className={`notice${msg.error ? ' error' : ''}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
           {signup && (
             <p className="small muted center">

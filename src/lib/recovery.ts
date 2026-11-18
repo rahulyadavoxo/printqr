@@ -78,7 +78,7 @@ export async function recoverySessionReady(): Promise<boolean> {
   return Boolean(data.session)
 }
 
-export async function sendResetEmail(email: string) {
+export async function sendResetEmail(email: string, captchaToken?: string | null) {
   if (!recoveryClient) {
     recoveryClient = createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: {
@@ -91,6 +91,7 @@ export async function sendResetEmail(email: string) {
     })
   }
   return recoveryClient.auth.resetPasswordForEmail(email.trim(), {
-    redirectTo: PUBLIC_BASE
+    redirectTo: PUBLIC_BASE,
+    captchaToken: captchaToken || undefined
   })
 }
