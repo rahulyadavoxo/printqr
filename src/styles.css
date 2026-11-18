@@ -908,3 +908,13 @@ body.no-scroll { overflow: hidden; }
   .dash .dash-bar .topbar-in { max-width: none; padding: 8px 10px 8px 16px; min-height: 60px; }
 }
 [data-theme="dark"] .dash .dash-bar { background: var(--c-surface); }
+
+/* Page title lives inside the top bar */
+.bar-title { flex: 1; min-width: 0; }
+.bar-title h1 { margin: 0; font-size: 18px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-sub { display: none; margin: 2px 0 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (min-width: 1024px) {
+  .bar-title h1 { font-size: 22px; }
+  .bar-sub { display: block; }
+  .dash .dash-bar .topbar-in { padding-left: 20px; }
+}

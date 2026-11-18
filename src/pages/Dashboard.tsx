@@ -547,6 +547,10 @@ export default function Dashboard() {
           <button type="button" className="menu-btn" onClick={() => setMenu(true)} aria-label={t('menu')} aria-expanded={menu}>
             <Icon name="menu" size={24} />
           </button>
+          <div className="bar-title">
+            <h1>{t(current.label)}</h1>
+            <p className="muted bar-sub">{greeting(t)} · {today(lang)} · {shop.name}</p>
+          </div>
           <div className="bar-actions">
             <LangMenu />
             {openToggle}
@@ -605,12 +609,6 @@ export default function Dashboard() {
       </aside>
 
       <div className="page wide dash-main">
-        <div className="dash-head no-print">
-          <div className="dash-title">
-            <h1>{t(current.label)}</h1>
-            <p className="muted dash-sub">{greeting(t)} · {today(lang)} · {shop.name}</p>
-          </div>
-        </div>
         <AppDownloadBanner />
         {tab === 'orders' && <Orders shop={shop} counters={counters} />}
         {tab === 'rates' && <RatesTab shop={shop} v2={v2} passportLocked={free} onUpgrade={goPlan} onSaved={setShop} />}
