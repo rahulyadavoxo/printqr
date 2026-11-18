@@ -804,3 +804,14 @@ body.no-scroll { overflow: hidden; }
 .skel-form { display: grid; gap: 10px; }
 .skel-form .skel-avatar { margin: 0 auto; }
 .skel-input { height: 50px; width: 100%; border-radius: var(--r-sm); margin-bottom: 6px; }
+
+/* Photo crop dialog */
+.crop-overlay { position: fixed; inset: 0; z-index: 80; background: rgba(8, 12, 10, .6); display: grid; place-items: center; padding: 16px; }
+.crop-sheet { width: min(380px, 100%); background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-xl); box-shadow: var(--sh-3); padding: 20px; display: grid; gap: 14px; }
+.crop-stage { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; border-radius: var(--r-md); background: #000; touch-action: none; cursor: grab; user-select: none; }
+.crop-stage:active { cursor: grabbing; }
+.crop-stage img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; pointer-events: none; -webkit-user-drag: none; }
+.crop-frame { position: absolute; inset: 0; border-radius: 23%; box-shadow: 0 0 0 999px rgba(0, 0, 0, .45); outline: 2px solid rgba(255, 255, 255, .9); outline-offset: -2px; pointer-events: none; }
+.crop-zoom { display: flex; align-items: center; gap: 10px; color: var(--c-muted); }
+.crop-zoom input { flex: 1; accent-color: var(--c-lime); }
+.crop-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

@@ -1,5 +1,5 @@
 import { AppDownloadBanner } from '../components/AppDownload'
-import { FormEvent, TouchEvent as RTouchEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { FormEvent, PointerEvent as RPointerEvent, TouchEvent as RTouchEvent, WheelEvent as RWheelEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { Counter, DEFAULT_PASSPORT_RATE, FREE_COUNTER_LIMIT, Order, OrderStatus, plansReady, QrLink, qrCodeUrl, Rates, Shop, shopIsPro, shopUrl, supabase } from '../lib/supabase'
@@ -47,29 +47,137 @@ function ShopAvatar({ shop, size }: { shop: Shop; size: number }) {
   )
 }
 
-/** Square-crops and shrinks a picked photo to a 320px JPEG (small, fast to load). */
-async function squareJpeg(file: File, px = 320): Promise<Blob> {
+function loadImage(file: File): Promise<{ img: HTMLImageElement; url: string }> {
   const url = URL.createObjectURL(file)
-  try {
-    const img = await new Promise<HTMLImageElement>((ok, bad) => {
-      const i = new Image()
-      i.onload = () => ok(i)
-      i.onerror = bad
-      i.src = url
-    })
-    const side = Math.min(img.naturalWidth, img.naturalHeight)
-    if (!side) throw new Error('bad image')
-    const c = document.createElement('canvas')
-    c.width = px
-    c.height = px
-    const ctx = c.getContext('2d')!
-    ctx.fillStyle = '#fff'
-    ctx.fillRect(0, 0, px, px)
-    ctx.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, px, px)
-    return await new Promise<Blob>((ok, bad) => c.toBlob((b) => (b ? ok(b) : bad(new Error('encode'))), 'image/jpeg', 0.85))
-  } finally {
-    URL.revokeObjectURL(url)
+  return new Promise((ok, bad) => {
+    const i = new Image()
+    i.onload = () => (i.naturalWidth && i.naturalHeight ? ok({ img: i, url }) : bad(new Error('bad image')))
+    i.onerror = () => {
+      URL.revokeObjectURL(url)
+      bad(new Error('bad image'))
+    }
+    i.src = url
+  })
+}
+
+/** Draws the chosen square of the photo into a small JPEG (320px, fast to load). */
+function cropJpeg(img: HTMLImageElement, sx: number, sy: number, side: number, px = 320): Promise<Blob> {
+  const c = document.createElement('canvas')
+  c.width = px
+  c.height = px
+  const ctx = c.getContext('2d')!
+  ctx.fillStyle = '#fff'
+  ctx.fillRect(0, 0, px, px)
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(img, sx, sy, side, side, 0, 0, px, px)
+  return new Promise<Blob>((ok, bad) => c.toBlob((b) => (b ? ok(b) : bad(new Error('encode'))), 'image/jpeg', 0.88))
+}
+
+/** Square crop: drag to move, pinch / slider to zoom. */
+function PhotoCropper({ img, onCancel, onDone }: {
+  img: HTMLImageElement
+  onCancel: () => void
+  onDone: (sx: number, sy: number, side: number) => void
+}) {
+  const { t } = useI18n()
+  const stageRef = useRef<HTMLDivElement>(null)
+  const [S, setS] = useState(280)
+  const w = img.naturalWidth
+  const h = img.naturalHeight
+  const base = S / Math.min(w, h)
+  const [zoom, setZoom] = useState(1)
+  const [pos, setPos] = useState({ x: 0, y: 0 })
+  const scale = base * zoom
+  const clamp = useCallback((x: number, y: number, sc: number) => ({
+    x: Math.min(0, Math.max(S - w * sc, x)),
+    y: Math.min(0, Math.max(S - h * sc, y))
+  }), [S, w, h])
+
+  useEffect(() => {
+    const el = stageRef.current
+    const size = el ? Math.round(el.getBoundingClientRect().width) : 280
+    setS(size)
+    const b = size / Math.min(w, h)
+    setZoom(1)
+    setPos({ x: (size - w * b) / 2, y: (size - h * b) / 2 })
+  }, [img, w, h])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', onKey)
+    document.body.classList.add('no-scroll')
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.classList.remove('no-scroll')
+    }
+  }, [onCancel])
+
+  function zoomTo(z: number, cx = S / 2, cy = S / 2) {
+    const nz = Math.min(4, Math.max(1, z))
+    const ns = base * nz
+    // keep the point under (cx, cy) in place
+    const ix = (cx - pos.x) / scale
+    const iy = (cy - pos.y) / scale
+    setZoom(nz)
+    setPos(clamp(cx - ix * ns, cy - iy * ns, ns))
   }
+
+  const pointers = useRef(new Map<number, { x: number; y: number }>())
+  const gesture = useRef<{ dist: number; zoom: number } | null>(null)
+  function down(e: RPointerEvent) {
+    ;(e.target as Element).setPointerCapture?.(e.pointerId)
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()]
+      gesture.current = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom }
+    }
+  }
+  function move(e: RPointerEvent) {
+    const prev = pointers.current.get(e.pointerId)
+    if (!prev) return
+    const cur = { x: e.clientX, y: e.clientY }
+    pointers.current.set(e.pointerId, cur)
+    if (pointers.current.size === 2 && gesture.current) {
+      const [a, b] = [...pointers.current.values()]
+      const rect = stageRef.current!.getBoundingClientRect()
+      const d = Math.hypot(a.x - b.x, a.y - b.y)
+      zoomTo(gesture.current.zoom * (d / gesture.current.dist), (a.x + b.x) / 2 - rect.left, (a.y + b.y) / 2 - rect.top)
+    } else if (pointers.current.size === 1) {
+      setPos((p) => clamp(p.x + cur.x - prev.x, p.y + cur.y - prev.y, scale))
+    }
+  }
+  function up(e: RPointerEvent) {
+    pointers.current.delete(e.pointerId)
+    if (pointers.current.size < 2) gesture.current = null
+  }
+  function wheel(e: RWheelEvent) {
+    const rect = stageRef.current!.getBoundingClientRect()
+    zoomTo(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1), e.clientX - rect.left, e.clientY - rect.top)
+  }
+
+  return (
+    <div className="crop-overlay" role="dialog" aria-modal="true" aria-label={t('cropTitle')}>
+      <div className="crop-sheet">
+        <h2 className="card-title">{t('cropTitle')}</h2>
+        <div className="crop-stage" ref={stageRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onWheel={wheel}>
+          <img src={img.src} alt="" draggable={false}
+            style={{ width: w * scale, height: h * scale, transform: `translate(${pos.x}px, ${pos.y}px)` }} />
+          <div className="crop-frame" aria-hidden="true" />
+        </div>
+        <label className="crop-zoom">
+          <Icon name="image" size={16} />
+          <input type="range" min={1} max={4} step={0.01} value={zoom} aria-label={t('cropZoom')}
+            onChange={(e) => zoomTo(Number(e.target.value))} />
+          <Icon name="image" size={22} />
+        </label>
+        <p className="small muted center">{t('cropHint')}</p>
+        <div className="crop-actions">
+          <button type="button" className="btn lg" onClick={onCancel}>{t('cancel')}</button>
+          <button type="button" className="btn primary lg" onClick={() => onDone(-pos.x / scale, -pos.y / scale, S / scale)}>{t('cropSave')}</button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function ShopPhotoField({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void }) {
@@ -83,16 +191,33 @@ function ShopPhotoField({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => v
     const old = (data || []).map((o) => `${shop.id}/${o.name}`).filter((p) => p !== keep)
     if (old.length) await supabase.storage.from('shop-logos').remove(old)
   }
+  const [crop, setCrop] = useState<{ img: HTMLImageElement; url: string } | null>(null)
+  function closeCrop() {
+    if (crop) URL.revokeObjectURL(crop.url)
+    setCrop(null)
+    if (input.current) input.current.value = ''
+  }
   async function pick(file: File | undefined) {
     if (!file) return
     setMsg(null)
+    try {
+      setCrop(await loadImage(file))
+    } catch {
+      setMsg({ text: t('shopPhotoBad'), error: true })
+      if (input.current) input.current.value = ''
+    }
+  }
+  async function save(sx: number, sy: number, side: number) {
+    if (!crop) return
     setBusy(true)
     try {
       let blob: Blob
       try {
-        blob = await squareJpeg(file)
+        blob = await cropJpeg(crop.img, sx, sy, side)
       } catch {
         return setMsg({ text: t('shopPhotoBad'), error: true })
+      } finally {
+        closeCrop()
       }
       const path = `${shop.id}/logo-${Date.now()}.jpg`
       const up = await supabase.storage.from('shop-logos').upload(path, blob, { contentType: 'image/jpeg', upsert: true })
@@ -105,7 +230,6 @@ function ShopPhotoField({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => v
       void clearOld(path)
     } finally {
       setBusy(false)
-      if (input.current) input.current.value = ''
     }
   }
   async function remove() {
@@ -137,6 +261,7 @@ function ShopPhotoField({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => v
       </div>
       <small className="hint">{t('shopPhotoHint')}</small>
       {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
+      {crop && <PhotoCropper img={crop.img} onCancel={closeCrop} onDone={(x, y, side) => void save(x, y, side)} />}
     </div>
   )
 }
