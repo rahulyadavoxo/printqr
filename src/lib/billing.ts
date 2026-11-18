@@ -1,4 +1,4 @@
-import { IN_APP, nativeBridge } from './app'
+import { IN_APP, PUBLIC_BASE, nativeBridge } from './app'
 import { supabase } from './supabase'
 
 export type Period = 'monthly' | 'yearly'
@@ -134,6 +134,7 @@ function nativeCheckout(
         subscription_id: o.subscription_id,
         name: 'PrintQR',
         description: o.description,
+        image: `${PUBLIC_BASE}icon-192.png`, // else Razorpay shows the account's own (Receipto) logo
         prefill: o.email ? { email: o.email } : undefined,
         theme: { color: '#3f6212' }
       })
