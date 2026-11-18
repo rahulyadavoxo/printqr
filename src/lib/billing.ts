@@ -90,7 +90,7 @@ export async function startUpgrade(period: Period, opts: { email?: string; descr
       description: opts.description,
       image: `${window.location.origin}${import.meta.env.BASE_URL}icon-192.png`,
       prefill: opts.email ? { email: opts.email } : undefined,
-      theme: { color: '#3f6212' },
+      theme: { color: '#4f46e5' },
       handler: (r) => {
         callFn('verify-payment', { ...r }).then(() => resolve(true), reject)
       },
@@ -136,7 +136,7 @@ function nativeCheckout(
         description: o.description,
         image: `${PUBLIC_BASE}icon-192.png`, // else Razorpay shows the account's own (Receipto) logo
         prefill: o.email ? { email: o.email } : undefined,
-        theme: { color: '#3f6212' }
+        theme: { color: '#4f46e5' }
       })
     )
   })
