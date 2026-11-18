@@ -705,23 +705,46 @@ body.no-scroll { overflow: hidden; }
 .theme-seg button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; border: none; background: none; border-radius: var(--r-pill); font: inherit; font-size: 13.5px; font-weight: 700; color: var(--c-muted); cursor: pointer; }
 .theme-seg button.on { background: var(--c-surface); color: var(--c-ink); box-shadow: var(--sh-1); }
 
-/* Desktop: floating rounded menu like the app drawer, collapsed to icons and
-   expanding over the page on hover (Supabase-style). */
+/* Desktop: floating rounded menu like the app drawer. Sidebar control (Supabase-style):
+   sb-expanded = always open, sb-collapsed = icons only, sb-hover = icons, opens over the page on hover. */
+.sb-control { display: none; }
 @media (min-width: 1024px) {
-  .dash .drawer { top: 12px; bottom: 12px; left: 12px; width: 72px; transform: none; box-shadow: var(--sh-1);
+  .dash .drawer { top: 12px; bottom: 12px; left: 12px; width: 300px; transform: none; box-shadow: var(--sh-1); overflow: visible;
     transition: width .22s cubic-bezier(.2, .8, .2, 1), box-shadow .22s; }
-  .dash .drawer:hover, .dash .drawer:focus-within { width: 300px; box-shadow: var(--sh-3); }
   .dash .drawer-scrim, .dash .menu-btn, .dash .drawer-close, .dash .dash-bar { display: none; }
-  .dash .dash-main { margin-left: 96px; max-width: none; padding-left: 24px; padding-right: 32px; padding-top: 24px; }
-  .dash .drawer-head { padding: 14px; }
+  .dash .dash-main { margin-left: 324px; max-width: none; padding-left: 24px; padding-right: 32px; padding-top: 24px; transition: margin-left .22s; }
+  .dash .drawer-head { padding: 14px; overflow: hidden; border-radius: var(--r-xl) var(--r-xl) 0 0; }
   .dash .drawer-nav { padding: 4px 12px 12px; overflow-x: hidden; }
   .dash .drawer-item { padding-left: 13px; white-space: nowrap; overflow: hidden; }
-  .dash .drawer-label, .dash .drawer-title, .dash .drawer-item span, .dash .drawer-foot > * { white-space: nowrap; transition: opacity .15s; }
-  .dash .drawer:not(:hover):not(:focus-within) .drawer-label,
-  .dash .drawer:not(:hover):not(:focus-within) .drawer-title,
-  .dash .drawer:not(:hover):not(:focus-within) .drawer-item span { opacity: 0; }
-  .dash .drawer:not(:hover):not(:focus-within) .drawer-foot { opacity: 0; pointer-events: none; }
-  .dash .drawer-foot { min-width: 268px; transition: opacity .15s; }
+  .dash .drawer-label, .dash .drawer-title, .dash .drawer-item span { white-space: nowrap; transition: opacity .15s; }
+  .dash .drawer-foot { min-width: 268px; overflow: hidden; transition: opacity .15s; }
+
+  .dash.sb-collapsed .drawer, .dash.sb-hover .drawer { width: 72px; }
+  .dash.sb-collapsed .dash-main, .dash.sb-hover .dash-main { margin-left: 96px; }
+  .dash.sb-hover .drawer:hover, .dash.sb-hover .drawer:focus-within, .dash.sb-hover.sb-pinned .drawer { width: 300px; box-shadow: var(--sh-3); }
+  .dash.sb-collapsed .drawer-label, .dash.sb-collapsed .drawer-title, .dash.sb-collapsed .drawer-item span,
+  .dash.sb-hover:not(.sb-pinned) .drawer:not(:hover):not(:focus-within) .drawer-label,
+  .dash.sb-hover:not(.sb-pinned) .drawer:not(:hover):not(:focus-within) .drawer-title,
+  .dash.sb-hover:not(.sb-pinned) .drawer:not(:hover):not(:focus-within) .drawer-item span { opacity: 0; }
+  .dash.sb-collapsed .drawer-foot,
+  .dash.sb-hover:not(.sb-pinned) .drawer:not(:hover):not(:focus-within) .drawer-foot { opacity: 0; pointer-events: none; height: 0; padding: 0; border: 0; }
+
+  .sb-control { display: block; position: relative; padding: 8px 14px 12px; }
+  .sb-btn { width: 44px; height: 36px; display: grid; place-items: center; border: none; background: none; color: var(--c-muted); border-radius: var(--r-sm); cursor: pointer; }
+  .sb-btn:hover, .sb-btn[aria-expanded="true"] { background: var(--c-sunken); color: var(--c-ink); }
+  .sb-pop { position: absolute; left: 12px; bottom: 52px; z-index: 5; width: 220px; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-md); box-shadow: var(--sh-3); padding: 6px; }
+  .sb-pop-title { font-size: 13px; color: var(--c-muted); padding: 8px 10px; border-bottom: 1px solid var(--c-line); margin-bottom: 4px; }
+  .sb-pop button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: none; background: none; border-radius: var(--r-sm); font: inherit; font-size: 14.5px; color: var(--c-ink); cursor: pointer; text-align: left; white-space: nowrap; }
+  .sb-pop button:hover { background: var(--c-sunken); }
+  .sb-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .sb-pop button.on .sb-dot { background: var(--c-ink); }
+}
+/* Touch screens (tablets) can't hover: treat "expand on hover" as expanded. */
+@media (min-width: 1024px) and (hover: none) {
+  .dash.sb-hover .drawer { width: 300px; }
+  .dash.sb-hover .drawer .drawer-label, .dash.sb-hover .drawer .drawer-title, .dash.sb-hover .drawer .drawer-item span { opacity: 1 !important; }
+  .dash.sb-hover .drawer .drawer-foot { opacity: 1 !important; pointer-events: auto !important; height: auto !important; padding: 14px 16px 16px !important; border-top: 1px solid var(--c-line) !important; }
+  .dash.sb-hover .dash-main { margin-left: 324px; }
 }
 @media print {
   .drawer, .drawer-scrim, .dash-bar { display: none !important; }
@@ -836,9 +859,3 @@ body.no-scroll { overflow: hidden; }
 .btn.danger:hover { background: #b91c1c; border-color: #b91c1c; }
 .logout-btn { max-width: 720px; margin-top: 16px; }
 .app-version { max-width: 720px; text-align: center; color: var(--c-muted, #888); font-size: 13px; margin: 12px 0 4px; }
-/* Touch screens (tablets) can't hover: keep the desktop menu open. */
-@media (min-width: 1024px) and (hover: none) {
-  .dash .drawer { width: 300px; }
-  .dash .drawer .drawer-label, .dash .drawer .drawer-title, .dash .drawer .drawer-item span, .dash .drawer .drawer-foot { opacity: 1 !important; pointer-events: auto !important; }
-  .dash .dash-main { margin-left: 324px; }
-}

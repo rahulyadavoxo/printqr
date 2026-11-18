@@ -289,6 +289,19 @@ export default function Dashboard() {
   const { session, loading } = useSession()
   const { t, lang } = useI18n()
   const [menu, setMenu] = useState(false)
+  type SbMode = 'expanded' | 'collapsed' | 'hover'
+  const [sb, setSbState] = useState<SbMode>(() => {
+    try {
+      const v = localStorage.getItem('pq_sidebar')
+      return v === 'expanded' || v === 'collapsed' ? v : 'hover'
+    } catch { return 'hover' }
+  })
+  const [sbMenu, setSbMenu] = useState(false)
+  const setSb = (m: SbMode) => {
+    setSbState(m)
+    setSbMenu(false)
+    try { localStorage.setItem('pq_sidebar', m) } catch { /* ignore */ }
+  }
   // Swipe left on the open menu to close it (the menu follows the finger).
   const drawerRef = useRef<HTMLElement>(null)
   const swipe = useRef<{ x: number; y: number; dx: number; horiz: boolean | null } | null>(null)
@@ -423,7 +436,7 @@ export default function Dashboard() {
   )
 
   return (
-    <div className={`app-page dash${menu ? ' menu-open' : ''}`} onClick={unlockAudio}>
+    <div className={`app-page dash sb-${sb}${sbMenu ? ' sb-pinned' : ''}${menu ? ' menu-open' : ''}`} onClick={unlockAudio}>
       <header className="topbar dash-bar no-print">
         <div className="topbar-in wide">
           <button type="button" className="menu-btn" onClick={() => setMenu(true)} aria-label={t('menu')} aria-expanded={menu}>
@@ -468,6 +481,21 @@ export default function Dashboard() {
             <LangToggle />
           </div>
           <ThemeToggle />
+        </div>
+        <div className="sb-control">
+          {sbMenu && (
+            <div className="sb-pop" role="menu">
+              <div className="sb-pop-title">{t('sbControl')}</div>
+              {(['expanded', 'collapsed', 'hover'] as SbMode[]).map((m) => (
+                <button key={m} type="button" role="menuitemradio" aria-checked={sb === m} className={sb === m ? 'on' : ''} onClick={() => setSb(m)}>
+                  <span className="sb-dot" />{t(m === 'expanded' ? 'sbExpanded' : m === 'collapsed' ? 'sbCollapsed' : 'sbHover')}
+                </button>
+              ))}
+            </div>
+          )}
+          <button type="button" className="sb-btn" onClick={() => setSbMenu((v) => !v)} aria-label={t('sbControl')} aria-expanded={sbMenu} title={t('sbControl')}>
+            <Icon name="sidebar" size={18} />
+          </button>
         </div>
       </aside>
 
