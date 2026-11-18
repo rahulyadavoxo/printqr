@@ -15,6 +15,8 @@ type RazorpayOptions = {
   theme?: { color: string }
   handler: (r: RazorpayResponse) => void
   modal?: { ondismiss?: () => void }
+  /** Inside our Android app (a WebView), lets Razorpay show UPI apps (GPay, PhonePe, Paytm) */
+  webview_intent?: boolean
 }
 type RazorpayInstance = { open: () => void; on: (event: string, cb: (r: unknown) => void) => void }
 declare global {
@@ -85,7 +87,8 @@ export async function startUpgrade(period: Period, opts: { email?: string; descr
       description: opts.description,
       image: `${window.location.origin}${import.meta.env.BASE_URL}icon-192.png`,
       prefill: opts.email ? { email: opts.email } : undefined,
-      theme: { color: '#2348e0' },
+      theme: { color: '#3f6212' },
+      ...(/PrintQRApp\/Android/.test(navigator.userAgent) ? { webview_intent: true } : {}),
       handler: (r) => {
         callFn('verify-payment', { ...r }).then(() => resolve(true), reject)
       },

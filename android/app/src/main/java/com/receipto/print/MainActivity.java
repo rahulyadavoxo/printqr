@@ -9,12 +9,14 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Message;
 import android.os.Environment;
 import android.print.PrintAttributes;
 import android.print.PrintManager;
 import android.provider.MediaStore;
 import android.util.Base64;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
@@ -24,6 +26,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import java.io.File;
@@ -39,7 +42,10 @@ public class MainActivity extends Activity {
     private static final String START = "https://print.receipto.in/";
     private static final int PICK_FILES = 1001;
 
+    private FrameLayout root;
     private WebView web;
+    /** Pop-up window opened by Razorpay (card 3-D Secure, net banking, wallets). */
+    private WebView popup;
     private ValueCallback<Uri[]> pendingFiles;
 
     // Runs after every page load: routes print, popups and blob downloads to the app.
@@ -67,8 +73,10 @@ public class MainActivity extends Activity {
         w.setStatusBarColor(0xFF0B1210);
         w.setNavigationBarColor(0xFF0B1210);
 
+        root = new FrameLayout(this);
         web = new WebView(this);
-        setContentView(web);
+        root.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(root);
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -76,7 +84,7 @@ public class MainActivity extends Activity {
         s.setDatabaseEnabled(true);
         s.setAllowFileAccess(false);
         s.setMediaPlaybackRequiresUserGesture(false);
-        s.setSupportMultipleWindows(false);
+        s.setSupportMultipleWindows(true); // Razorpay opens bank / 3-D Secure pages in a pop-up
         s.setJavaScriptCanOpenWindowsAutomatically(true);
         s.setUserAgentString(s.getUserAgentString() + " PrintQRApp/Android");
         CookieManager.getInstance().setAcceptCookie(true);
@@ -114,6 +122,17 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
+                openPopup(resultMsg);
+                return true;
+            }
+
+            @Override
+            public void onCloseWindow(WebView window) {
+                closePopup();
+            }
+
+            @Override
             public void onProgressChanged(WebView view, int progress) {
                 if (progress > 60) view.evaluateJavascript(BRIDGE_JS, null);
             }
@@ -126,6 +145,49 @@ public class MainActivity extends Activity {
         else web.loadUrl(START);
     }
 
+    /** Shows a Razorpay pop-up (bank page, OTP, wallet) on top of the app, the way a browser tab would. */
+    @SuppressLint("SetJavaScriptEnabled")
+    private void openPopup(Message resultMsg) {
+        closePopup();
+        WebView p = new WebView(this);
+        WebSettings ps = p.getSettings();
+        ps.setJavaScriptEnabled(true);
+        ps.setDomStorageEnabled(true);
+        ps.setJavaScriptCanOpenWindowsAutomatically(true);
+        ps.setSupportMultipleWindows(false);
+        ps.setUserAgentString(web.getSettings().getUserAgentString());
+        CookieManager.getInstance().setAcceptThirdPartyCookies(p, true);
+        p.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
+                Uri u = req.getUrl();
+                String sc = u.getScheme() == null ? "" : u.getScheme();
+                if (sc.equals("http") || sc.equals("https")) return false; // bank pages stay in the pop-up
+                return handleUrl(u); // upi://, intent:// etc. open the UPI app
+            }
+        });
+        p.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onCloseWindow(WebView window) {
+                closePopup();
+            }
+        });
+        root.addView(p, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        popup = p;
+        WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
+        transport.setWebView(p);
+        resultMsg.sendToTarget();
+    }
+
+    private void closePopup() {
+        if (popup == null) return;
+        WebView p = popup;
+        popup = null;
+        root.removeView(p);
+        p.stopLoading();
+        p.destroy();
+    }
+
     /** Keep our own site, Supabase auth and Razorpay inside the app; send the rest out. */
     private boolean handleUrl(Uri uri) {
         String scheme = uri.getScheme() == null ? "" : uri.getScheme();
@@ -136,13 +198,23 @@ public class MainActivity extends Activity {
             openExternal(uri.toString());
             return true;
         }
+        Intent i = null;
         try {
-            Intent i = scheme.equals("intent")
+            i = scheme.equals("intent")
                 ? Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME)
                 : new Intent(Intent.ACTION_VIEW, uri);
+            if (scheme.equals("intent")) {
+                i.addCategory(Intent.CATEGORY_BROWSABLE);
+                i.setComponent(null);
+                i.setSelector(null);
+            }
             startActivity(i);
         } catch (Exception e) {
-            Toast.makeText(this, "No app found to open this", Toast.LENGTH_SHORT).show();
+            String fallback = i == null ? null : i.getStringExtra("browser_fallback_url");
+            if (fallback != null) openExternal(fallback);
+            else Toast.makeText(this, scheme.equals("upi") || uri.toString().contains("upi")
+                ? "No UPI app found. Install Google Pay, PhonePe or Paytm, or pay by card."
+                : "No app found to open this", Toast.LENGTH_LONG).show();
         }
         return true;
     }
@@ -253,6 +325,11 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (popup != null) {
+            if (popup.canGoBack()) popup.goBack();
+            else closePopup();
+            return;
+        }
         if (web != null && web.canGoBack()) web.goBack();
         else super.onBackPressed();
     }
