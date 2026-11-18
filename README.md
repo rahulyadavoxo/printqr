@@ -56,12 +56,15 @@ Agar `schema.sql` pehle chala chuke ho, to **SQL Editor** mein `supabase/migrati
 | Plan | Price | Features |
 |---|---|---|
 | Free | ₹0 | Ads, sirf main QR queue, passport sheet nahi |
-| Pro | ₹49/month ya ₹539/year (1 month free) | No ads, unlimited counters, passport photo sheet |
+| Pro | ₹49/month ya ₹539/year (1 month free) | No ads, unlimited counters, passport photo sheet, dynamic QR |
 
 ### 1d. Auto-delete Supabase se (v4: har 15 minute)
 1. Workflow **"Deploy Supabase Edge Functions"** `cleanup-files` function bhi deploy karta hai (push pe apne aap).
 2. Uske baad **SQL Editor** mein `supabase/migrations/2026-11-17-v4-cleanup-cron.sql` paste karke **Run** karo. Ye pg_cron + pg_net on karta hai aur har 15 minute cleanup chalata hai. Koi naya secret nahi chahiye.
 3. Check: `select * from cron.job_run_details order by start_time desc limit 5;`
+
+### 1e. Dynamic QR (v5, Pro)
+SQL Editor mein `supabase/migrations/2026-11-18-v5-dynamic-qr.sql` paste karke **Run** karo. Iske baad Pro shop ka QR short code wala banega (`#/q/CODE`). Owner QR tab se badal sakta hai ki QR kaunsi queue khole, use pause kar sakta hai aur scans dekh sakta hai, bina poster dobara print kiye. Pro khatam hone par bhi printed code chalta rahega. Free shops ka QR static rahega.
 
 Limits server pe bhi lagte hain (counter trigger, `create_order`, `get_shop_public.is_pro`). Owner plan columns khud update nahi kar sakta.
 

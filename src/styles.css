@@ -656,3 +656,10 @@ input:focus, select:focus { outline: none; border-color: var(--c-brand); box-sha
 .upd-bar { height: 100%; background: var(--c-lime); transition: width .2s; }
 .update-gate .btn { width: min(320px, 100%); }
 .update-toast { position: fixed; left: 12px; right: 12px; bottom: 16px; z-index: 1001; background: #0b1210; color: #fff; padding: 12px 14px; border-radius: 12px; font-size: 14px; }
+
+/* Dynamic QR (Pro) */
+.dyn-qr { border: 1px solid var(--c-brand-200); background: var(--c-brand-50); border-radius: var(--r-md); padding: 14px; margin: 12px 0; display: grid; gap: 8px; }
+.dyn-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dyn-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.dyn-row .field { flex: 1 1 200px; margin: 0; }
+.dyn-qr p { margin: 0; }

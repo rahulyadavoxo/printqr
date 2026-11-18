@@ -13,6 +13,7 @@ const Setup = lazy(() => import('./pages/Setup'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 const Legal = lazy(() => import('./pages/Legal'))
+const QrRedirect = lazy(() => import('./pages/QrRedirect'))
 
 export default function App() {
   const { t } = useI18n()
@@ -51,6 +52,7 @@ export default function App() {
       <Route path="/setup" element={<Setup />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/s/:slug" element={<Upload />} />
+      <Route path="/q/:code" element={<QrRedirect />} />
       <Route path="/o/:id/:key" element={<Status />} />
       <Route path="/legal/:doc" element={<Legal />} />
       <Route path="*" element={<Navigate to="/" replace />} />

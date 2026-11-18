@@ -109,6 +109,22 @@ export function errMsg(e: unknown): string {
   return m || 'Something went wrong'
 }
 
+/** Dynamic (Pro) QR row: a short code whose target the owner can change after printing. */
+export type QrLink = {
+  code: string
+  shop_id: string
+  slot: string
+  target_counter_id: string | null
+  paused: boolean
+  scans: number
+  last_scan_at: string | null
+}
+
+/** Link printed in a dynamic QR. */
+export function qrCodeUrl(code: string): string {
+  return `${PUBLIC_BASE}#/q/${code}`
+}
+
 /** Customer link for the shop. With a counter id the order is tagged with that counter (?c=<id>). */
 export function shopUrl(slug: string, counterId?: string | null): string {
   const base = `${PUBLIC_BASE}#/s/${slug}`

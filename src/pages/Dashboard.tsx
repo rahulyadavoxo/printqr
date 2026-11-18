@@ -2,7 +2,7 @@ import { AppDownloadBanner } from '../components/AppDownload'
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
-import { Counter, DEFAULT_PASSPORT_RATE, FREE_COUNTER_LIMIT, Order, OrderStatus, plansReady, Rates, Shop, shopIsPro, shopUrl, supabase } from '../lib/supabase'
+import { Counter, DEFAULT_PASSPORT_RATE, FREE_COUNTER_LIMIT, Order, OrderStatus, plansReady, QrLink, qrCodeUrl, Rates, Shop, shopIsPro, shopUrl, supabase } from '../lib/supabase'
 import { useSession } from '../lib/useSession'
 import { rupees } from '../lib/pricing'
 import { ding, unlockAudio } from '../lib/sound'
@@ -128,7 +128,7 @@ export default function Dashboard() {
         {tab === 'orders' && <Orders shop={shop} counters={counters} />}
         {tab === 'rates' && <RatesTab shop={shop} v2={v2} passportLocked={free} onUpgrade={goPlan} onSaved={setShop} />}
         {tab === 'qr' && (
-          <QrTab shop={shop} counters={usable} counterId={params.get('c') || ''}
+          <QrTab shop={shop} counters={usable} counterId={params.get('c') || ''} pro={pro} free={free} onUpgrade={goPlan}
             onCounter={(c) => setParams(c ? { tab: 'qr', c } : { tab: 'qr' }, { replace: true })} />
         )}
         {tab === 'report' && <Report shop={shop} />}
@@ -484,16 +484,45 @@ function RatesTab({ shop, v2, passportLocked, onUpgrade, onSaved }: {
 
 /* ------------------------------------------------------------------ */
 
-function QrTab({ shop, counters, counterId, onCounter }: {
+function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
   shop: Shop
   counters: Counter[]
   counterId: string
   onCounter: (id: string) => void
+  pro: boolean
+  free: boolean
+  onUpgrade: () => void
 }) {
-  const { t } = useI18n()
+  const { t, te } = useI18n()
   const counter = counters.find((c) => c.id === counterId) || null
   const counterName = counter?.name || ''
-  const url = shopUrl(shop.slug, counter?.id)
+  // Pro: the poster carries a short code (dynamic). Before the v5 update, or on Free, it is the plain shop link.
+  const [dyn, setDyn] = useState<QrLink | null>(null)
+  const [dynMsg, setDynMsg] = useState<{ text: string; error: boolean } | null>(null)
+  const slot = counter?.id || 'main'
+  useEffect(() => {
+    setDyn(null)
+    setDynMsg(null)
+    let alive = true
+    // Look up an existing code first (works even if Pro lapsed), then create one when Pro.
+    supabase.from('qr_links').select('*').eq('shop_id', shop.id).eq('slot', slot).maybeSingle()
+      .then(async ({ data, error }) => {
+        if (!alive || error) return
+        if (data) return setDyn(data as QrLink)
+        if (!pro) return
+        const r = await supabase.rpc('ensure_qr_link', { p_shop: shop.id, p_counter: counter?.id ?? null })
+        if (alive && !r.error && r.data) setDyn(r.data as QrLink)
+      })
+    return () => { alive = false }
+  }, [shop.id, slot, pro, counter?.id])
+  const url = dyn ? qrCodeUrl(dyn.code) : shopUrl(shop.slug, counter?.id)
+  async function updateDyn(patch: Partial<Pick<QrLink, 'target_counter_id' | 'paused'>>) {
+    if (!dyn) return
+    const { data, error } = await supabase.from('qr_links').update(patch).eq('code', dyn.code).select().single()
+    if (error) return setDynMsg({ text: te(error), error: true })
+    setDyn(data as QrLink)
+    setDynMsg({ text: t('dynSaved'), error: false })
+  }
   const [img, setImg] = useState('')
   const [copied, setCopied] = useState(false)
   const [card, setCard] = useState('')
@@ -720,6 +749,37 @@ function QrTab({ shop, counters, counterId, onCounter }: {
               {counters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </label>
+        )}
+        {dyn && (
+          <div className="dyn-qr">
+            <div className="dyn-head">
+              <strong>{t('dynQr')} <span className="pro-badge">{t('planPro')}</span></strong>
+              <span className="small muted">{t('dynScans')}: <b>{dyn.scans}</b>{dyn.paused ? ` · ${t('dynPaused')}` : ''}</span>
+            </div>
+            <p className="small muted">{t('dynQrSub')}</p>
+            <div className="dyn-row">
+              <label className="field">
+                <span>{t('dynOpens')}</span>
+                <select value={dyn.target_counter_id || ''} disabled={!pro}
+                  onChange={(e) => void updateDyn({ target_counter_id: e.target.value || null })}>
+                  <option value="">{t('cMain')}</option>
+                  {counters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </label>
+              <button type="button" className={`btn small${dyn.paused ? ' primary' : ''}`} disabled={!pro}
+                onClick={() => void updateDyn({ paused: !dyn.paused })}>
+                {dyn.paused ? t('dynResume') : t('dynPause')}
+              </button>
+            </div>
+            <p className="small muted">{t('dynOld')}</p>
+            {dynMsg && <p className={`notice${dynMsg.error ? ' error' : ' success'}`}>{dynMsg.text}</p>}
+          </div>
+        )}
+        {free && !dyn && (
+          <p className="small muted">
+            <span className="pro-badge">{t('planPro')}</span> {t('dynFreeHint')}{' '}
+            <button type="button" className="link small" onClick={onUpgrade}>{t('seePlans')}</button>
+          </p>
         )}
         <div className="btn-row">
           <button type="button" className="btn primary" onClick={() => window.print()}><Icon name="printer" size={18} /> {t('printPoster')}</button>
