@@ -920,25 +920,10 @@ body.no-scroll { overflow: hidden; }
   .dash .dash-bar .topbar-in { padding-left: 20px; }
 }
 
-/* Narrow phones: short open/closed label so the page title has room */
-.tl-short { display: none; }
-@media (max-width: 440px) {
-  .dash-bar .tl-long { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .dash-bar .tl-short { display: inline; }
-}
 /* Collapsed desktop sidebar: hidden group labels become thin dividers */
 @media (min-width: 1024px) {
   .dash.sb-collapsed .drawer-group:not(:first-child),
   .dash.sb-hover:not(.sb-pinned) .drawer:not(:hover):not(:has(:focus-visible)) .drawer-group:not(:first-child) {
     background: linear-gradient(var(--c-line), var(--c-line)) no-repeat center 19px / 28px 1px;
   }
-}
-@media (max-width: 440px) {
-  .dash .dash-bar .topbar-in { padding-left: 12px; padding-right: 12px; gap: 8px; }
-  .dash-bar .bar-actions .toggle { padding: 0 9px; }
-  .dash-bar .bar-title h1 { font-size: 17px; }
-}
-@media (max-width: 400px) {
-  .dash-bar .bar-actions { gap: 4px; }
-  .dash-bar .bar-title h1 { font-size: 16px; }
 }

@@ -529,8 +529,7 @@ export default function Dashboard() {
   const openToggle = (
     <button type="button" className={`toggle ${shop.is_open ? 'is-open' : 'is-closed'}`} onClick={toggleOpen} aria-pressed={shop.is_open}>
       <span className="toggle-dot" />
-      <span className="toggle-label tl-long">{shop.is_open ? t('shopOpen') : t('shopClosed')}</span>
-      <span className="toggle-label tl-short" aria-hidden="true">{shop.is_open ? t('shopOpenShort') : t('shopClosedShort')}</span>
+      <span className="toggle-label">{shop.is_open ? t('shopOpen') : t('shopClosed')}</span>
     </button>
   )
 
