@@ -1,6 +1,6 @@
 import { nativeBridge } from '../lib/app'
 import { AppDownloadBanner } from '../components/AppDownload'
-import { FormEvent, PointerEvent as RPointerEvent, TouchEvent as RTouchEvent, WheelEvent as RWheelEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { FormEvent, ReactNode, PointerEvent as RPointerEvent, TouchEvent as RTouchEvent, WheelEvent as RWheelEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { Counter, DEFAULT_PASSPORT_RATE, FREE_COUNTER_LIMIT, Order, OrderStatus, plansReady, QrLink, qrCodeUrl, Rates, Shop, shopIsPro, shopUrl, supabase } from '../lib/supabase'
@@ -285,6 +285,82 @@ export function ThemeToggle() {
   )
 }
 
+/** Small hover/tap menu: opens on mouse hover (desktop) or tap, closes on outside tap. */
+function usePopover() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e: Event) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', esc) }
+  }, [open])
+  const hover = {
+    onPointerEnter: (e: RPointerEvent) => { if (e.pointerType === 'mouse') setOpen(true) },
+    onPointerLeave: (e: RPointerEvent) => { if (e.pointerType === 'mouse') setOpen(false) }
+  }
+  return { open, setOpen, ref, hover }
+}
+
+/** Shows only the current theme; hover or tap to pick Light / Dark / Auto. */
+function ThemeMenu() {
+  const { t } = useI18n()
+  const { pref, setTheme } = useTheme()
+  const p = usePopover()
+  const opts: { id: ThemePref; label: Key; icon: string }[] = [
+    { id: 'light', label: 'themeLight', icon: 'sun' },
+    { id: 'dark', label: 'themeDark', icon: 'moon' },
+    { id: 'system', label: 'themeAuto', icon: 'auto' }
+  ]
+  const cur = opts.find((o) => o.id === pref) || opts[2]
+  return (
+    <div className="pop-wrap" ref={p.ref} {...p.hover}>
+      <button type="button" className="bar-btn" onClick={() => p.setOpen((v) => !v)} aria-label={t('theme')} aria-expanded={p.open} title={t(cur.label)}>
+        <Icon name={cur.icon} size={20} />
+      </button>
+      {p.open && (
+        <div className="pop-menu" role="menu">
+          <div className="pop-title">{t('theme')}</div>
+          {opts.map((o) => (
+            <button key={o.id} type="button" role="menuitemradio" aria-checked={pref === o.id} className={pref === o.id ? 'on' : ''}
+              onClick={() => { setTheme(o.id); p.setOpen(false) }}>
+              <Icon name={o.icon} size={16} /> <span>{t(o.label)}</span>{pref === o.id && <span className="pop-dot" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Shop photo in the top-right corner; its menu holds open/closed, language, settings and log out. */
+function ProfileMenu({ shop, planChip, openToggle, onSettings, onLogout }: {
+  shop: Shop; planChip: ReactNode; openToggle: ReactNode; onSettings: () => void; onLogout: () => void
+}) {
+  const { t } = useI18n()
+  const p = usePopover()
+  return (
+    <div className="pop-wrap" ref={p.ref} {...p.hover}>
+      <button type="button" className="avatar-btn" onClick={() => p.setOpen((v) => !v)} aria-label={shop.name} aria-expanded={p.open}>
+        <ShopAvatar shop={shop} size={36} />
+      </button>
+      {p.open && (
+        <div className="pop-menu profile-pop" role="menu">
+          <div className="profile-head">
+            <ShopAvatar shop={shop} size={40} />
+            <div><strong>{shop.name}</strong>{planChip}</div>
+          </div>
+          <div className="profile-row">{openToggle}<LangToggle /></div>
+          <button type="button" onClick={() => { p.setOpen(false); onSettings() }}><Icon name="settings" size={16} /> <span>{t('tabSettings')}</span></button>
+          <button type="button" className="danger-item" onClick={onLogout}><Icon name="logout" size={16} /> <span>{t('logout')}</span></button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const { session, loading } = useSession()
   const { t, lang } = useI18n()
@@ -442,6 +518,11 @@ export default function Dashboard() {
           <button type="button" className="menu-btn" onClick={() => setMenu(true)} aria-label={t('menu')} aria-expanded={menu}>
             <Icon name="menu" size={24} />
           </button>
+          <div className="bar-actions">
+            <ThemeMenu />
+            <ProfileMenu shop={shop} openToggle={openToggle} onSettings={() => go('settings')} onLogout={logout}
+              planChip={ready ? <span className={`plan-chip${pro ? ' is-pro' : ''}`}>{pro ? t('planPro') : t('planFree')}</span> : null} />
+          </div>
         </div>
       </header>
 
@@ -475,13 +556,6 @@ export default function Dashboard() {
             </div>
           ))}
         </nav>
-        <div className="drawer-foot">
-          <div className="drawer-foot-row">
-            {openToggle}
-            <LangToggle />
-          </div>
-          <ThemeToggle />
-        </div>
         <div className="sb-control">
           {sbMenu && (
             <div className="sb-pop" role="menu">
