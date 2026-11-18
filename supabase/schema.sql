@@ -163,6 +163,7 @@ grant select on public.shops to authenticated;
 revoke insert, update on public.shops from authenticated, anon;
 grant insert (owner_id, name, slug, address, phone, upi_id, is_open, rates, auto_delete_hours) on public.shops to authenticated;
 grant update (name, address, phone, upi_id, is_open, rates, auto_delete_hours) on public.shops to authenticated;
+-- Shop profile picture (v6): see supabase/migrations/2026-11-18-v6-shop-photo.sql (also run it on fresh installs).
 revoke all on public.billing_plans, public.billing_events from public, anon, authenticated;
 grant all on public.billing_plans, public.billing_events to service_role;
 grant select on public.orders to authenticated;

@@ -1,5 +1,5 @@
 import { AppDownloadBanner } from '../components/AppDownload'
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { FormEvent, TouchEvent as RTouchEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { Counter, DEFAULT_PASSPORT_RATE, FREE_COUNTER_LIMIT, Order, OrderStatus, plansReady, QrLink, qrCodeUrl, Rates, Shop, shopIsPro, shopUrl, supabase } from '../lib/supabase'
@@ -37,6 +37,110 @@ function today(lang: string): string {
   return new Date().toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
 }
 
+function ShopAvatar({ shop, size }: { shop: Shop; size: number }) {
+  const [broken, setBroken] = useState(false)
+  useEffect(() => setBroken(false), [shop.logo_url])
+  if (!shop.logo_url || broken) return <LogoMark size={size} />
+  return (
+    <img src={shop.logo_url} width={size} height={size} alt="" onError={() => setBroken(true)}
+      style={{ display: 'block', flex: 'none', width: size, height: size, borderRadius: size * 0.23, objectFit: 'cover' }} />
+  )
+}
+
+/** Square-crops and shrinks a picked photo to a 320px JPEG (small, fast to load). */
+async function squareJpeg(file: File, px = 320): Promise<Blob> {
+  const url = URL.createObjectURL(file)
+  try {
+    const img = await new Promise<HTMLImageElement>((ok, bad) => {
+      const i = new Image()
+      i.onload = () => ok(i)
+      i.onerror = bad
+      i.src = url
+    })
+    const side = Math.min(img.naturalWidth, img.naturalHeight)
+    if (!side) throw new Error('bad image')
+    const c = document.createElement('canvas')
+    c.width = px
+    c.height = px
+    const ctx = c.getContext('2d')!
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, px, px)
+    ctx.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, px, px)
+    return await new Promise<Blob>((ok, bad) => c.toBlob((b) => (b ? ok(b) : bad(new Error('encode'))), 'image/jpeg', 0.85))
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+function ShopPhotoField({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void }) {
+  const { t, te } = useI18n()
+  const input = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
+
+  async function clearOld(keep?: string) {
+    const { data } = await supabase.storage.from('shop-logos').list(shop.id)
+    const old = (data || []).map((o) => `${shop.id}/${o.name}`).filter((p) => p !== keep)
+    if (old.length) await supabase.storage.from('shop-logos').remove(old)
+  }
+  async function pick(file: File | undefined) {
+    if (!file) return
+    setMsg(null)
+    setBusy(true)
+    try {
+      let blob: Blob
+      try {
+        blob = await squareJpeg(file)
+      } catch {
+        return setMsg({ text: t('shopPhotoBad'), error: true })
+      }
+      const path = `${shop.id}/logo-${Date.now()}.jpg`
+      const up = await supabase.storage.from('shop-logos').upload(path, blob, { contentType: 'image/jpeg', upsert: true })
+      if (up.error) return setMsg({ text: te(up.error), error: true })
+      const url = supabase.storage.from('shop-logos').getPublicUrl(path).data.publicUrl
+      const { data, error } = await supabase.from('shops').update({ logo_url: url }).eq('id', shop.id).select().single()
+      if (error) return setMsg({ text: te(error), error: true })
+      onSaved(data as Shop)
+      setMsg({ text: t('shopPhotoSaved'), error: false })
+      void clearOld(path)
+    } finally {
+      setBusy(false)
+      if (input.current) input.current.value = ''
+    }
+  }
+  async function remove() {
+    setMsg(null)
+    setBusy(true)
+    try {
+      const { data, error } = await supabase.from('shops').update({ logo_url: null }).eq('id', shop.id).select().single()
+      if (error) return setMsg({ text: te(error), error: true })
+      onSaved(data as Shop)
+      void clearOld()
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="field">
+      <span>{t('shopPhoto')}</span>
+      <div className="photo-row">
+        <ShopAvatar shop={shop} size={64} />
+        <div className="photo-actions">
+          <button type="button" className="btn" disabled={busy} onClick={() => input.current?.click()}>
+            {busy ? t('shopPhotoUploading') : shop.logo_url ? t('shopPhotoChange') : t('shopPhotoAdd')}
+          </button>
+          {shop.logo_url && !busy && (
+            <button type="button" className="btn ghost" onClick={remove}>{t('shopPhotoRemove')}</button>
+          )}
+        </div>
+        <input ref={input} type="file" accept="image/*" hidden onChange={(e) => void pick(e.target.files?.[0])} />
+      </div>
+      <small className="hint">{t('shopPhotoHint')}</small>
+      {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
+    </div>
+  )
+}
+
 export function ThemeToggle() {
   const { t } = useI18n()
   const { pref, setTheme } = useTheme()
@@ -60,6 +164,38 @@ export default function Dashboard() {
   const { session, loading } = useSession()
   const { t, lang } = useI18n()
   const [menu, setMenu] = useState(false)
+  // Swipe left on the open menu to close it (the menu follows the finger).
+  const drawerRef = useRef<HTMLElement>(null)
+  const swipe = useRef<{ x: number; y: number; dx: number; horiz: boolean | null } | null>(null)
+  function swipeStart(e: RTouchEvent) {
+    const p = e.touches[0]
+    swipe.current = { x: p.clientX, y: p.clientY, dx: 0, horiz: null }
+  }
+  function swipeMove(e: RTouchEvent) {
+    const s = swipe.current
+    const el = drawerRef.current
+    if (!s || !el) return
+    const p = e.touches[0]
+    const dx = p.clientX - s.x
+    const dy = p.clientY - s.y
+    if (s.horiz === null) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return
+      s.horiz = Math.abs(dx) > Math.abs(dy)
+    }
+    if (!s.horiz) return
+    s.dx = Math.min(0, dx)
+    el.style.transition = 'none'
+    el.style.transform = `translateX(${s.dx}px)`
+  }
+  function swipeEnd() {
+    const s = swipe.current
+    const el = drawerRef.current
+    swipe.current = null
+    if (!s || !el || !s.horiz) return
+    el.style.transition = ''
+    el.style.transform = ''
+    if (s.dx < -Math.min(80, el.offsetWidth * 0.25)) setMenu(false)
+  }
   useEffect(() => {
     if (!menu) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(false) }
@@ -165,9 +301,10 @@ export default function Dashboard() {
       </header>
 
       <div className="drawer-scrim no-print" onClick={() => setMenu(false)} aria-hidden="true" />
-      <aside className="drawer no-print" aria-label={t('menu')}>
+      <aside className="drawer no-print" aria-label={t('menu')} ref={drawerRef}
+        onTouchStart={swipeStart} onTouchMove={swipeMove} onTouchEnd={swipeEnd} onTouchCancel={swipeEnd}>
         <div className="drawer-head">
-          <LogoMark size={44} />
+          <ShopAvatar shop={shop} size={44} />
           <div className="drawer-title">
             <strong>{shop.name}</strong>
             {ready && <span className={`plan-chip${pro ? ' is-pro' : ''}`}>{pro ? t('planPro') : t('planFree')}</span>}
@@ -981,6 +1118,7 @@ function Settings({ shop, onSaved, onLogout }: { shop: Shop; onSaved: (s: Shop) 
   return (
     <form className="card form-card" onSubmit={save}>
       <h2 className="card-title">{t('settingsTitle')}</h2>
+      <ShopPhotoField shop={shop} onSaved={onSaved} />
       <label className="field"><span>{t('shopName')}</span><input required minLength={2} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
       <label className="field"><span>{t('address')}</span><input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></label>
       <div className="grid2">

@@ -40,6 +40,8 @@ export type Shop = {
   rates: Rates
   auto_delete_hours: number
   created_at: string
+  /** Profile picture (public URL). Present once the v6 update (2026-11-18-v6-shop-photo.sql) has run. */
+  logo_url?: string | null
   /** Plan columns: present once the v3 database update (2026-11-17-v3-plans.sql) has run. */
   plan?: 'free' | 'pro'
   plan_period?: 'monthly' | 'yearly' | null

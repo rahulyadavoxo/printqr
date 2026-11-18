@@ -787,3 +787,8 @@ body.no-scroll { overflow: hidden; }
 [data-theme="dark"] .poster-steps b { color: #fff; }
 [data-theme="dark"] .order-actions .btn.primary.next-ready { background: #0b1210; border-color: var(--c-line-2); color: var(--c-lime); }
 [data-theme="dark"] .order-actions .btn.primary.next-ready:hover { background: #16201a; }
+
+/* Shop profile picture (Settings) */
+.photo-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.photo-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.drawer { touch-action: pan-y; }
