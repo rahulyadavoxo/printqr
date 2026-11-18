@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
     const body = new URLSearchParams({ secret, response: token })
     if (ip) body.set('remoteip', ip)
 
-    let result: { success?: boolean; action?: string; hostname?: string }
+    let result: { success?: boolean; action?: string; hostname?: string; 'error-codes'?: string[] }
     try {
       const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
         method: 'POST',
@@ -40,6 +40,10 @@ Deno.serve(async (req) => {
       result = await r.json()
     } catch {
       throw new HttpError(403, 'captcha_failed', 'captcha_failed')
+    }
+    // A wrong TURNSTILE_SECRET is a setup problem, not a visitor problem: say so (no secret in the reply).
+    if ((result['error-codes'] || []).includes('invalid-input-secret')) {
+      throw new HttpError(503, 'captcha_secret_invalid', 'captcha_secret_invalid')
     }
     if (!result.success || result.action !== EXPECTED_ACTION || !hosts.has(result.hostname || '')) {
       throw new HttpError(403, 'captcha_failed', 'captcha_failed')
