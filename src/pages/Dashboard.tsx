@@ -373,7 +373,7 @@ function ProfileMenu({ shop, planChip, onSettings, onLogout }: {
   return (
     <div className="pop-wrap" ref={p.ref} {...p.hover}>
       <button type="button" className="avatar-btn" onClick={() => p.setOpen((v) => !v)} aria-label={shop.name} aria-expanded={p.open}>
-        <ShopAvatar shop={shop} size={36} />
+        <ShopAvatar shop={shop} size={30} />
       </button>
       {p.open && (
         <div className="pop-menu profile-pop" role="menu">

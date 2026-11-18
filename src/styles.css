@@ -889,3 +889,14 @@ body.no-scroll { overflow: hidden; }
 .lang-btn { font-weight: 800; font-size: 14px; }
 .bar-actions .toggle { flex: none; }
 @media (max-width: 380px) { .bar-actions { gap: 5px; } .bar-actions .toggle-label { font-size: 13px; } }
+
+/* Match drawer corners to cards; one uniform style for all top-right controls */
+.drawer, .dash .drawer { border-radius: var(--r-md); }
+.bar-actions { gap: 6px; }
+.bar-actions .bar-btn, .bar-actions .toggle, .bar-actions .avatar-btn { height: 40px; min-height: 40px; border-radius: var(--r-sm); border: 1px solid var(--c-line); box-shadow: none; }
+.bar-actions .bar-btn { width: 40px; background: var(--c-surface); }
+.bar-actions .toggle { padding: 0 12px; font-size: 14px; }
+.bar-actions .avatar-btn { width: 40px; padding: 0; background: var(--c-surface); display: grid; place-items: center; overflow: hidden; }
+.bar-actions .avatar-btn:hover, .bar-actions .avatar-btn[aria-expanded="true"] { background: var(--c-sunken); border-color: var(--c-line); }
+.bar-actions .avatar-btn .shop-avatar { width: 30px !important; height: 30px !important; border-radius: 8px; box-shadow: none; font-size: 14px; }
+.bar-actions .avatar-btn .shop-avatar img { border-radius: 8px; }
