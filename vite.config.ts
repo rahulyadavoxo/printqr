@@ -14,10 +14,10 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'logo.svg', 'favicon.ico', 'apple-touch-icon.png'],
       manifest: {
-        name: 'PrintQR – Scan, upload, print',
-        short_name: 'PrintQR',
+        name: 'Print by Receipto – Scan, upload, print',
+        short_name: 'Print',
         description: 'QR file upload and print queue for cyber cafes',
-        theme_color: '#2348e0',
+        theme_color: '#0b1210',
         background_color: '#ffffff',
         display: 'standalone',
         start_url: base + '#/dashboard',

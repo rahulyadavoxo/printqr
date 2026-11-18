@@ -1,16 +1,17 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { isConfigured, supabase } from './lib/supabase'
 import { useI18n } from './lib/i18n'
 import { TopBar } from './components/TopBar'
 import Home from './pages/Home'
 import Login from './pages/Login'
-import Setup from './pages/Setup'
-import Dashboard from './pages/Dashboard'
 import Upload from './pages/Upload'
 import Status from './pages/Status'
-import ResetPassword from './pages/ResetPassword'
-import Legal from './pages/Legal'
+
+const Setup = lazy(() => import('./pages/Setup'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
+const Legal = lazy(() => import('./pages/Legal'))
 
 export default function App() {
   const { t } = useI18n()
@@ -40,6 +41,7 @@ export default function App() {
     )
   }
   return (
+    <Suspense fallback={<div className="page"><div className="skel" style={{ height: 160, borderRadius: 16 }} /></div>}>
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
@@ -51,5 +53,6 @@ export default function App() {
       <Route path="/legal/:doc" element={<Legal />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   )
 }

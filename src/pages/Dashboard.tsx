@@ -554,12 +554,12 @@ function QrTab({ shop, counters, counterId, onCounter }: {
       g.fillStyle = rg
       g.fillRect(x - r, y - r, r * 2, r * 2)
     }
-    blob(960, 140, 420, 'rgba(191,219,254,0.9)')
-    blob(100, 1380, 460, 'rgba(221,214,254,0.85)')
+    blob(960, 140, 420, 'rgba(217,242,160,0.9)')
+    blob(100, 1380, 460, 'rgba(230,246,198,0.85)')
     blob(1000, 1200, 260, 'rgba(254,243,199,0.8)')
     const strip = g.createLinearGradient(0, 0, W, 0)
-    strip.addColorStop(0, '#2348e0')
-    strip.addColorStop(1, '#7c3aed')
+    strip.addColorStop(0, '#a6e22e')
+    strip.addColorStop(1, '#6fa012')
     g.fillStyle = strip
     g.fillRect(0, 0, W, 14)
     g.fillRect(0, H - 14, W, 14)
@@ -568,13 +568,13 @@ function QrTab({ shop, counters, counterId, onCounter }: {
     g.textBaseline = 'middle'
 
     // Tag pill
-    const tag = 'PrintQR · ' + t('cardTag')
+    const tag = 'Print by Receipto · ' + t('cardTag')
     g.font = `700 30px ${font}`
     const tw = g.measureText(tag).width + 60
     rr((W - tw) / 2, 60, tw, 60, 30)
-    g.fillStyle = '#e0e7ff'
+    g.fillStyle = '#ecf8d2'
     g.fill()
-    g.fillStyle = '#3730a3'
+    g.fillStyle = '#2b4310'
     g.fillText(tag, W / 2, 91)
 
     // Shop name + address
@@ -593,8 +593,8 @@ function QrTab({ shop, counters, counterId, onCounter }: {
       fitText(label, 800, 40, 26, W - 260)
       const cw = Math.min(g.measureText(label).width + 80, W - 160)
       const grad = g.createLinearGradient((W - cw) / 2, 0, (W + cw) / 2, 0)
-      grad.addColorStop(0, '#2348e0')
-      grad.addColorStop(1, '#7c3aed')
+      grad.addColorStop(0, '#0b1210')
+      grad.addColorStop(1, '#2b4310')
       rr((W - cw) / 2, 300, cw, 68, 34)
       g.fillStyle = grad
       g.fill()
@@ -605,7 +605,7 @@ function QrTab({ shop, counters, counterId, onCounter }: {
     // White QR card with shadow
     const cardS = 760, cx = (W - cardS) / 2, cy = 320 + off
     g.save()
-    g.shadowColor = 'rgba(35,72,224,0.18)'
+    g.shadowColor = 'rgba(11,18,16,0.16)'
     g.shadowBlur = 50
     g.shadowOffsetY = 20
     rr(cx, cy, cardS, cardS, 48)
@@ -638,7 +638,7 @@ function QrTab({ shop, counters, counterId, onCounter }: {
     const eye = (r: number, col: number) => {
       const x = ox + col * cell, y = oy + r * cell
       rr(x, y, cell * 7, cell * 7, cell * 2)
-      g.fillStyle = '#2348e0'
+      g.fillStyle = '#0b1210'
       g.fill()
       rr(x + cell, y + cell, cell * 5, cell * 5, cell * 1.4)
       g.fillStyle = '#ffffff'
@@ -656,7 +656,7 @@ function QrTab({ shop, counters, counterId, onCounter }: {
       g.drawImage(logoEl, bx + cell * 0.4, by + cell * 0.4, bs - cell * 0.8, bs - cell * 0.8)
     } else {
       rr(bx + cell * 0.4, by + cell * 0.4, bs - cell * 0.8, bs - cell * 0.8, cell * 1.6)
-      g.fillStyle = '#2348e0'
+      g.fillStyle = '#0b1210'
       g.fill()
     }
 
@@ -675,12 +675,12 @@ function QrTab({ shop, counters, counterId, onCounter }: {
     let x = (W - (widths.reduce((a, b) => a + b, 0) + gap * (steps.length - 1))) / 2
     steps.forEach((s, i) => {
       rr(x, y - 36, widths[i], 72, 36)
-      g.fillStyle = '#eff6ff'
+      g.fillStyle = '#f2fbe0'
       g.fill()
-      g.strokeStyle = '#bfdbfe'
+      g.strokeStyle = '#c9ec8a'
       g.lineWidth = 2
       g.stroke()
-      g.fillStyle = '#1d4ed8'
+      g.fillStyle = '#3f6212'
       g.fillText(s, x + widths[i] / 2, y + 1)
       if (i < steps.length - 1) {
         g.fillStyle = '#94a3b8'
