@@ -1091,7 +1091,7 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
     blob(100, 1380, 460, 'rgba(230,246,198,0.85)')
     blob(1000, 1200, 260, 'rgba(254,243,199,0.8)')
     const strip = g.createLinearGradient(0, 0, W, 0)
-    strip.addColorStop(0, '#818cf8')
+    strip.addColorStop(0, '#a6e22e')
     strip.addColorStop(1, '#6fa012')
     g.fillStyle = strip
     g.fillRect(0, 0, W, 14)
@@ -1126,7 +1126,7 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
       fitText(label, 800, 40, 26, W - 260)
       const cw = Math.min(g.measureText(label).width + 80, W - 160)
       const grad = g.createLinearGradient((W - cw) / 2, 0, (W + cw) / 2, 0)
-      grad.addColorStop(0, '#1e1b4b')
+      grad.addColorStop(0, '#0b1210')
       grad.addColorStop(1, '#2b4310')
       rr((W - cw) / 2, 300, cw, 68, 34)
       g.fillStyle = grad
@@ -1171,7 +1171,7 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
     const eye = (r: number, col: number) => {
       const x = ox + col * cell, y = oy + r * cell
       rr(x, y, cell * 7, cell * 7, cell * 2)
-      g.fillStyle = '#1e1b4b'
+      g.fillStyle = '#0b1210'
       g.fill()
       rr(x + cell, y + cell, cell * 5, cell * 5, cell * 1.4)
       g.fillStyle = '#ffffff'
@@ -1189,7 +1189,7 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
       g.drawImage(logoEl, bx + cell * 0.4, by + cell * 0.4, bs - cell * 0.8, bs - cell * 0.8)
     } else {
       rr(bx + cell * 0.4, by + cell * 0.4, bs - cell * 0.8, bs - cell * 0.8, cell * 1.6)
-      g.fillStyle = '#1e1b4b'
+      g.fillStyle = '#0b1210'
       g.fill()
     }
 
@@ -1213,7 +1213,7 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
       g.strokeStyle = '#c9ec8a'
       g.lineWidth = 2
       g.stroke()
-      g.fillStyle = '#4f46e5'
+      g.fillStyle = '#3f6212'
       g.fillText(s, x + widths[i] / 2, y + 1)
       if (i < steps.length - 1) {
         g.fillStyle = '#94a3b8'

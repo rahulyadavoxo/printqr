@@ -24,7 +24,7 @@ export function applyTheme(pref: ThemePref) {
   const root = document.documentElement
   root.dataset.theme = dark ? 'dark' : 'light'
   root.style.colorScheme = dark ? 'dark' : 'light'
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0b0d17' : '#faf9f6')
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0b1210' : '#faf9f6')
   try {
     const b = nativeBridge()
     b?.setBars?.(dark)
