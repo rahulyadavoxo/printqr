@@ -29,13 +29,6 @@ const NAV: { group: Key; items: Tab[] }[] = [
   { group: 'navAccount', items: ['settings'] }
 ]
 
-function greeting(t: (k: Key) => string): string {
-  const h = new Date().getHours()
-  return t(h < 12 ? 'goodMorning' : h < 17 ? 'goodAfternoon' : 'goodEvening')
-}
-function today(lang: string): string {
-  return new Date().toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
-}
 
 function ShopAvatar({ shop, size }: { shop: Shop; size: number }) {
   const [broken, setBroken] = useState(false)
@@ -549,7 +542,6 @@ export default function Dashboard() {
           </button>
           <div className="bar-title">
             <h1>{t(current.label)}</h1>
-            <p className="muted bar-sub">{greeting(t)} · {today(lang)} · {shop.name}</p>
           </div>
           <div className="bar-actions">
             <LangMenu />
