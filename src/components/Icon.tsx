@@ -2,6 +2,10 @@ import { ReactElement } from 'react'
 
 /* Small inline stroke icons (24×24, currentColor). No icon library needed. */
 const PATHS: Record<string, ReactElement> = {
+  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+  sun: <path d="M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />,
+  moon: <path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z" />,
+  auto: <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 3v18" />,
   inbox: <path d="M4 13h4l1.5 3h5L16 13h4M5.5 5h13L21 13v6H3v-6z" />,
   rupee: <path d="M7 4h10M7 8h10M9 4c5 0 5 8 0 8H7l8 8" />,
   qr: <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2" />,

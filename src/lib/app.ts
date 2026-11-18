@@ -19,6 +19,7 @@ export type NativeBridge = {
   downloadUpdate?: (version: string) => void
   canInstall?: () => boolean
   installUpdate?: () => string
+  setBars?: (dark: boolean) => void
 }
 export function nativeBridge(): NativeBridge | undefined {
   return (window as unknown as { PQ?: NativeBridge }).PQ

@@ -7,7 +7,16 @@
     <link rel="alternate icon" href="./favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b1210" />
+    <meta name="theme-color" content="#faf9f6" />
+    <script>
+      try {
+        var t = localStorage.getItem('pq-theme');
+        var d = t === 'dark' || (t !== 'light' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = d ? 'dark' : 'light';
+        document.documentElement.style.colorScheme = d ? 'dark' : 'light';
+        if (d) document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0b1210');
+      } catch (e) {}
+    </script>
     <meta name="description" content="Customers scan a QR at the cyber cafe counter, upload PDFs or photos, see the price and get a token number." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

@@ -7,7 +7,8 @@ import { useSession } from '../lib/useSession'
 import { rupees } from '../lib/pricing'
 import { ding, unlockAudio } from '../lib/sound'
 import { Key, useI18n } from '../lib/i18n'
-import { LangToggle, TopBar, Wordmark } from '../components/TopBar'
+import { LangToggle, LogoMark, TopBar, Wordmark } from '../components/TopBar'
+import { ThemePref, useTheme } from '../lib/theme'
 import AdSlot from '../components/AdSlot'
 import Icon from '../components/Icon'
 import { Period, PLAN_PRICES, startUpgrade, callFn } from '../lib/billing'
@@ -22,9 +23,53 @@ const TABS: { id: Tab; label: Key; icon: string }[] = [
   { id: 'plan', label: 'tabPlan', icon: 'star' }
 ]
 
+const NAV: { group: Key; items: Tab[] }[] = [
+  { group: 'navShop', items: ['orders', 'rates', 'qr'] },
+  { group: 'navBusiness', items: ['report', 'plan'] },
+  { group: 'navAccount', items: ['settings'] }
+]
+
+function greeting(t: (k: Key) => string): string {
+  const h = new Date().getHours()
+  return t(h < 12 ? 'goodMorning' : h < 17 ? 'goodAfternoon' : 'goodEvening')
+}
+function today(lang: string): string {
+  return new Date().toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
+}
+
+export function ThemeToggle() {
+  const { t } = useI18n()
+  const { pref, setTheme } = useTheme()
+  const opts: { id: ThemePref; label: Key; icon: string }[] = [
+    { id: 'light', label: 'themeLight', icon: 'sun' },
+    { id: 'dark', label: 'themeDark', icon: 'moon' },
+    { id: 'system', label: 'themeAuto', icon: 'auto' }
+  ]
+  return (
+    <div className="theme-seg" role="group" aria-label={t('theme')}>
+      {opts.map((o) => (
+        <button key={o.id} type="button" className={pref === o.id ? 'on' : ''} aria-pressed={pref === o.id} onClick={() => setTheme(o.id)}>
+          <Icon name={o.icon} size={16} /> {t(o.label)}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const { session, loading } = useSession()
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
+  const [menu, setMenu] = useState(false)
+  useEffect(() => {
+    if (!menu) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(false) }
+    window.addEventListener('keydown', onKey)
+    document.body.classList.add('no-scroll')
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.classList.remove('no-scroll')
+    }
+  }, [menu])
   const nav = useNavigate()
   const [params, setParams] = useSearchParams()
   const tab = (params.get('tab') as Tab) || 'orders'
@@ -96,35 +141,81 @@ export default function Dashboard() {
   const usable = free ? counters.slice(0, FREE_COUNTER_LIMIT) : counters
   const goPlan = () => setParams({ tab: 'plan' })
 
-  return (
-    <div className="app-page dash" onClick={unlockAudio}>
-      <TopBar to={null} wide lang={false}>
-        <button type="button" className={`toggle ${shop.is_open ? 'is-open' : 'is-closed'}`} onClick={toggleOpen} aria-pressed={shop.is_open}>
-          <span className="toggle-dot" />
-          <span className="toggle-label">{shop.is_open ? t('shopOpen') : t('shopClosed')}</span>
-        </button>
-        <button type="button" className="btn ghost small hide-xs" onClick={logout}><Icon name="logout" size={18} /> {t('logout')}</button>
-      </TopBar>
+  const current = TABS.find((x) => x.id === tab) || TABS[0]
+  const go = (id: Tab) => {
+    setMenu(false)
+    setParams({ tab: id })
+    window.scrollTo(0, 0)
+  }
+  const openToggle = (
+    <button type="button" className={`toggle ${shop.is_open ? 'is-open' : 'is-closed'}`} onClick={toggleOpen} aria-pressed={shop.is_open}>
+      <span className="toggle-dot" />
+      <span className="toggle-label">{shop.is_open ? t('shopOpen') : t('shopClosed')}</span>
+    </button>
+  )
 
-      <div className="page wide">
-        <div className="dash-head no-print">
-          <div className="dash-avatar" aria-hidden="true">{shop.name.trim().charAt(0).toUpperCase() || 'P'}</div>
-          <div className="dash-title">
-            <h1>{shop.name}</h1>
-            {shop.address && <p className="muted small dash-addr">{shop.address}</p>}
+  return (
+    <div className={`app-page dash${menu ? ' menu-open' : ''}`} onClick={unlockAudio}>
+      <header className="topbar dash-bar no-print">
+        <div className="topbar-in wide">
+          <button type="button" className="menu-btn" onClick={() => setMenu(true)} aria-label={t('menu')} aria-expanded={menu}>
+            <Icon name="menu" size={24} />
+          </button>
+          <div className="dash-brand">
+            <LogoMark size={40} />
+            <span className="dash-shop">{shop.name}</span>
           </div>
-          {ready && <span className={`plan-chip${pro ? ' is-pro' : ''}`}>{pro ? t('planPro') : t('planFree')}</span>}
+          {openToggle}
         </div>
-        <AppDownloadBanner />
-        <nav className="tabs no-print">
-          {TABS.map((x) => (
-            <button key={x.id} type="button" className={tab === x.id ? 'on' : ''} aria-current={tab === x.id ? 'page' : undefined}
-              onClick={() => setParams({ tab: x.id })}>
-              <Icon name={x.icon} size={18} />
-              <span>{t(x.label)}</span>
-            </button>
+      </header>
+
+      <div className="drawer-scrim no-print" onClick={() => setMenu(false)} aria-hidden="true" />
+      <aside className="drawer no-print" aria-label={t('menu')}>
+        <div className="drawer-head">
+          <LogoMark size={44} />
+          <div className="drawer-title">
+            <strong>{shop.name}</strong>
+            {ready && <span className={`plan-chip${pro ? ' is-pro' : ''}`}>{pro ? t('planPro') : t('planFree')}</span>}
+          </div>
+          <button type="button" className="drawer-close" onClick={() => setMenu(false)} aria-label={t('close')}>
+            <Icon name="x" size={24} />
+          </button>
+        </div>
+        <nav className="drawer-nav">
+          {NAV.map((g) => (
+            <div className="drawer-group" key={g.group}>
+              <div className="drawer-label">{t(g.group)}</div>
+              {g.items.map((id) => {
+                const x = TABS.find((y) => y.id === id)!
+                return (
+                  <button key={id} type="button" className={`drawer-item${tab === id ? ' on' : ''}`}
+                    aria-current={tab === id ? 'page' : undefined} onClick={() => go(id)}>
+                    <Icon name={x.icon} size={22} />
+                    <span>{t(x.label)}</span>
+                  </button>
+                )
+              })}
+            </div>
           ))}
         </nav>
+        <div className="drawer-foot">
+          <div className="drawer-foot-row">
+            {openToggle}
+            <LangToggle />
+          </div>
+          <ThemeToggle />
+          <button type="button" className="btn block" onClick={logout}><Icon name="logout" size={18} /> {t('logout')}</button>
+        </div>
+      </aside>
+
+      <div className="page wide dash-main">
+        <div className="dash-head no-print">
+          <div className="dash-title">
+            <h1>{t(current.label)}</h1>
+            <p className="muted dash-sub">{greeting(t)} · {today(lang)} · {shop.name}</p>
+          </div>
+        </div>
+        <AppDownloadBanner />
         {tab === 'orders' && <Orders shop={shop} counters={counters} />}
         {tab === 'rates' && <RatesTab shop={shop} v2={v2} passportLocked={free} onUpgrade={goPlan} onSaved={setShop} />}
         {tab === 'qr' && (
@@ -793,7 +884,7 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
         </div>
       </div>
       <div className="poster">
-        <div className="poster-brand"><Wordmark height={34} /></div>
+        <div className="poster-brand"><Wordmark height={34} light /></div>
         <div className="poster-top">{shop.name}</div>
         {counterName && <div className="poster-counter">🧾 {counterName}</div>}
         <h2>{t('posterHeadline')}</h2>
@@ -899,6 +990,10 @@ function Settings({ shop, onSaved, onLogout }: { shop: Shop; onSaved: (s: Shop) 
         <span>{t('language')}</span>
         <LangToggle />
         <small className="hint">{t('langHint')}</small>
+      </div>
+      <div className="field">
+        <span>{t('theme')}</span>
+        <ThemeToggle />
       </div>
       <label className="field"><span>{t('shopName')}</span><input required minLength={2} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
       <label className="field"><span>{t('address')}</span><input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></label>

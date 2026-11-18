@@ -8,10 +8,14 @@ export function LogoMark({ size = 30 }: { size?: number }) {
   )
 }
 
-export function Wordmark({ height = 36 }: { height?: number }) {
-  return (
-    <img src={import.meta.env.BASE_URL + 'logo.svg'} height={height} width={Math.round(height * 2.5)} alt="Print by Receipto" style={{ display: 'block' }} />
+/** The wordmark; the light-text version shows in dark mode (unless `light`, e.g. on the printed poster). */
+export function Wordmark({ height = 36, light = false }: { height?: number; light?: boolean }) {
+  const w = Math.round(height * 2.5)
+  const img = (file: string, cls: string) => (
+    <img src={import.meta.env.BASE_URL + file} height={height} width={w} alt="Print by Receipto" className={cls} style={{ display: 'block' }} />
   )
+  if (light) return img('logo.svg', '')
+  return <span className="wordmark">{img('logo.svg', 'wm-light')}{img('logo-dark.svg', 'wm-dark')}</span>
 }
 
 export function Logo({ to = '/' }: { to?: string | null }) {

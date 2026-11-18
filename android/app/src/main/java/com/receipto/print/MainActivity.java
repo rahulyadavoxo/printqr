@@ -582,6 +582,21 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
     }
 
     private class Bridge {
+        /** Light or dark system bars to match the web theme. */
+        @JavascriptInterface
+        public void setBars(boolean dark) {
+            runOnUiThread(() -> {
+                int c = dark ? 0xFF0B1210 : 0xFFFAF9F6;
+                Window w = getWindow();
+                w.setStatusBarColor(c);
+                w.setNavigationBarColor(c);
+                root.setBackgroundColor(c);
+                WindowInsetsControllerCompat bars = WindowCompat.getInsetsController(w, w.getDecorView());
+                bars.setAppearanceLightStatusBars(!dark);
+                bars.setAppearanceLightNavigationBars(!dark);
+            });
+        }
+
         @JavascriptInterface
         public void print(String title) {
             runOnUiThread(() -> {

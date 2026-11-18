@@ -5,9 +5,13 @@ import App from './App'
 import { I18nProvider } from './lib/i18n'
 import { captureAuthHash } from './lib/recovery'
 import './styles.css'
+import { applyTheme, readTheme } from './lib/theme'
 
 // Must run before HashRouter reads the hash (Supabase puts auth tokens there).
 captureAuthHash()
+// Theme (index.html already set it; this also tints the Android app's system bars).
+applyTheme(readTheme())
+window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', () => applyTheme(readTheme()))
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
