@@ -8,7 +8,7 @@ import { useSession } from '../lib/useSession'
 import { rupees } from '../lib/pricing'
 import { ding, unlockAudio } from '../lib/sound'
 import { Key, useI18n } from '../lib/i18n'
-import { LangToggle, LogoMark, TopBar, Wordmark } from '../components/TopBar'
+import { LogoMark, TopBar, Wordmark } from '../components/TopBar'
 import { ThemePref, useTheme } from '../lib/theme'
 import Icon from '../components/Icon'
 import { Period, PLAN_PRICES, startUpgrade, callFn } from '../lib/billing'
@@ -335,9 +335,38 @@ function ThemeMenu() {
   )
 }
 
+/** Shows only the current language; hover or tap to switch EN / हिंदी. */
+function LangMenu() {
+  const { lang, setLang, t } = useI18n()
+  const p = usePopover()
+  const opts: { id: 'en' | 'hi'; short: string; label: string }[] = [
+    { id: 'en', short: 'EN', label: 'English' },
+    { id: 'hi', short: 'हिं', label: 'हिंदी' }
+  ]
+  const cur = opts.find((o) => o.id === lang) || opts[0]
+  return (
+    <div className="pop-wrap" ref={p.ref} {...p.hover}>
+      <button type="button" className="bar-btn lang-btn" onClick={() => p.setOpen((v) => !v)} aria-label={t('language')} aria-expanded={p.open}>
+        {cur.short}
+      </button>
+      {p.open && (
+        <div className="pop-menu" role="menu">
+          <div className="pop-title">{t('language')}</div>
+          {opts.map((o) => (
+            <button key={o.id} type="button" role="menuitemradio" aria-checked={lang === o.id} className={lang === o.id ? 'on' : ''}
+              lang={o.id} onClick={() => { setLang(o.id); p.setOpen(false) }}>
+              <span>{o.label}</span>{lang === o.id && <span className="pop-dot" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /** Shop photo in the top-right corner; its menu holds open/closed, language, settings and log out. */
-function ProfileMenu({ shop, planChip, openToggle, onSettings, onLogout }: {
-  shop: Shop; planChip: ReactNode; openToggle: ReactNode; onSettings: () => void; onLogout: () => void
+function ProfileMenu({ shop, planChip, onSettings, onLogout }: {
+  shop: Shop; planChip: ReactNode; onSettings: () => void; onLogout: () => void
 }) {
   const { t } = useI18n()
   const p = usePopover()
@@ -352,7 +381,6 @@ function ProfileMenu({ shop, planChip, openToggle, onSettings, onLogout }: {
             <ShopAvatar shop={shop} size={40} />
             <div><strong>{shop.name}</strong>{planChip}</div>
           </div>
-          <div className="profile-row">{openToggle}<LangToggle /></div>
           <button type="button" onClick={() => { p.setOpen(false); onSettings() }}><Icon name="settings" size={16} /> <span>{t('tabSettings')}</span></button>
           <button type="button" className="danger-item" onClick={onLogout}><Icon name="logout" size={16} /> <span>{t('logout')}</span></button>
         </div>
@@ -519,8 +547,10 @@ export default function Dashboard() {
             <Icon name="menu" size={24} />
           </button>
           <div className="bar-actions">
+            <LangMenu />
+            {openToggle}
             <ThemeMenu />
-            <ProfileMenu shop={shop} openToggle={openToggle} onSettings={() => go('settings')} onLogout={logout}
+            <ProfileMenu shop={shop} onSettings={() => go('settings')} onLogout={logout}
               planChip={ready ? <span className={`plan-chip${pro ? ' is-pro' : ''}`}>{pro ? t('planPro') : t('planFree')}</span> : null} />
           </div>
         </div>

@@ -886,3 +886,6 @@ body.no-scroll { overflow: hidden; }
 .profile-head > div { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 .profile-head strong { font-size: 16px; color: var(--c-ink); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .profile-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; border-bottom: 1px solid var(--c-line); margin-bottom: 4px; }
+.lang-btn { font-weight: 800; font-size: 14px; }
+.bar-actions .toggle { flex: none; }
+@media (max-width: 380px) { .bar-actions { gap: 5px; } .bar-actions .toggle-label { font-size: 13px; } }
