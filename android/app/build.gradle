@@ -46,4 +46,6 @@ android {
 dependencies {
     implementation 'com.razorpay:checkout:1.6.41'
     implementation 'androidx.core:core:1.13.1'
+    // Razorpay pulls old kotlin-stdlib-jdk7/jdk8; the BOM aligns them with androidx (no duplicate classes)
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')
 }
