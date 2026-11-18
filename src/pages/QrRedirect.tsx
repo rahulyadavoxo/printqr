@@ -25,7 +25,13 @@ export default function QrRedirect() {
     <div className="app-page">
       <TopBar to={null} />
       <div className="page">
-        {err ? <p className="notice error">{err}</p> : <p className="muted">{t('loading')}</p>}
+        {err ? <p className="notice error">{err}</p> : (
+          <div className="skeleton-wrap" aria-busy="true">
+            <span className="sr-only">{t('loading')}</span>
+            <div className="card skel-card"><div className="skel skel-avatar" /><div className="skel skel-line w60" /><div className="skel skel-line w40" /></div>
+            <div className="card skel-card"><div className="skel skel-block" /></div>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -18,6 +18,7 @@ export default function Setup() {
   const [phone, setPhone] = useState('')
   const [upi, setUpi] = useState('')
   const [busy, setBusy] = useState(false)
+  const [checking, setChecking] = useState(true)
   const [msg, setMsg] = useState<string | null>(null)
 
   useEffect(() => {
@@ -28,6 +29,7 @@ export default function Setup() {
     }
     supabase.from('shops').select('id').eq('owner_id', session.user.id).maybeSingle().then(({ data }) => {
       if (data) nav('/dashboard', { replace: true })
+      else setChecking(false)
     })
   }, [session, loading, nav])
 
@@ -62,6 +64,25 @@ export default function Setup() {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (checking) {
+    return (
+      <div className="auth-page">
+        <TopBar to={null} />
+        <main className="auth-wrap">
+          <div className="card auth-card skeleton-wrap skel-form" aria-busy="true">
+            <span className="sr-only">{t('loading')}</span>
+            <div className="skel skel-avatar" />
+            <div className="skel skel-line w60 skel-title" />
+            <div className="skel skel-line w40" /><div className="skel skel-input" />
+            <div className="skel skel-line w40" /><div className="skel skel-input" />
+            <div className="skel skel-line w40" /><div className="skel skel-input" />
+            <div className="skel skel-btn" />
+          </div>
+        </main>
+      </div>
+    )
   }
 
   return (

@@ -48,7 +48,14 @@ export default function ResetPassword() {
         <form className="card auth-card" onSubmit={submit}>
           <div className="auth-logo"><LogoMark size={44} /></div>
           <h1 className="auth-title">{t('rpTitle')}</h1>
-          {state === 'checking' && <p className="muted center">{t('loading')}</p>}
+          {state === 'checking' && (
+            <div className="skeleton-wrap skel-form" aria-busy="true">
+              <span className="sr-only">{t('loading')}</span>
+              <div className="skel skel-line w40" /><div className="skel skel-input" />
+              <div className="skel skel-line w40" /><div className="skel skel-input" />
+              <div className="skel skel-btn" />
+            </div>
+          )}
           {state === 'invalid' && (
             <>
               <p className="notice error">{t('rpInvalid')}</p>

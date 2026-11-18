@@ -44,7 +44,13 @@ export default function App() {
   }
   return (
     <UpdateGate>
-    <Suspense fallback={<div className="page"><div className="skel" style={{ height: 160, borderRadius: 16 }} /></div>}>
+    <Suspense fallback={
+      <div className="page skeleton-wrap" aria-busy="true">
+        <div className="skel skel-line w40 skel-title" />
+        <div className="card skel-card"><div className="skel skel-avatar" /><div className="skel skel-line w60" /><div className="skel skel-block" /></div>
+        <div className="card skel-card"><div className="skel skel-line w60" /><div className="skel skel-block" /></div>
+      </div>
+    }>
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />

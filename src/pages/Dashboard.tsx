@@ -402,6 +402,7 @@ function matchesCounter(o: Order, filter: string) {
 function Orders({ shop, counters }: { shop: Shop; counters: Counter[] }) {
   const { t, te } = useI18n()
   const [orders, setOrders] = useState<Order[]>([])
+  const [loaded, setLoaded] = useState(false)
   const [filter, setFilterState] = useState<string>(() => localStorage.getItem(FILTER_KEY) || 'all')
   function setFilter(f: string) {
     setFilterState(f)
@@ -433,7 +434,10 @@ function Orders({ shop, counters }: { shop: Shop; counters: Counter[] }) {
       .neq('status', 'uploading')
       .gte('created_at', since)
       .order('created_at', { ascending: false })
-    if (error) return setErr(teRef.current(error))
+    if (error) {
+      setLoaded(true)
+      return setErr(teRef.current(error))
+    }
     const list = (data || []) as Order[]
     const ids = new Set(list.map((o) => o.id))
     if (known.current) {
@@ -451,6 +455,7 @@ function Orders({ shop, counters }: { shop: Shop; counters: Counter[] }) {
     }
     known.current = ids
     setOrders(list)
+    setLoaded(true)
     setErr(null)
   }, [shop.id])
 
@@ -536,7 +541,20 @@ function Orders({ shop, counters }: { shop: Shop; counters: Counter[] }) {
           </div>
         )}
       </div>
-      {!active.length && (
+      {!loaded && (
+        <div className="orders-grid" aria-busy="true">
+          <span className="sr-only">{t('loading')}</span>
+          {[0, 1].map((i) => (
+            <div className="card skel-order" key={i}>
+              <div className="skel-row"><div className="skel skel-chip" /><div className="skel skel-line w40" /></div>
+              <div className="skel skel-line w60" />
+              <div className="skel skel-line" />
+              <div className="skel skel-btn" />
+            </div>
+          ))}
+        </div>
+      )}
+      {loaded && !active.length && (
         <div className="card empty">
           <span className="state-icon" aria-hidden="true"><Icon name="bell" size={28} /></span>
           <strong>{t('noOrders')}</strong>
@@ -721,20 +739,28 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
   const counterName = counter?.name || ''
   // Pro: the poster carries a short code (dynamic). Before the v5 update, or on Free, it is the plain shop link.
   const [dyn, setDyn] = useState<QrLink | null>(null)
+  const [dynReady, setDynReady] = useState(false)
   const [dynMsg, setDynMsg] = useState<{ text: string; error: boolean } | null>(null)
   const slot = counter?.id || 'main'
   useEffect(() => {
     setDyn(null)
     setDynMsg(null)
+    setDynReady(false)
     let alive = true
     // Look up an existing code first (works even if Pro lapsed), then create one when Pro.
     supabase.from('qr_links').select('*').eq('shop_id', shop.id).eq('slot', slot).maybeSingle()
       .then(async ({ data, error }) => {
-        if (!alive || error) return
-        if (data) return setDyn(data as QrLink)
-        if (!pro) return
+        if (!alive) return
+        if (error) return setDynReady(true)
+        if (data) {
+          setDyn(data as QrLink)
+          return setDynReady(true)
+        }
+        if (!pro) return setDynReady(true)
         const r = await supabase.rpc('ensure_qr_link', { p_shop: shop.id, p_counter: counter?.id ?? null })
-        if (alive && !r.error && r.data) setDyn(r.data as QrLink)
+        if (!alive) return
+        if (!r.error && r.data) setDyn(r.data as QrLink)
+        setDynReady(true)
       })
     return () => { alive = false }
   }, [shop.id, slot, pro, counter?.id])
@@ -1020,7 +1046,7 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
         <div className="poster-top">{shop.name}</div>
         {counterName && <div className="poster-counter">🧾 {counterName}</div>}
         <h2>{t('posterHeadline')}</h2>
-        <div className="poster-qr">{img && <img src={img} alt="Shop QR code" />}</div>
+        <div className="poster-qr">{img && dynReady ? <img src={img} alt="Shop QR code" /> : <div className="skel skel-qr" aria-busy="true" />}</div>
         <div className="poster-rates">
           <div><span>{t('bw')}</span><strong>{rupees(shop.rates.bw_single)}</strong><em>{t('perPageShort')}</em></div>
           <div><span>{t('color')}</span><strong>{rupees(shop.rates.color_single)}</strong><em>{t('perPageShort')}</em></div>
@@ -1041,7 +1067,7 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
 
 function Report({ shop }: { shop: Shop }) {
   const { t, tn } = useI18n()
-  const [rows, setRows] = useState<{ status: OrderStatus; total: number; created_at: string }[]>([])
+  const [rows, setRows] = useState<{ status: OrderStatus; total: number; created_at: string }[] | null>(null)
   useEffect(() => {
     const since = new Date(Date.now() - 30 * 86400 * 1000).toISOString()
     supabase
@@ -1050,13 +1076,13 @@ function Report({ shop }: { shop: Shop }) {
       .eq('shop_id', shop.id)
       .in('status', ['received', 'printing', 'ready', 'done'])
       .gte('created_at', since)
-      .then(({ data }) => setRows((data || []) as typeof rows))
+      .then(({ data }) => setRows((data || []) as NonNullable<typeof rows>))
   }, [shop.id])
 
   const startOfDay = new Date()
   startOfDay.setHours(0, 0, 0, 0)
   const sum = (from: number) => {
-    const list = rows.filter((r) => new Date(r.created_at).getTime() >= from)
+    const list = (rows || []).filter((r) => new Date(r.created_at).getTime() >= from)
     return { count: list.length, total: list.reduce((s, r) => s + Number(r.total), 0) }
   }
   const today = sum(startOfDay.getTime())
@@ -1071,7 +1097,19 @@ function Report({ shop }: { shop: Shop }) {
 
   return (
     <section>
-      <div className="stats">
+      {!rows && (
+        <div className="stats" aria-busy="true">
+          <span className="sr-only">{t('loading')}</span>
+          {cards.map((s) => (
+            <div className="card stat skel-stat" key={s.label}>
+              <div className="skel skel-line w40" />
+              <div className="skel skel-num" />
+              <div className="skel skel-line w60" />
+            </div>
+          ))}
+        </div>
+      )}
+      {rows && <div className="stats">
         {cards.map((s) => (
           <div className={`card stat${s.accent ? ' accent' : ''}`} key={s.label}>
             <div className="small stat-label"><Icon name={s.accent ? 'rupee' : 'chart'} size={16} /> {t(s.label)}</div>
@@ -1079,7 +1117,7 @@ function Report({ shop }: { shop: Shop }) {
             <div className="small stat-sub">{tn('orders_one', 'orders_other', s.v.count)}</div>
           </div>
         ))}
-      </div>
+      </div>}
       <p className="small muted">{t('reportNote')}</p>
     </section>
   )
