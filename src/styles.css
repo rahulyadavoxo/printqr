@@ -329,7 +329,7 @@ input:focus, select:focus { outline: none; border-color: var(--c-brand); box-sha
 .file-badge.k-image { background: #dcf5e3; color: #146c34; }
 .file-badge.k-doc { background: #e3edff; color: #1d4ed8; }
 .stepper { display: flex; align-items: stretch; border: 1.5px solid var(--c-line-2); border-radius: var(--r-sm); overflow: hidden; background: var(--c-surface); min-height: 50px; }
-.stepper:focus-within { border-color: var(--c-brand); box-shadow: 0 0 0 4px var(--brand-ring); }
+.stepper:has(:focus-visible) { border-color: var(--c-brand); box-shadow: 0 0 0 4px var(--brand-ring); }
 .stepper button { flex: none; width: 46px; border: none; background: var(--c-surface-2); font-size: 22px; font-weight: 700; color: var(--c-brand); cursor: pointer; }
 .stepper button:hover:not(:disabled) { background: var(--c-brand-50); }
 .stepper button:disabled { color: #c3c7cf; cursor: not-allowed; }
@@ -724,13 +724,13 @@ body.no-scroll { overflow: hidden; }
 
   .dash.sb-collapsed .drawer, .dash.sb-hover .drawer { width: 72px; }
   .dash.sb-collapsed .dash-main, .dash.sb-hover .dash-main { margin-left: 96px; }
-  .dash.sb-hover .drawer:hover, .dash.sb-hover .drawer:focus-within, .dash.sb-hover.sb-pinned .drawer { width: 300px; box-shadow: var(--sh-3); }
+  .dash.sb-hover .drawer:hover, .dash.sb-hover .drawer:has(:focus-visible), .dash.sb-hover.sb-pinned .drawer { width: 300px; box-shadow: var(--sh-3); }
   .dash.sb-collapsed .drawer-label, .dash.sb-collapsed .drawer-title, .dash.sb-collapsed .drawer-item span,
-  .dash.sb-hover:not(.sb-pinned) .drawer:not(:hover):not(:focus-within) .drawer-label,
-  .dash.sb-hover:not(.sb-pinned) .drawer:not(:hover):not(:focus-within) .drawer-title,
-  .dash.sb-hover:not(.sb-pinned) .drawer:not(:hover):not(:focus-within) .drawer-item span { opacity: 0; }
+  .dash.sb-hover:not(.sb-pinned) .drawer:not(:hover):not(:has(:focus-visible)) .drawer-label,
+  .dash.sb-hover:not(.sb-pinned) .drawer:not(:hover):not(:has(:focus-visible)) .drawer-title,
+  .dash.sb-hover:not(.sb-pinned) .drawer:not(:hover):not(:has(:focus-visible)) .drawer-item span { opacity: 0; }
   .dash.sb-collapsed .drawer-foot,
-  .dash.sb-hover:not(.sb-pinned) .drawer:not(:hover):not(:focus-within) .drawer-foot { opacity: 0; pointer-events: none; height: 0; padding: 0; border: 0; }
+  .dash.sb-hover:not(.sb-pinned) .drawer:not(:hover):not(:has(:focus-visible)) .drawer-foot { opacity: 0; pointer-events: none; height: 0; padding: 0; border: 0; }
 
   .sb-control { display: block; position: relative; padding: 8px 14px 12px; }
   .sb-btn { width: 44px; height: 36px; display: grid; place-items: center; border: none; background: none; color: var(--c-muted); border-radius: var(--r-sm); cursor: pointer; }

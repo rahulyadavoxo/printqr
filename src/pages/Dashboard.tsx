@@ -529,6 +529,7 @@ export default function Dashboard() {
   const current = TABS.find((x) => x.id === tab) || TABS[0]
   const go = (id: Tab) => {
     setMenu(false)
+    ;(document.activeElement as HTMLElement | null)?.blur?.()
     setParams({ tab: id })
     window.scrollTo(0, 0)
   }
