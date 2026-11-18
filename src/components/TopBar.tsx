@@ -29,14 +29,14 @@ export function LangToggle() {
   )
 }
 
-export function TopBar({ to = '/', children, wide = false }: { to?: string | null; children?: ReactNode; wide?: boolean }) {
+export function TopBar({ to = '/', children, wide = false, lang = true }: { to?: string | null; children?: ReactNode; wide?: boolean; lang?: boolean }) {
   return (
     <header className="topbar no-print">
       <div className={`topbar-in${wide ? ' wide' : ''}`}>
         <Logo to={to} />
         <div className="topbar-right">
           {children}
-          <LangToggle />
+          {lang && <LangToggle />}
         </div>
       </div>
     </header>

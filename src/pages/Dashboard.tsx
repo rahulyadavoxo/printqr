@@ -7,7 +7,7 @@ import { useSession } from '../lib/useSession'
 import { rupees } from '../lib/pricing'
 import { ding, unlockAudio } from '../lib/sound'
 import { Key, useI18n } from '../lib/i18n'
-import { TopBar, Wordmark } from '../components/TopBar'
+import { LangToggle, TopBar, Wordmark } from '../components/TopBar'
 import AdSlot from '../components/AdSlot'
 import Icon from '../components/Icon'
 import { Period, PLAN_PRICES, startUpgrade, callFn } from '../lib/billing'
@@ -74,7 +74,7 @@ export default function Dashboard() {
   if (!shop) {
     return (
       <div className="app-page">
-        <TopBar to={null} wide />
+        <TopBar to={null} wide lang={false} />
         <div className="page wide skeleton-wrap" aria-busy="true">
           <span className="sr-only">{t('loading')}</span>
           <div className="skel skel-line w40 skel-title" />
@@ -98,7 +98,7 @@ export default function Dashboard() {
 
   return (
     <div className="app-page dash" onClick={unlockAudio}>
-      <TopBar to={null} wide>
+      <TopBar to={null} wide lang={false}>
         <button type="button" className={`toggle ${shop.is_open ? 'is-open' : 'is-closed'}`} onClick={toggleOpen} aria-pressed={shop.is_open}>
           <span className="toggle-dot" />
           <span className="toggle-label">{shop.is_open ? t('shopOpen') : t('shopClosed')}</span>
@@ -895,6 +895,11 @@ function Settings({ shop, onSaved, onLogout }: { shop: Shop; onSaved: (s: Shop) 
   return (
     <form className="card form-card" onSubmit={save}>
       <h2 className="card-title">{t('settingsTitle')}</h2>
+      <div className="field">
+        <span>{t('language')}</span>
+        <LangToggle />
+        <small className="hint">{t('langHint')}</small>
+      </div>
       <label className="field"><span>{t('shopName')}</span><input required minLength={2} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
       <label className="field"><span>{t('address')}</span><input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></label>
       <div className="grid2">
