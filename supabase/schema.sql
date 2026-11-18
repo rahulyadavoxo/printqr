@@ -765,3 +765,6 @@ grant execute on function public.create_order_checked(uuid, text, text, text, js
 revoke execute on function public.create_order(text, text, text, jsonb, uuid) from public, anon, authenticated;
 
 notify pgrst, 'reload schema';
+
+-- v10: no CAPTCHA on orders
+grant execute on function public.create_order(text, text, text, jsonb, uuid) to anon, authenticated;
