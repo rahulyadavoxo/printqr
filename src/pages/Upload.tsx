@@ -7,6 +7,7 @@ import { imagesToPdf, PASSPORT_OPTIONS, passportPreview, passportSheetPdf, passp
 import { useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
 import AdSlot from '../components/AdSlot'
+import Icon from '../components/Icon'
 
 type ShopPublic = {
   id: string
@@ -61,11 +62,11 @@ function CopiesField({ o, onChange, disabled }: OptProps) {
       <div className="field">
         <span>{t('uCopies')}</span>
         <div className="stepper">
-          <button type="button" aria-label="-" disabled={disabled || o.copies <= 1}
+          <button type="button" aria-label={`${t('uCopies')} −`} disabled={disabled || o.copies <= 1}
             onClick={() => onChange({ copies: Math.max(1, o.copies - 1) })}>−</button>
           <input type="number" min={1} max={100} value={o.copies} aria-label={t('uCopies')} disabled={disabled}
             onChange={(e) => onChange({ copies: Math.max(1, Math.min(100, Number(e.target.value) || 1)) })} />
-          <button type="button" aria-label="+" disabled={disabled || o.copies >= 100}
+          <button type="button" aria-label={`${t('uCopies')} +`} disabled={disabled || o.copies >= 100}
             onClick={() => onChange({ copies: Math.min(100, o.copies + 1) })}>+</button>
         </div>
       </div>
@@ -75,16 +76,26 @@ function CopiesField({ o, onChange, disabled }: OptProps) {
 function SideColor({ o, onChange }: OptProps) {
   const { t } = useI18n()
   return (
-    <>
-      <div className="seg">
-        <button type="button" className={!o.color ? 'on' : ''} onClick={() => onChange({ color: false })}>{t('bw')}</button>
-        <button type="button" className={o.color ? 'on' : ''} onClick={() => onChange({ color: true })}>{t('color')}</button>
+    <div className="opt-group">
+      <div className="opt-row">
+        <span className="opt-label">{t('optPrint')}</span>
+        <div className="seg" role="group" aria-label={t('optPrint')}>
+          <button type="button" className={!o.color ? 'on' : ''} aria-pressed={!o.color} onClick={() => onChange({ color: false })}>
+            <span className="swatch sw-bw" aria-hidden="true" />{t('bw')}
+          </button>
+          <button type="button" className={o.color ? 'on' : ''} aria-pressed={o.color} onClick={() => onChange({ color: true })}>
+            <span className="swatch sw-color" aria-hidden="true" />{t('color')}
+          </button>
+        </div>
       </div>
-      <div className="seg">
-        <button type="button" className={!o.duplex ? 'on' : ''} onClick={() => onChange({ duplex: false })}>{t('oneSide')}</button>
-        <button type="button" className={o.duplex ? 'on' : ''} onClick={() => onChange({ duplex: true })}>{t('bothSides')}</button>
+      <div className="opt-row">
+        <span className="opt-label">{t('optSides')}</span>
+        <div className="seg" role="group" aria-label={t('optSides')}>
+          <button type="button" className={!o.duplex ? 'on' : ''} aria-pressed={!o.duplex} onClick={() => onChange({ duplex: false })}>{t('oneSide')}</button>
+          <button type="button" className={o.duplex ? 'on' : ''} aria-pressed={o.duplex} onClick={() => onChange({ duplex: true })}>{t('bothSides')}</button>
+        </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -336,18 +347,42 @@ export default function Upload() {
     </div>
   )
 
-  if (loadErr) return shell(<div className="card center"><p>{loadErr.notFound ? t('uShopNotFound') : loadErr.text}</p></div>)
-  if (!shop) return shell(<p className="muted center loading">{t('loading')}</p>)
+  if (loadErr) {
+    return shell(
+      <div className="card state-card">
+        <span className="state-icon is-error" aria-hidden="true"><Icon name={loadErr.notFound ? 'qr' : 'alert'} size={28} /></span>
+        <p className="state-title">{loadErr.notFound ? t('uShopNotFound') : loadErr.text}</p>
+      </div>
+    )
+  }
+  if (!shop) {
+    return shell(
+      <div className="skeleton-wrap" aria-busy="true">
+        <span className="sr-only">{t('loading')}</span>
+        <div className="card skel-card"><div className="skel skel-avatar" /><div className="skel skel-line w60" /><div className="skel skel-line w40" /></div>
+        <div className="card skel-card"><div className="skel skel-block" /></div>
+      </div>
+    )
+  }
 
   const hasItems = items.length > 0 || passport !== null
   const roomLeft = MAX_FILES - items.length - (passport ? 1 : 0)
+  const flowAt = !hasItems ? 0 : busy ? 2 : 1
+  const flow = [t('flowAdd'), t('flowOptions'), t('flowSend')]
 
   return shell(
     <>
       <header className="shop-head card">
-        <div className="shop-avatar" aria-hidden="true">{shop.name.trim().charAt(0).toUpperCase() || 'P'}</div>
-        <h1>{shop.name}</h1>
-        {shop.address && <p className="muted">{shop.address}</p>}
+        <div className="shop-head-row">
+          <div className="shop-avatar" aria-hidden="true">{shop.name.trim().charAt(0).toUpperCase() || 'P'}</div>
+          <div className="shop-head-text">
+            <h1>{shop.name}</h1>
+            {shop.address && <p className="shop-addr"><Icon name="pin" size={15} /> {shop.address}</p>}
+          </div>
+          <span className={`open-chip ${shop.is_open ? 'is-open' : 'is-closed'}`}>
+            <span className="open-dot" aria-hidden="true" />{shop.is_open ? t('shopOpen') : t('shopClosed')}
+          </span>
+        </div>
         {counterName && <p className="counter-tag">🧾 {t('uCounter', { name: counterName })}</p>}
         <p className="rates-pill">
           {t('ratesLine', { bw: rupees(shop.rates.bw_single), color: rupees(shop.rates.color_single) })}
@@ -355,13 +390,22 @@ export default function Upload() {
       </header>
 
       {!shop.is_open ? (
-        <div className="card center closed-card">
-          <div className="closed-icon" aria-hidden="true">🔒</div>
+        <div className="card state-card closed-card">
+          <span className="state-icon" aria-hidden="true"><Icon name="lock" size={28} /></span>
           <h2>{t('uClosedTitle')}</h2>
           <p className="muted">{t('uClosedBody')}</p>
         </div>
       ) : (
         <>
+          <ol className="flow" aria-label={t('uStepFiles')}>
+            {flow.map((label, i) => (
+              <li key={i} className={i < flowAt ? 'done' : i === flowAt ? 'current' : ''} aria-current={i === flowAt ? 'step' : undefined}>
+                <span className="flow-dot">{i < flowAt ? <Icon name="check" size={14} stroke={3} /> : i + 1}</span>
+                <span className="flow-lbl">{label}</span>
+              </li>
+            ))}
+          </ol>
+
           <input ref={inputRef} type="file" multiple hidden onChange={onPick}
             accept=".pdf,image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx" />
           <input ref={passportRef} type="file" hidden accept="image/*" onChange={(e) => void onPickPassport(e)} />
@@ -383,13 +427,26 @@ export default function Upload() {
               </span>
               <span className="dz-title">{t('uDropTitle')}</span>
               <span className="dz-sub">{t('uDropSub')}</span>
+              <span className="dz-types" aria-hidden="true">
+                <span className="file-badge k-pdf">PDF</span><span className="file-badge k-image">IMG</span><span className="file-badge k-doc">DOC</span>
+              </span>
             </button>
           ) : null}
 
           {!hasItems && passportEnabled && (
             <button type="button" className="btn block lg passport-entry" onClick={() => passportRef.current?.click()} disabled={busy}>
-              🪪 {t('ppEntry')} <span className="small muted">· {t('ppEntrySub')}</span>
+              <span className="pe-icon" aria-hidden="true"><Icon name="idcard" size={22} /></span>
+              <span className="pe-text"><strong>{t('ppEntry')}</strong><span className="small muted">{t('ppEntrySub')}</span></span>
+              <Icon name="arrow" size={18} className="pe-arrow" />
             </button>
+          )}
+
+          {hasItems && (
+            <div className="step-head">
+              <span className="step-dot" aria-hidden="true">2</span>
+              <h2>{t('uStepFiles')}</h2>
+              <span className="step-count">{tn('files_one', 'files_other', uploadCount)}</span>
+            </div>
           )}
 
           {images.length >= 2 && (
@@ -418,7 +475,7 @@ export default function Upload() {
                     <span className="combo-name">{it.file.name}</span>
                     <span className="small muted">{sizeText(it.file.size)}</span>
                     <button type="button" className="icon-btn sm" aria-label={t('uRemove')} title={t('uRemove')}
-                      onClick={() => setItems((l) => l.filter((x) => x.key !== it.key))} disabled={busy}>✕</button>
+                      onClick={() => setItems((l) => l.filter((x) => x.key !== it.key))} disabled={busy}><Icon name="x" size={18} /></button>
                   </li>
                 ))}
               </ul>
@@ -445,7 +502,7 @@ export default function Upload() {
                   </span>
                 </div>
                 <button type="button" className="icon-btn" aria-label={t('uRemove')} title={t('uRemove')}
-                  onClick={() => setItems((l) => l.filter((x) => x.key !== it.key))} disabled={busy}>✕</button>
+                  onClick={() => setItems((l) => l.filter((x) => x.key !== it.key))} disabled={busy}><Icon name="x" size={18} /></button>
               </div>
 
               <div className="grid2">
@@ -488,7 +545,7 @@ export default function Upload() {
                   </button>
                 </div>
                 <button type="button" className="icon-btn" aria-label={t('uRemove')} title={t('uRemove')}
-                  onClick={() => setPassport(null)} disabled={busy}>✕</button>
+                  onClick={() => setPassport(null)} disabled={busy}><Icon name="x" size={18} /></button>
               </div>
               <div className="field">
                 <span>{t('ppHowMany')}</span>
@@ -513,15 +570,18 @@ export default function Upload() {
               </button>
               {passportEnabled && !passport && (
                 <button type="button" className="btn dashed block lg" onClick={() => passportRef.current?.click()} disabled={busy}>
-                  🪪 {t('ppEntry')}
+                  <Icon name="idcard" size={20} /> {t('ppEntry')}
                 </button>
               )}
             </div>
           )}
 
           {hasItems && (
-            <div className="card">
-              <h3 className="card-title">{t('uDetails')}</h3>
+            <div className="card details-card">
+              <div className="step-head in-card">
+                <span className="step-dot" aria-hidden="true">3</span>
+                <h2>{t('uDetails')}</h2>
+              </div>
               <label className="field">
                 <span>{t('uYourName')} <em className="opt">({t('optional')})</em></span>
                 <input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} autoComplete="name" />
@@ -530,27 +590,27 @@ export default function Upload() {
                 <span>{t('uNote')} <em className="opt">({t('optional')})</em></span>
                 <input value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} placeholder={t('uNotePh')} />
               </label>
-              <p className="small muted">🔒 {t('uAutoDelete')}</p>
+              <p className="privacy-line"><Icon name="shield" size={18} /> <span>{t('uAutoDelete')}</span></p>
             </div>
           )}
 
-          {msg && <p className="notice error">{msg}</p>}
+          {msg && <p className="notice error" role="alert"><Icon name="alert" size={18} /> <span>{msg}</span></p>}
 
           {hasItems && (
             <div className="sticky-bar">
               <div className="sticky-in">
                 {progress && (
-                  <div className="progress-track" aria-hidden="true">
+                  <div className="progress-track" role="progressbar" aria-valuenow={progress.pct} aria-valuemin={0} aria-valuemax={100} aria-label={progress.text}>
                     <div className="progress-fill" style={{ width: `${progress.pct}%` }} />
                   </div>
                 )}
                 <div className="sticky-row">
-                  <div className="sticky-total">
-                    <span className="small muted">{t('total')} · {tn('files_one', 'files_other', uploadCount)}</span>
+                  <div className="sticky-total" aria-live="polite">
+                    <span className="sticky-label">{t('total')} · {tn('files_one', 'files_other', uploadCount)}</span>
                     <strong>{rupees(total)}</strong>
                   </div>
-                  <button type="button" className="btn primary lg" onClick={submit} disabled={busy || invalid}>
-                    {busy ? progress?.text || t('pleaseWait') : t('uSend')}
+                  <button type="button" className="btn primary lg sticky-cta" onClick={submit} disabled={busy || invalid}>
+                    {busy ? <><span className="spinner" aria-hidden="true" />{progress?.text || t('pleaseWait')}</> : <>{t('uSend')} <Icon name="arrow" size={20} /></>}
                   </button>
                 </div>
               </div>

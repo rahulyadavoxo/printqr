@@ -301,7 +301,19 @@ const en = {
   cUpgradePrompt: 'Extra counters are a Pro feature. Upgrade to add counters with their own QR.',
   ppProOnly: 'Passport photo sheet is a Pro feature. Upgrade to offer it to customers.',
   errPassportPro: 'Passport photo sheet is not available at this shop.',
-  errCounterPro: 'More counters need the Pro plan.'
+  errCounterPro: 'More counters need the Pro plan.',
+
+  // v4 redesign
+  flowAdd: 'Add files',
+  flowOptions: 'Choose options',
+  flowSend: 'Send, get token',
+  optPrint: 'Print',
+  optSides: 'Sides',
+  uStepFiles: 'Your files',
+  sLive: 'Live',
+  homeCtaTitle: 'Ready for a calmer counter?',
+  homeCtaSub: 'Set up your shop in two minutes and start with the Free plan.',
+  setupStep: 'Step 1 of 2 · next you set your rates'
 }
 
 export type Key = keyof typeof en
@@ -596,7 +608,19 @@ const hi: Record<Key, string> = {
   cUpgradePrompt: 'अतिरिक्त काउंटर प्रो फ़ीचर है। अपने QR वाले काउंटर जोड़ने के लिए अपग्रेड करें।',
   ppProOnly: 'पासपोर्ट फ़ोटो शीट प्रो फ़ीचर है। ग्राहकों को देने के लिए अपग्रेड करें।',
   errPassportPro: 'इस दुकान पर पासपोर्ट फ़ोटो शीट उपलब्ध नहीं है।',
-  errCounterPro: 'और काउंटर के लिए प्रो प्लान चाहिए।'
+  errCounterPro: 'और काउंटर के लिए प्रो प्लान चाहिए।',
+
+  // v4 redesign
+  flowAdd: 'फ़ाइल जोड़ें',
+  flowOptions: 'विकल्प चुनें',
+  flowSend: 'भेजें, टोकन पाएँ',
+  optPrint: 'प्रिंट',
+  optSides: 'साइड',
+  uStepFiles: 'आपकी फ़ाइलें',
+  sLive: 'लाइव',
+  homeCtaTitle: 'काउंटर पर भीड़ कम करनी है?',
+  homeCtaSub: 'दो मिनट में दुकान सेट करें और फ़्री प्लान से शुरू करें।',
+  setupStep: 'चरण 1 / 2 · इसके बाद रेट सेट करें'
 }
 
 export type Lang = 'en' | 'hi'

@@ -4,6 +4,7 @@ import { OrderStatus, supabase } from '../lib/supabase'
 import { rupees } from '../lib/pricing'
 import { Key, useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
+import Icon from '../components/Icon'
 
 type Info = { token: number; status: OrderStatus; total: number; created_at: string; shop_name: string; upi_id: string | null; file_count: number }
 
@@ -56,8 +57,22 @@ export default function Status() {
     </div>
   )
 
-  if (err && !info) return shell(<div className="card center"><p>{err.notFound ? t('sNotFound') : err.text}</p></div>)
-  if (!info) return shell(<p className="muted center loading">{t('loading')}</p>)
+  if (err && !info) {
+    return shell(
+      <div className="card state-card">
+        <span className="state-icon is-error" aria-hidden="true"><Icon name={err.notFound ? 'file' : 'wifi'} size={28} /></span>
+        <p className="state-title">{err.notFound ? t('sNotFound') : err.text}</p>
+      </div>
+    )
+  }
+  if (!info) {
+    return shell(
+      <div className="skeleton-wrap" aria-busy="true">
+        <span className="sr-only">{t('loading')}</span>
+        <div className="card skel-card ticket-skel"><div className="skel skel-line w40" /><div className="skel skel-token" /><div className="skel skel-line w60" /></div>
+      </div>
+    )
+  }
 
   const stepIdx = STEPS.findIndex((x) => x.s === (info.status === 'done' ? 'ready' : info.status))
   const upiLink = info.upi_id
@@ -67,32 +82,35 @@ export default function Status() {
   return shell(
     <>
       <div className={`card token-card s-${info.status}`}>
-        <p className="token-shop">{info.shop_name}</p>
-        <p className="muted small upper">{t('sYourToken')}</p>
-        <div className="token">#{info.token}</div>
-        <span className={`pill s-${info.status}`}>{t(LABEL[info.status])}</span>
+        <div className="ticket-band">
+          <span className="ticket-shop">{info.shop_name}</span>
+          {!['done', 'cancelled'].includes(info.status) && (
+            <span className="live-chip"><span className="live-dot" aria-hidden="true" />{t('sLive')}</span>
+          )}
+        </div>
+        <p className="token-label">{t('sYourToken')}</p>
+        <div className="token" aria-live="polite">#{info.token}</div>
+        <span className={`pill status-pill s-${info.status}`} role="status">{t(LABEL[info.status])}</span>
         {stepIdx >= 0 && (
           <ol className="tracker">
             {STEPS.map((x, i) => (
-              <li key={x.s} className={i < stepIdx ? 'done' : i === stepIdx ? 'current' : ''}>
-                <span className="dot">{i < stepIdx || info.status === 'done' ? '✓' : i + 1}</span>
+              <li key={x.s} className={i < stepIdx || info.status === 'done' ? 'done' : i === stepIdx ? 'current' : ''}>
+                <span className="dot">{i < stepIdx || info.status === 'done' ? <Icon name="check" size={16} stroke={3} /> : i + 1}</span>
                 <span className="lbl">{t(x.label)}</span>
               </li>
             ))}
           </ol>
         )}
-      </div>
-
-      <div className="card summary">
-        <div className="row between">
-          <span className="muted">{tn('files_one', 'files_other', Number(info.file_count))}</span>
-          <span>{t('total')} <strong className="amount">{rupees(Number(info.total))}</strong></span>
+        <div className="ticket-cut" aria-hidden="true" />
+        <div className="ticket-foot">
+          <span className="ticket-files"><Icon name="file" size={18} /> {tn('files_one', 'files_other', Number(info.file_count))}</span>
+          <span className="ticket-total"><span className="muted">{t('total')}</span> <strong className="amount">{rupees(Number(info.total))}</strong></span>
         </div>
         {upiLink && info.status !== 'cancelled' && (
-          <a className="btn primary block lg" href={upiLink}>{t('sPay', { amount: rupees(Number(info.total)) })}</a>
+          <a className="btn primary block lg pay-btn" href={upiLink}><Icon name="rupee" size={20} /> {t('sPay', { amount: rupees(Number(info.total)) })}</a>
         )}
       </div>
-      <p className="small muted center">{t('sHint')}</p>
+      <p className="hint-line"><Icon name="clock" size={18} /> <span>{t('sHint')}</span></p>
     </>
   )
 }

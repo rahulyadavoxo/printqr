@@ -85,7 +85,7 @@ export default function Login() {
               <span>{t('email')}</span>
               <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" />
             </label>
-            {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
+            {msg && <p className={`notice${msg.error ? ' error' : ' success'}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
             <button className="btn primary block lg" disabled={busy}>{busy ? t('pleaseWait') : t('fpSend')}</button>
             <p className="center small switch-line">
               <button type="button" className="link" onClick={() => switchTo('login')}>{t('fpBack')}</button>
@@ -119,7 +119,7 @@ export default function Login() {
               <button type="button" className="link small" onClick={() => switchTo('forgot')}>{t('forgotLink')}</button>
             </p>
           )}
-          {msg && <p className={`notice${msg.error ? ' error' : ''}`}>{msg.text}</p>}
+          {msg && <p className={`notice${msg.error ? ' error' : ''}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
           {signup && (
             <p className="small muted center">
               {t('agreePre')} <Link to="/legal/terms">{t('agreeTerms')}</Link>, <Link to="/legal/refund">{t('agreeRefund')}</Link> {t('agreeAnd')} <Link to="/legal/privacy">{t('agreePrivacy')}</Link>{t('agreePost')}

@@ -9,16 +9,17 @@ import { ding, unlockAudio } from '../lib/sound'
 import { Key, useI18n } from '../lib/i18n'
 import { TopBar, Wordmark } from '../components/TopBar'
 import AdSlot from '../components/AdSlot'
+import Icon from '../components/Icon'
 import { Period, PLAN_PRICES, startUpgrade, callFn } from '../lib/billing'
 
 type Tab = 'orders' | 'rates' | 'qr' | 'report' | 'settings' | 'plan'
-const TABS: { id: Tab; label: Key }[] = [
-  { id: 'orders', label: 'tabOrders' },
-  { id: 'rates', label: 'tabRates' },
-  { id: 'qr', label: 'tabQr' },
-  { id: 'report', label: 'tabReport' },
-  { id: 'settings', label: 'tabSettings' },
-  { id: 'plan', label: 'tabPlan' }
+const TABS: { id: Tab; label: Key; icon: string }[] = [
+  { id: 'orders', label: 'tabOrders', icon: 'inbox' },
+  { id: 'rates', label: 'tabRates', icon: 'rupee' },
+  { id: 'qr', label: 'tabQr', icon: 'qr' },
+  { id: 'report', label: 'tabReport', icon: 'chart' },
+  { id: 'settings', label: 'tabSettings', icon: 'settings' },
+  { id: 'plan', label: 'tabPlan', icon: 'star' }
 ]
 
 export default function Dashboard() {
@@ -74,7 +75,15 @@ export default function Dashboard() {
     return (
       <div className="app-page">
         <TopBar to={null} wide />
-        <p className="muted center loading">{t('loading')}</p>
+        <div className="page wide skeleton-wrap" aria-busy="true">
+          <span className="sr-only">{t('loading')}</span>
+          <div className="skel skel-line w40 skel-title" />
+          <div className="skel skel-tabs" />
+          <div className="orders-grid">
+            <div className="card skel-card"><div className="skel skel-line w60" /><div className="skel skel-block" /></div>
+            <div className="card skel-card"><div className="skel skel-line w60" /><div className="skel skel-block" /></div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -94,18 +103,26 @@ export default function Dashboard() {
           <span className="toggle-dot" />
           <span className="toggle-label">{shop.is_open ? t('shopOpen') : t('shopClosed')}</span>
         </button>
-        <button type="button" className="btn ghost small hide-xs" onClick={logout}>{t('logout')}</button>
+        <button type="button" className="btn ghost small hide-xs" onClick={logout}><Icon name="logout" size={18} /> {t('logout')}</button>
       </TopBar>
 
       <div className="page wide">
         <div className="dash-head no-print">
-          <h1>{shop.name}</h1>
-          {shop.address && <p className="muted small">{shop.address}</p>}
+          <div className="dash-avatar" aria-hidden="true">{shop.name.trim().charAt(0).toUpperCase() || 'P'}</div>
+          <div className="dash-title">
+            <h1>{shop.name}</h1>
+            {shop.address && <p className="muted small dash-addr">{shop.address}</p>}
+          </div>
+          {ready && <span className={`plan-chip${pro ? ' is-pro' : ''}`}>{pro ? t('planPro') : t('planFree')}</span>}
         </div>
         <AppDownloadBanner />
         <nav className="tabs no-print">
           {TABS.map((x) => (
-            <button key={x.id} type="button" className={tab === x.id ? 'on' : ''} onClick={() => setParams({ tab: x.id })}>{t(x.label)}</button>
+            <button key={x.id} type="button" className={tab === x.id ? 'on' : ''} aria-current={tab === x.id ? 'page' : undefined}
+              onClick={() => setParams({ tab: x.id })}>
+              <Icon name={x.icon} size={18} />
+              <span>{t(x.label)}</span>
+            </button>
           ))}
         </nav>
         {tab === 'orders' && <Orders shop={shop} counters={counters} />}
@@ -273,7 +290,7 @@ function Orders({ shop, counters }: { shop: Shop; counters: Counter[] }) {
 
   return (
     <section>
-      {err && <p className="notice error">{err}</p>}
+      {err && <p className="notice error" role="alert"><Icon name="alert" size={18} /> <span>{err}</span></p>}
       {counters.length > 0 && (
         <div className="counter-filter">
           <label className="small muted" htmlFor="counter-filter">{t('cFilter')}</label>
@@ -287,10 +304,18 @@ function Orders({ shop, counters }: { shop: Shop; counters: Counter[] }) {
       <div className="section-head">
         <h2>{t('dActive')}</h2>
         <span className="count-badge">{active.length}</span>
+        {active.length > 0 && (
+          <div className="queue-summary" aria-hidden="true">
+            {(['received', 'printing', 'ready'] as OrderStatus[]).map((st) => {
+              const n = active.filter((o) => o.status === st).length
+              return n ? <span key={st} className={`pill tiny s-${st}`}>{t(STATUS_TEXT[st])} · {n}</span> : null
+            })}
+          </div>
+        )}
       </div>
       {!active.length && (
         <div className="card empty">
-          <div className="empty-icon" aria-hidden="true">🔔</div>
+          <span className="state-icon" aria-hidden="true"><Icon name="bell" size={28} /></span>
           <strong>{t('noOrders')}</strong>
           <p className="muted small">{t('noOrdersSub')}</p>
         </div>
@@ -326,56 +351,62 @@ function OrderCard(props: {
   const { o, onStatus, onOpen, onDownload, onDelete } = props
   const { t } = useI18n()
   const next = NEXT[o.status]
+  const nextIcon = o.status === 'received' ? 'printer' : o.status === 'printing' ? 'check' : 'user'
   return (
-    <div className={`card order s-${o.status}`}>
+    <article className={`card order s-${o.status}`}>
       <div className="order-top">
-        <span className="token sm">#{o.token}</span>
+        <span className="token-chip" aria-label={`${t('sYourToken')} ${o.token}`}>#{o.token}</span>
         <div className="order-who">
           <strong>{o.customer_name || t('customer')}</strong>
-          <div className="small muted">
-            {timeText(o.created_at)} · <span className={`pill tiny s-${o.status}`}>{t(STATUS_TEXT[o.status])}</span>
-            {o.counter_name && <> <span className="pill tiny counter-pill">🧾 {o.counter_name}</span></>}
+          <div className="order-meta">
+            <span className="order-time"><Icon name="clock" size={14} /> {timeText(o.created_at)}</span>
+            {o.counter_name && <span className="pill tiny counter-pill">🧾 {o.counter_name}</span>}
           </div>
         </div>
-        <strong className="amt">{rupees(Number(o.total))}</strong>
+        <div className="order-right">
+          <span className={`pill tiny s-${o.status}`}>{t(STATUS_TEXT[o.status])}</span>
+          <strong className="amt">{rupees(Number(o.total))}</strong>
+        </div>
       </div>
-      {o.note && <p className="note">📝 {o.note}</p>}
+      {o.note && <p className="note"><Icon name="note" size={16} /> <span>{o.note}</span></p>}
       <ul className="files">
         {(o.order_files || []).map((f) => (
           <li key={f.id}>
             <div className="fname">{f.file_name}</div>
             {f.item_kind === 'passport' ? (
-              <div className="small muted">
-                <span className="pill tiny pp-pill">🪪 {t('ppSheetLabel')}</span>{' '}
-                {t('ppCalc', { n: f.photos ?? '?', s: f.pages_to_print })} · {rupees(Number(f.price))}
+              <div className="file-meta">
+                <span className="pill tiny pp-pill">🪪 {t('ppSheetLabel')}</span>
+                <span>{t('ppCalc', { n: f.photos ?? '?', s: f.pages_to_print })}</span>
+                <b>{rupees(Number(f.price))}</b>
               </div>
             ) : (
-              <div className="small muted">
-                {f.color ? t('color') : t('bw')} · {f.duplex ? t('bothSides') : t('oneSide')} ·{' '}
-                {t('calcLine', { p: f.pages_to_print, c: f.copies })}
-                {f.page_range ? ` (${f.page_range})` : ''} · {rupees(Number(f.price))}
+              <div className="file-meta">
+                <span className={`mchip${f.color ? ' is-color' : ''}`}>{f.color ? t('color') : t('bw')}</span>
+                <span className="mchip">{f.duplex ? t('bothSides') : t('oneSide')}</span>
+                <span>{t('calcLine', { p: f.pages_to_print, c: f.copies })}{f.page_range ? ` (${f.page_range})` : ''}</span>
+                <b>{rupees(Number(f.price))}</b>
               </div>
             )}
             {!o.files_deleted && (
               <div className="file-actions">
-                <button type="button" className="btn small soft" onClick={() => onOpen(f.storage_path)}>{t('openPrint')}</button>
-                <button type="button" className="btn small" onClick={() => onDownload(f.storage_path, f.file_name)}>{t('download')}</button>
+                <button type="button" className="btn small soft" onClick={() => onOpen(f.storage_path)}><Icon name="printer" size={17} /> {t('openPrint')}</button>
+                <button type="button" className="btn small" onClick={() => onDownload(f.storage_path, f.file_name)}><Icon name="download" size={17} /> {t('download')}</button>
               </div>
             )}
           </li>
         ))}
       </ul>
-      {o.files_deleted && <p className="small muted">{t('filesDeleted')}</p>}
+      {o.files_deleted && <p className="small muted files-gone"><Icon name="trash" size={15} /> {t('filesDeleted')}</p>}
       <div className="order-actions">
-        {next && <button type="button" className="btn primary" onClick={() => onStatus(o, next.to)}>{t(next.label)}</button>}
+        {next && <button type="button" className={`btn primary next-${o.status}`} onClick={() => onStatus(o, next.to)}><Icon name={nextIcon} size={19} /> {t(next.label)}</button>}
         {['received', 'printing', 'ready'].includes(o.status) && (
           <button type="button" className="btn danger-outline" onClick={() => confirm(t('confirmCancel')) && onStatus(o, 'cancelled')}>{t('cancel')}</button>
         )}
         {['done', 'cancelled'].includes(o.status) && !o.files_deleted && (
-          <button type="button" className="btn" onClick={() => onDelete(o)}>{t('deleteNow')}</button>
+          <button type="button" className="btn" onClick={() => onDelete(o)}><Icon name="trash" size={17} /> {t('deleteNow')}</button>
         )}
       </div>
-    </div>
+    </article>
   )
 }
 
@@ -691,14 +722,14 @@ function QrTab({ shop, counters, counterId, onCounter }: {
           </label>
         )}
         <div className="btn-row">
-          <button type="button" className="btn primary" onClick={() => window.print()}>{t('printPoster')}</button>
+          <button type="button" className="btn primary" onClick={() => window.print()}><Icon name="printer" size={18} /> {t('printPoster')}</button>
           {card && (
             <a className="btn" href={card}
               download={`${shop.slug}${counterName ? '-' + (counterName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'counter') : ''}-qr.png`}>
-              {t('downloadQr')}
+              <Icon name="download" size={18} /> {t('downloadQr')}
             </a>
           )}
-          <button type="button" className="btn" onClick={copy}>{copied ? t('linkCopied') : t('copyLink')}</button>
+          <button type="button" className="btn" onClick={copy}><Icon name={copied ? 'check' : 'copy'} size={18} /> {copied ? t('linkCopied') : t('copyLink')}</button>
         </div>
       </div>
       <div className="poster">
@@ -760,7 +791,7 @@ function Report({ shop }: { shop: Shop }) {
       <div className="stats">
         {cards.map((s) => (
           <div className={`card stat${s.accent ? ' accent' : ''}`} key={s.label}>
-            <div className="small stat-label">{t(s.label)}</div>
+            <div className="small stat-label"><Icon name={s.accent ? 'rupee' : 'chart'} size={16} /> {t(s.label)}</div>
             <div className="big-num">{rupees(s.v.total)}</div>
             <div className="small stat-sub">{tn('orders_one', 'orders_other', s.v.count)}</div>
           </div>
@@ -818,7 +849,7 @@ function Settings({ shop, onSaved, onLogout }: { shop: Shop; onSaved: (s: Shop) 
       </label>
       {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
       <button className="btn primary block lg">{t('save')}</button>
-      <button type="button" className="btn block lg" onClick={onLogout}>{t('logout')}</button>
+      <button type="button" className="btn block lg" onClick={onLogout}><Icon name="logout" size={18} /> {t('logout')}</button>
     </form>
   )
 }
@@ -1008,7 +1039,7 @@ function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onCha
             <div className="small muted">{t('planTitle')}</div>
             <h2 className="plan-name">{pro ? t('planPro') : t('planFree')} {pro && <span className="pro-badge">{periodText}</span>}</h2>
           </div>
-          <span className="plan-icon" aria-hidden="true">{pro ? '⭐' : '🆓'}</span>
+          <span className="plan-icon" aria-hidden="true"><Icon name={pro ? 'star' : 'store'} size={26} /></span>
         </div>
         {pro ? (
           <>
@@ -1029,9 +1060,9 @@ function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onCha
               <div className="small muted plan-period">{o.label}</div>
               <div className="plan-price">₹{PLAN_PRICES[o.p]}<span>{o.per}</span></div>
               <ul className="plan-feats">
-                <li>✓ {t('planFeatNoAds')}</li>
-                <li>✓ {t('planFeatCounters')}</li>
-                <li>✓ {t('planFeatPassport')}</li>
+                <li><Icon name="check" size={16} stroke={3} /> {t('planFeatNoAds')}</li>
+                <li><Icon name="check" size={16} stroke={3} /> {t('planFeatCounters')}</li>
+                <li><Icon name="check" size={16} stroke={3} /> {t('planFeatPassport')}</li>
               </ul>
               <button type="button" className={`btn block lg${o.save ? ' primary' : ''}`} disabled={busy !== null}
                 onClick={() => void upgrade(o.p)}>

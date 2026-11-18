@@ -70,6 +70,7 @@ export default function Setup() {
       <main className="auth-wrap">
         <form className="card auth-card" onSubmit={submit}>
           <div className="auth-logo"><LogoMark size={44} /></div>
+          <p className="step-chip">{t('setupStep')}</p>
           <h1 className="auth-title">{t('setupTitle')}</h1>
           <p className="muted center">{t('setupSub')}</p>
           <label className="field">
@@ -90,7 +91,7 @@ export default function Setup() {
             <input value={upi} onChange={(e) => setUpi(e.target.value)} placeholder="shopname@okaxis" />
             <small className="hint">{t('upiHint')}</small>
           </label>
-          {msg && <p className="notice error">{msg}</p>}
+          {msg && <p className="notice error" role="alert">{msg}</p>}
           <button className="btn primary block lg" disabled={busy}>{busy ? t('creating') : t('createShop')}</button>
         </form>
       </main>

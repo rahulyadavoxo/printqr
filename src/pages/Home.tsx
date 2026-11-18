@@ -108,7 +108,14 @@ export default function Home() {
               <Link className="btn primary lg" to="/login?mode=signup">{t('ctaRegister')}</Link>
               <Link className="btn lg" to="/login">{t('login')}</Link>
             </div>
-            <p className="small muted">{t('homeTrust')}</p>
+            <ul className="trust-row">
+              {t('homeTrust').split(' · ').map((x) => (
+                <li key={x}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                  {x}
+                </li>
+              ))}
+            </ul>
             <div className="app-dl"><AppDownloadButton /></div>
           </div>
 
@@ -138,7 +145,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="section">
+      <section className="section how">
         <h2 className="section-title">{t('howTitle')}</h2>
         <div className="steps-grid">
           {STEPS.map((s, i) => (
@@ -167,13 +174,20 @@ export default function Home() {
             </div>
           ))}
         </div>
-        <div className="center cta-bottom">
-          <Link className="btn primary lg" to="/login?mode=signup">{t('ctaRegister')}</Link>
+      </section>
+
+      <section className="section">
+        <div className="cta-band">
+          <div>
+            <h2>{t('homeCtaTitle')}</h2>
+            <p>{t('homeCtaSub')}</p>
+          </div>
+          <Link className="btn lg cta-band-btn" to="/login?mode=signup">{t('ctaRegister')}</Link>
         </div>
       </section>
 
       <footer className="footer">
-        {t('footer')}
+        <span className="footer-brand"><LogoMark size={22} /> {t('footer')}</span>
         <LegalLinks />
       </footer>
     </div>
