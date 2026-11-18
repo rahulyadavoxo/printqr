@@ -1,3 +1,4 @@
+import { nativeBridge } from '../lib/app'
 import { AppDownloadBanner } from '../components/AppDownload'
 import { FormEvent, PointerEvent as RPointerEvent, TouchEvent as RTouchEvent, WheelEvent as RWheelEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -371,6 +372,13 @@ export default function Dashboard() {
     if (!error && data) setShop(data as Shop)
   }
 
+  const [appVer] = useState(() => {
+    try {
+      const v = nativeBridge()?.appVersion?.() || (navigator.userAgent.match(/PrintQR\/(\d[\d.]*)/i) || [])[1] || ''
+      return v ? 'v' + v : ''
+    } catch { return '' }
+  })
+
   async function logout() {
     await supabase.auth.signOut()
     nav('/', { replace: true })
@@ -485,6 +493,7 @@ export default function Dashboard() {
               onChanged={() => loadCounters(shop.id)} onUpgrade={goPlan}
               onShowQr={(c) => setParams({ tab: 'qr', c })} />
             <button type="button" className="btn danger block lg logout-btn" onClick={logout}><Icon name="logout" size={18} /> {t('logout')}</button>
+            {appVer && <p className="app-version">PrintQR {appVer}</p>}
           </>
         )}
         {tab === 'plan' && <PlanTab shop={shop} email={session?.user.email} onChanged={loadShop} />}

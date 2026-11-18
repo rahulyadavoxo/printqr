@@ -823,3 +823,4 @@ body.no-scroll { overflow: hidden; }
 .btn.danger { background: var(--c-red); border-color: var(--c-red); color: #fff; }
 .btn.danger:hover { background: #b91c1c; border-color: #b91c1c; }
 .logout-btn { max-width: 720px; margin-top: 16px; }
+.app-version { max-width: 720px; text-align: center; color: var(--c-muted, #888); font-size: 13px; margin: 12px 0 4px; }
