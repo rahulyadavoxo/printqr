@@ -144,8 +144,19 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
             }
 
             @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                trackPage(url);
+            }
+
+            @Override
+            public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+                trackPage(url);
+            }
+
+            @Override
             public void onPageFinished(WebView view, String url) {
-                view.evaluateJavascript(BRIDGE_JS, null);
+                trackPage(url);
+                if (trustedPage) view.evaluateJavascript(BRIDGE_JS, null);
             }
         });
         web.setWebChromeClient(new WebChromeClient() {
@@ -180,7 +191,7 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
 
             @Override
             public void onProgressChanged(WebView view, int progress) {
-                if (progress > 60) view.evaluateJavascript(BRIDGE_JS, null);
+                if (progress > 60 && trustedPage) view.evaluateJavascript(BRIDGE_JS, null);
             }
         });
         web.setDownloadListener((url, ua, cd, mime, len) -> {
@@ -525,8 +536,9 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         String scheme = uri.getScheme() == null ? "" : uri.getScheme();
         String host = uri.getHost() == null ? "" : uri.getHost();
         if (scheme.equals("http") || scheme.equals("https")) {
-            if (host.equals(APP_HOST) || host.endsWith("razorpay.com")) return false;
-            if (host.endsWith("supabase.co") && !uri.getPath().contains("/storage/")) return false;
+            if (host.equals(APP_HOST) || isHost(host, "razorpay.com")) return false;
+            String path = uri.getPath() == null ? "" : uri.getPath();
+            if (isHost(host, "supabase.co") && !path.contains("/storage/")) return false;
             openExternal(uri.toString());
             return true;
         }
@@ -536,14 +548,21 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
                 ? Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME)
                 : new Intent(Intent.ACTION_VIEW, uri);
             if (scheme.equals("intent")) {
+                // A web page must not reach our own or any non-exported screen, or pass file permissions.
+                if (getPackageName().equals(i.getPackage())) return true;
                 i.addCategory(Intent.CATEGORY_BROWSABLE);
                 i.setComponent(null);
                 i.setSelector(null);
+                i.removeFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
+                Uri data = i.getData();
+                String ds = data == null || data.getScheme() == null ? "" : data.getScheme().toLowerCase(Locale.ROOT);
+                if (ds.equals("file") || ds.equals("content") || ds.equals("javascript")) return true;
             }
             startActivity(i);
         } catch (Exception e) {
             String fallback = i == null ? null : i.getStringExtra("browser_fallback_url");
-            if (fallback != null) openExternal(fallback);
+            if (fallback != null && (fallback.startsWith("https://") || fallback.startsWith("http://"))) openExternal(fallback);
             else Toast.makeText(this, scheme.equals("upi") || uri.toString().contains("upi")
                 ? "No UPI app found. Install Google Pay, PhonePe or Paytm, or pay by card."
                 : "No app found to open this", Toast.LENGTH_LONG).show();
@@ -551,10 +570,26 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         return true;
     }
 
+    /** True for the domain itself or a real subdomain of it (evilrazorpay.com does not match razorpay.com). */
+    private static boolean isHost(String host, String domain) {
+        String h = host == null ? "" : host.toLowerCase(Locale.ROOT);
+        return h.equals(domain) || h.endsWith("." + domain);
+    }
+
+    /** Only the bundled app's own pages may use the PQ bridge (not ads, payment pages or other sites). */
+    private volatile boolean trustedPage = true;
+
+    private void trackPage(String url) {
+        Uri u = url == null ? null : Uri.parse(url);
+        trustedPage = u != null && "https".equals(u.getScheme()) && APP_HOST.equals(u.getHost());
+    }
+
     private void openExternal(String url) {
         Uri u = Uri.parse(url);
+        String scheme = u.getScheme() == null ? "" : u.getScheme().toLowerCase(Locale.ROOT);
+        if (!scheme.equals("https") && !scheme.equals("http") && !scheme.equals("upi") && !scheme.equals("mailto") && !scheme.equals("tel")) return;
         String host = u.getHost() == null ? "" : u.getHost();
-        if (host.endsWith("supabase.co") && u.getPath() != null && u.getPath().contains("/storage/")) {
+        if (isHost(host, "supabase.co") && u.getPath() != null && u.getPath().contains("/storage/")) {
             downloadToPhone(u);
             return;
         }
@@ -585,6 +620,7 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         /** Light or dark system bars to match the web theme. */
         @JavascriptInterface
         public void setBars(boolean dark) {
+            if (!trustedPage) return;
             runOnUiThread(() -> {
                 int c = dark ? 0xFF0B1210 : 0xFFFAF9F6;
                 Window w = getWindow();
@@ -599,6 +635,7 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
 
         @JavascriptInterface
         public void print(String title) {
+            if (!trustedPage) return;
             runOnUiThread(() -> {
                 PrintManager pm = (PrintManager) getSystemService(PRINT_SERVICE);
                 if (pm != null) {
@@ -609,11 +646,13 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
 
         @JavascriptInterface
         public void openExternal(String url) {
+            if (!trustedPage) return;
             runOnUiThread(() -> MainActivity.this.openExternal(url));
         }
 
         @JavascriptInterface
         public void razorpay(String optionsJson) {
+            if (!trustedPage) return;
             runOnUiThread(() -> {
                 try {
                     JSONObject o = new JSONObject(optionsJson);
@@ -628,6 +667,7 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
 
         @JavascriptInterface
         public String appVersion() {
+            if (!trustedPage) return "";
             try {
                 return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
             } catch (Exception e) {
@@ -637,16 +677,19 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
 
         @JavascriptInterface
         public void checkUpdate() {
+            if (!trustedPage) return;
             checkUpdateAsync();
         }
 
         @JavascriptInterface
         public void downloadUpdate(String version) {
+            if (!trustedPage) return;
             downloadUpdateAsync(version);
         }
 
         @JavascriptInterface
         public boolean canInstall() {
+            if (!trustedPage) return false;
             try {
                 return Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls();
             } catch (Exception e) {
@@ -656,6 +699,7 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
 
         @JavascriptInterface
         public String installUpdate() {
+            if (!trustedPage) return "error:UNTRUSTED";
             final String[] res = { "error:INSTALL_FAILED" };
             final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
             runOnUiThread(() -> {
@@ -668,11 +712,13 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
 
         @JavascriptInterface
         public void toast(String msg) {
+            if (!trustedPage) return;
             runOnUiThread(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show());
         }
 
         @JavascriptInterface
         public void saveFile(String base64, String name, String mime) {
+            if (!trustedPage) return;
             try {
                 byte[] data = Base64.decode(base64, Base64.DEFAULT);
                 Uri saved;

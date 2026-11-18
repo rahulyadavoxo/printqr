@@ -135,6 +135,7 @@ const en = {
   uAutoDelete: 'Your files are deleted automatically after printing.',
   uMaxFiles: 'You can send up to {n} files in one order.',
   uTooBig: '{name} is bigger than 50 MB.',
+  uBadType: '{name}: this file type can\'t be printed here. Send PDF, photo (JPG, PNG, WEBP, HEIC), Word, Excel or PowerPoint.',
   uCountFail: "Couldn't count the pages in {name}. Please enter the page count yourself.",
   uDetails: 'Your details',
 
@@ -494,6 +495,7 @@ const hi: Record<Key, string> = {
   uAutoDelete: 'प्रिंट के बाद आपकी फ़ाइलें अपने आप डिलीट हो जाती हैं।',
   uMaxFiles: 'एक ऑर्डर में ज़्यादा से ज़्यादा {n} फ़ाइलें भेज सकते हैं।',
   uTooBig: '{name} 50 MB से बड़ी है।',
+  uBadType: '{name}: यह फ़ाइल यहाँ प्रिंट नहीं हो सकती। PDF, फ़ोटो (JPG, PNG, WEBP, HEIC), Word, Excel या PowerPoint भेजें।',
   uCountFail: '{name} के पेज गिन नहीं पाए। पेज की गिनती खुद लिखें।',
   uDetails: 'आपकी जानकारी',
 

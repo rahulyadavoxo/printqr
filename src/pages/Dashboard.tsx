@@ -9,7 +9,6 @@ import { ding, unlockAudio } from '../lib/sound'
 import { Key, useI18n } from '../lib/i18n'
 import { LangToggle, LogoMark, TopBar, Wordmark } from '../components/TopBar'
 import { ThemePref, useTheme } from '../lib/theme'
-import AdSlot from '../components/AdSlot'
 import Icon from '../components/Icon'
 import { Period, PLAN_PRICES, startUpgrade, callFn } from '../lib/billing'
 
@@ -489,7 +488,6 @@ export default function Dashboard() {
           </>
         )}
         {tab === 'plan' && <PlanTab shop={shop} email={session?.user.email} onChanged={loadShop} />}
-        {free && <AdSlot className="dash-ad" />}
       </div>
     </div>
   )

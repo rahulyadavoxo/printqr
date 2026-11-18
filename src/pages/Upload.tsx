@@ -44,6 +44,28 @@ type Upload = { payload: Record<string, unknown>; blob: Blob; contentType: strin
 const MAX_FILES = 20
 const MAX_SIZE = 50 * 1024 * 1024
 
+/** File types a customer may send: extension -> the one content type the server accepts for it (v7). */
+const TYPES: Record<string, string> = {
+  pdf: 'application/pdf',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+}
+
+function mimeOf(f: File): string | null {
+  const m = /\.([A-Za-z0-9]+)$/.exec(f.name)
+  return m ? TYPES[m[1].toLowerCase()] ?? null : null
+}
+
 function kindOf(f: File): Item['kind'] {
   if (f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')) return 'pdf'
   if (f.type.startsWith('image/')) return 'image'
@@ -159,6 +181,10 @@ export default function Upload() {
         setMsg(t('uTooBig', { name: f.name }))
         continue
       }
+      if (!mimeOf(f)) {
+        setMsg(t('uBadType', { name: f.name }))
+        continue
+      }
       const kind = kindOf(f)
       added.push({
         key: crypto.randomUUID(),
@@ -197,6 +223,7 @@ export default function Upload() {
     if (!f) return
     setMsg(null)
     if (f.size > MAX_SIZE) return setMsg(t('uTooBig', { name: f.name }))
+    if (!mimeOf(f)?.startsWith('image/')) return setMsg(t('uBadType', { name: f.name }))
     try {
       const preview = await passportPreview(f)
       setPassport((p) => ({ file: f, photos: p?.photos ?? PASSPORT_OPTIONS[0], preview }))
@@ -246,7 +273,7 @@ export default function Upload() {
       const fileUpload = (it: Item, pages: number): Upload => ({
         payload: {
           name: it.file.name,
-          mime: it.file.type || 'application/octet-stream',
+          mime: mimeOf(it.file) || 'application/pdf',
           size: it.file.size,
           total_pages: it.totalPages,
           page_range: it.kind === 'pdf' ? it.range.replace(/\s+/g, '') : '',
@@ -256,7 +283,7 @@ export default function Upload() {
           duplex: it.duplex
         },
         blob: it.file,
-        contentType: it.file.type || 'application/octet-stream'
+        contentType: mimeOf(it.file) || 'application/pdf'
       })
       let comboAdded = false
       for (const it of items) {
