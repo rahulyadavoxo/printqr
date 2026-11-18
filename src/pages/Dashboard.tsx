@@ -8,7 +8,7 @@ import { useSession } from '../lib/useSession'
 import { rupees } from '../lib/pricing'
 import { ding, unlockAudio } from '../lib/sound'
 import { Key, useI18n } from '../lib/i18n'
-import { LogoMark, TopBar, Wordmark } from '../components/TopBar'
+import { LangToggle, LogoMark, TopBar, Wordmark } from '../components/TopBar'
 import { ThemePref, useTheme } from '../lib/theme'
 import Icon from '../components/Icon'
 import { Period, PLAN_PRICES, startUpgrade, callFn } from '../lib/billing'
@@ -29,6 +29,14 @@ const NAV: { group: Key; items: Tab[] }[] = [
   { group: 'navAccount', items: ['settings'] }
 ]
 
+
+function greeting(t: (k: Key) => string): string {
+  const h = new Date().getHours()
+  return t(h < 12 ? 'goodMorning' : h < 17 ? 'goodAfternoon' : 'goodEvening')
+}
+function today(lang: string): string {
+  return new Date().toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
+}
 
 function ShopAvatar({ shop, size }: { shop: Shop; size: number }) {
   const [broken, setBroken] = useState(false)
@@ -540,10 +548,10 @@ export default function Dashboard() {
           <button type="button" className="menu-btn" onClick={() => setMenu(true)} aria-label={t('menu')} aria-expanded={menu}>
             <Icon name="menu" size={24} />
           </button>
-          <div className="bar-title">
+          <div className="bar-title d-only">
             <h1>{t(current.label)}</h1>
           </div>
-          <div className="bar-actions">
+          <div className="bar-actions d-only">
             {openToggle}
             <LangMenu />
             <ThemeMenu />
@@ -583,6 +591,14 @@ export default function Dashboard() {
             </div>
           ))}
         </nav>
+        {/* Phone/tablet only (hidden at >=1024px): the original drawer footer */}
+        <div className="drawer-foot m-only">
+          <div className="drawer-foot-row">
+            {openToggle}
+            <LangToggle />
+          </div>
+          <ThemeToggle />
+        </div>
         <div className="sb-control">
           {sbMenu && (
             <div className="sb-pop" role="menu">
@@ -601,6 +617,13 @@ export default function Dashboard() {
       </aside>
 
       <div className="page wide dash-main">
+        {/* Phone/tablet only (hidden at >=1024px): the original page heading */}
+        <div className="dash-head m-only no-print">
+          <div className="dash-title">
+            <h1>{t(current.label)}</h1>
+            <p className="muted dash-sub">{greeting(t)} · {today(lang)} · {shop.name}</p>
+          </div>
+        </div>
         <AppDownloadBanner />
         {tab === 'orders' && <Orders shop={shop} counters={counters} />}
         {tab === 'rates' && <RatesTab shop={shop} v2={v2} passportLocked={free} onUpgrade={goPlan} onSaved={setShop} />}

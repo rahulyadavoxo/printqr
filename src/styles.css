@@ -927,3 +927,12 @@ body.no-scroll { overflow: hidden; }
     background: linear-gradient(var(--c-line), var(--c-line)) no-repeat center 19px / 28px 1px;
   }
 }
+
+/* Screen-wise layout: phones/tablets keep the original dashboard (menu-only top bar,
+   page heading + greeting, controls in the drawer footer); >=1024px gets the new top bar. */
+@media (max-width: 1023.98px) {
+  .dash .d-only { display: none !important; }
+}
+@media (min-width: 1024px) {
+  .dash .m-only { display: none !important; }
+}
