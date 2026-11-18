@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund @supabase/supabase-js
+      - run: npm ci --no-audit --no-fund --ignore-scripts
       - run: node scripts/cleanup.mjs
         env:
           SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}

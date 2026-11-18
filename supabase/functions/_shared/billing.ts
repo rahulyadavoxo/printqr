@@ -37,7 +37,8 @@ export class HttpError extends Error {
 export function fail(e: unknown): Response {
   if (e instanceof HttpError) return json({ error: e.code, message: e.message }, e.status)
   console.error(e)
-  return json({ error: 'server_error', message: e instanceof Error ? e.message : String(e) }, 500)
+  // Details stay in the function logs; the browser gets a plain message (no keys, URLs or SQL).
+  return json({ error: 'server_error', message: 'Something went wrong. Please try again.' }, 500)
 }
 
 function env(name: string): string {

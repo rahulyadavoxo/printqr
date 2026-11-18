@@ -25,6 +25,8 @@ function setHash(route: string) {
   window.history.replaceState(null, '', window.location.pathname + window.location.search + '#' + route)
 }
 
+const AUTH_LINK_TYPES = new Set(['recovery', 'signup', 'invite', 'magiclink', 'email_change'])
+
 export function captureAuthHash(): void {
   const h = window.location.hash
   if (!h || h.length < 2 || h.startsWith('#/')) return
@@ -36,6 +38,13 @@ export function captureAuthHash(): void {
   }
   const access_token = p.get('access_token')
   const refresh_token = p.get('refresh_token')
+  // Only links Supabase itself emails us (reset password, confirm email, invite) may sign someone in.
+  // A link like print.receipto.in/#access_token=... made by someone else (session fixation) is ignored.
+  const type = p.get('type') || ''
+  if (access_token && refresh_token && !AUTH_LINK_TYPES.has(type)) {
+    setHash('/login')
+    return
+  }
   if (access_token && refresh_token) {
     const tokens: Tokens = { access_token, refresh_token }
     const recovery = p.get('type') === 'recovery'
