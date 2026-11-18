@@ -111,7 +111,7 @@ export default function Login() {
           </label>
           <label className="field">
             <span>{t('password')}</span>
-            <input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)}
+            <input type="password" required minLength={signup ? 8 : 6} value={password} onChange={(e) => setPassword(e.target.value)}
               autoComplete={signup ? 'new-password' : 'current-password'} />
             {signup && <small className="hint">{t('passwordHint')}</small>}
           </label>

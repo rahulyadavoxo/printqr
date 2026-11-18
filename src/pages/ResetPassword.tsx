@@ -70,13 +70,13 @@ export default function ResetPassword() {
               <p className="muted center">{t('rpSub')}</p>
               <label className="field">
                 <span>{t('rpNew')}</span>
-                <input type="password" required minLength={6} value={password} autoComplete="new-password"
+                <input type="password" required minLength={8} value={password} autoComplete="new-password"
                   onChange={(e) => setPassword(e.target.value)} />
                 <small className="hint">{t('passwordHint')}</small>
               </label>
               <label className="field">
                 <span>{t('rpConfirm')}</span>
-                <input type="password" required minLength={6} value={confirm} autoComplete="new-password"
+                <input type="password" required minLength={8} value={confirm} autoComplete="new-password"
                   onChange={(e) => setConfirm(e.target.value)} />
               </label>
               {msg && <p className="notice error">{msg}</p>}
