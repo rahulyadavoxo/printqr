@@ -11,7 +11,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt': a new deploy is offered with an Update banner (src/lib/pwa.ts), checked every minute
+      registerType: 'prompt',
+      injectRegister: false,
       includeAssets: ['icon.svg', 'logo.svg', 'favicon.ico', 'apple-touch-icon.png'],
       manifest: {
         name: 'Print by Receipto – Scan, upload, print',

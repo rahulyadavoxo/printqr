@@ -2,14 +2,16 @@
 // Checked on start, on resume (at most once a minute), every 10 min while open, and when internet
 // returns. When GitHub has a newer app release (tag app-vX.Y.Z with PrintQR-X.Y.Z.apk uploaded),
 // the app is covered by an Update screen: the APK downloads inside the app and Android's installer
-// opens. An update found while the app is in use waits for the next resume, so it never jumps over
-// half-done work. Offline or GitHub unreachable: the app keeps working.
+// opens. An update found while the app is in use shows a banner at once (tap Update), and the full
+// Update screen comes on the next resume, so it never jumps over half-done work. The website gets the
+// same banner when a new deploy is ready (src/lib/pwa.ts). Offline or GitHub unreachable: keeps working.
 import { ReactNode, useEffect, useRef, useState } from 'react'
 import { IN_APP, nativeBridge } from '../lib/app'
 import { useI18n } from '../lib/i18n'
+import { applyWebUpdate, onWebUpdate } from '../lib/pwa'
 
 const CHECK_EVERY_MS = 60 * 1000
-const POLL_WHILE_OPEN_MS = 10 * 60 * 1000
+const POLL_WHILE_OPEN_MS = 3 * 60 * 1000
 const SKIP_KEY = 'pq_upd_skip'
 const SKIP_MS = 12 * 60 * 60 * 1000
 const PERMANENT = ['NOT_NEWER', 'WRONG_SIGNER', 'WRONG_APP', 'NOT_APK', 'NO_INSTALLER']
@@ -98,6 +100,10 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
   const [installs, setInstalls] = useState(0)
   const [permBacks, setPermBacks] = useState(0)
   const [rejected, setRejected] = useState(false)
+  // update found while the app is open (native: version waiting; web: new deploy installed)
+  const [waiting, setWaiting] = useState<string | null>(null)
+  const [webReady, setWebReady] = useState(false)
+  useEffect(() => (IN_APP ? undefined : onWebUpdate(setWebReady)), [])
   const lastCheck = useRef(0)
   const queued = useRef<string | null>(null)
   const downloaded = useRef<string | null>(null)
@@ -119,8 +125,9 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
     const latest = await nativeCheck()
     const v = latest && newer(latest, cur) ? latest : defer ? null : queued.current
     if (!v || v === skipped()) return
-    if (defer && !updRef.current) { queued.current = v; return }
+    if (defer && !updRef.current) { queued.current = v; setWaiting(v); return }
     queued.current = null
+    setWaiting(null)
     show(v)
   }
 
@@ -204,6 +211,14 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
     <>
       <div style={{ display: upd ? 'none' : 'contents' }}>{children}</div>
       {rejected && <div className="update-toast" role="status">{t('updRejected')}</div>}
+      {!upd && (waiting || webReady) && (
+        <div className="update-bar no-print" role="status">
+          <span>{waiting ? t('updReadyV', { v: waiting }) : t('updReadyWeb')}</span>
+          <button type="button" className="btn primary small" onClick={() => {
+            if (waiting) { queued.current = null; setWaiting(null); show(waiting) } else applyWebUpdate()
+          }}>{t('updNow')}</button>
+        </div>
+      )}
       {upd && (
         <div className="update-gate" role="dialog" aria-modal="true" aria-labelledby="upd-title">
           <div className="update-icon" aria-hidden="true">↑</div>
