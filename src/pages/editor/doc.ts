@@ -28,11 +28,18 @@ export type PageState = {
   wm: Watermark | null
 }
 
+/** Where a page came from, so export can go back to the full-quality original. */
+export type Orig = { kind: 'pdf'; key: string; index: number } | { kind: 'img'; blob: Blob }
+
 export type Page = PageState & {
   id: string
+  /** preview-size picture used while editing (export re-renders from `orig` at full quality) */
   src: HTMLCanvasElement
   srcVer: number
   undo: string[]
+  orig?: Orig
+  /** true while a PDF page is still rendering in the background (src is a blank placeholder) */
+  loading?: boolean
 }
 
 export type TitleMode = 'off' | 'first' | 'all'

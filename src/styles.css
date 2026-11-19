@@ -1157,3 +1157,12 @@ button.ed-top-title:hover { background: var(--c-sunken); }
   padding: var(--sp-2); padding-top: max(var(--sp-2), env(safe-area-inset-top)); color: #fff; }
 .pp-zoombar .icon-btn { color: #fff; font-size: 22px; }
 .pp-loading { color: #fff; }
+
+/* editor: PDF pages still rendering in the background (does not block editing) */
+.ed-bgload {
+  position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  z-index: 60; display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px;
+  background: var(--c-ink, #0b1210); color: #fff; font-size: 13px; font-weight: 600; pointer-events: none;
+  box-shadow: 0 6px 20px rgba(0,0,0,.18);
+}
+.ed-bgload .spinner { width: 14px; height: 14px; }

@@ -7,21 +7,22 @@ import { ChangeEvent, useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '../../components/Icon'
 import { useI18n } from '../../lib/i18n'
 import CropScreen from './CropScreen'
-import { defaultName, DocMeta, forgetPage, Page, snap, uid } from './doc'
+import { defaultName, DocMeta, forgetPage, Orig, Page, snap, uid } from './doc'
 import EditScreen from './EditScreen'
 import FilterScreen from './FilterScreen'
 import { detectQuad, fullQuad } from './imgproc'
-import { deleteRecent, fileToCanvas, listRecents, pdfToCanvases, Recent } from './io'
+import { deleteRecent, fileToCanvas, listRecents, openPdfSource, PDF_PREVIEW, Recent, releaseAllPdfSources, renderPdfPage, withSource } from './io'
+import { makeCanvas } from './imgproc'
 
 type Screen = 'start' | 'crop' | 'filter' | 'edit'
 type Target = { mode: 'new' } | { mode: 'retake'; id: string }
 const MAX_PAGES = 60
 
-function makePage(src: HTMLCanvasElement, scanned: boolean): Page {
+function makePage(src: HTMLCanvasElement, scanned: boolean, orig?: Orig, loading = false): Page {
   const quad = scanned ? detectQuad(src) || fullQuad(src.width, src.height) : fullQuad(src.width, src.height)
   return {
     id: uid(), src, srcVer: 1, quad, rot: 0, filter: scanned ? 'auto' : 'original', bright: 0, contrast: 0, detail: 0,
-    ops: [], layers: [], wm: null, undo: []
+    ops: [], layers: [], wm: null, undo: [], orig, loading
   }
 }
 
@@ -41,6 +42,10 @@ export default function Editor() {
   const cam = useRef<HTMLInputElement>(null)
   const gal = useRef<HTMLInputElement>(null)
   const pdf = useRef<HTMLInputElement>(null)
+  // background rendering of PDF pages: bumping the run id stops an older run
+  const bgRun = useRef(0)
+  const [bg, setBg] = useState<{ done: number; total: number } | null>(null)
+  useEffect(() => () => { bgRun.current++; releaseAllPdfSources() }, [])
 
   const refreshRecents = useCallback(() => { void listRecents().then(setRecents) }, [])
   useEffect(() => { if (screen === 'start') refreshRecents() }, [screen, refreshRecents])
@@ -81,7 +86,7 @@ export default function Editor() {
         const src = await fileToCanvas(files[0])
         const fresh = makePage(src, true)
         forgetPage(old.id)
-        upd(old.id, { src, srcVer: old.srcVer + 1, quad: fresh.quad, rot: 0, ops: [], filter: fresh.filter, bright: 0, contrast: 0, detail: 0 })
+        upd(old.id, { src, srcVer: old.srcVer + 1, quad: fresh.quad, rot: 0, ops: [], filter: fresh.filter, bright: 0, contrast: 0, detail: 0, orig: { kind: 'img', blob: files[0] }, loading: false })
         setSingle({ id: old.id, before: snap(old), oldPage: old })
         setQueue([old.id])
         setScreen('crop')
@@ -93,7 +98,7 @@ export default function Editor() {
         try {
           setBusy(t('edLoadingPage', { i: made.length + 1, n: Math.min(files.length, room) }))
           await new Promise((r) => setTimeout(r, 0))
-          made.push(makePage(await fileToCanvas(f), true))
+          made.push(makePage(await fileToCanvas(f), true, { kind: 'img', blob: f }))
         } catch { /* unreadable picture: skipped */ }
       }
       if (!made.length) return setErr(t('edBadImage'))
@@ -114,17 +119,52 @@ export default function Editor() {
     setBusy(t('edLoadingPages'))
     try {
       const room = MAX_PAGES - pages.length
-      const canvases = await pdfToCanvases(f, room, (i, n) => setBusy(t('edLoadingPage', { i, n })))
-      if (!canvases.length) return setErr(t('edBadPdf'))
-      const made = canvases.map((c) => makePage(c, false))
+      const { key, sizes } = await openPdfSource(f, room)
+      if (!sizes.length) return setErr(t('edBadPdf'))
+      // Open at once: the first page is rendered now, the rest are blank placeholders filled in the background.
+      const first = await renderPdfPage(key, 0, PDF_PREVIEW)
+      const made = sizes.map((sz, i) => {
+        if (i === 0) return makePage(first, false, { kind: 'pdf', key, index: 0 })
+        const k = PDF_PREVIEW / Math.max(sz.w, sz.h) / 8
+        const [ph, g] = makeCanvas(sz.w * k, sz.h * k)
+        g.fillStyle = '#fff'
+        g.fillRect(0, 0, ph.width, ph.height)
+        return makePage(ph, false, { kind: 'pdf', key, index: i }, true)
+      })
       const at = insert(made)
       setCur(at)
       setScreen('edit')
+      void fillPdf(made.slice(1), key)
     } catch {
       setErr(t('edBadPdf'))
     } finally {
       setBusy('')
     }
+  }
+
+  /** Renders the placeholder pages one by one in the background, swapping each in. */
+  async function fillPdf(todo: Page[], key: string) {
+    if (!todo.length) return
+    const run = ++bgRun.current
+    let done = 1
+    const total = todo.length + 1
+    setBg({ done, total })
+    for (const p of todo) {
+      if (bgRun.current !== run) return
+      await new Promise((r) => setTimeout(r, 0))
+      try {
+        const c = await renderPdfPage(key, (p.orig as { index: number }).index, PDF_PREVIEW)
+        if (bgRun.current !== run) { c.width = c.height = 1; return }
+        setPages((ps) => ps.map((x) => {
+          if (x.id !== p.id || !x.loading) return x
+          forgetPage(x.id)
+          return withSource(x, c)
+        }))
+      } catch { /* pdf closed or page broken: leave the placeholder; export still reads the original */ }
+      done++
+      setBg({ done, total })
+    }
+    if (bgRun.current === run) setBg(null)
   }
 
   /** Adds pages at the end of the document; returns the first new index. */
@@ -136,6 +176,9 @@ export default function Editor() {
   }
 
   function reset() {
+    bgRun.current++
+    setBg(null)
+    releaseAllPdfSources()
     pages.forEach((p) => forgetPage(p.id))
     setPages([])
     setQueue([])
@@ -150,7 +193,7 @@ export default function Editor() {
     setBusy(t('edLoadingPages'))
     try {
       const made: Page[] = []
-      for (const b of r.pages) made.push(makePage(await fileToCanvas(b), false))
+      for (const b of r.pages) made.push(makePage(await fileToCanvas(b), false, { kind: 'img', blob: b }))
       if (!made.length) return
       pages.forEach((p) => forgetPage(p.id))
       setPages(made)
@@ -263,6 +306,7 @@ export default function Editor() {
           onReorder={(ids) => setPages((ps) => ids.map((id) => ps.find((p) => p.id === id)!).filter(Boolean))}
         />
         {err && <div className="ed-toast" role="alert" onClick={() => setErr('')}>{err}</div>}
+        {bg && <div className="ed-bgload" role="status" aria-live="polite"><span className="spinner" aria-hidden="true" /> {t('edBgLoading', { i: bg.done, n: bg.total })}</div>}
         {inputs}
       </>
     )
