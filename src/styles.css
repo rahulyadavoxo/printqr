@@ -1224,22 +1224,16 @@ html.in-app input, html.in-app textarea, html.in-app select, html.in-app [conten
 .fold-card.empty { margin-top: 16px; }
 .fold-card.has-orders .orders-grid { margin: 0; }
 .fold-card.empty { padding-top: 40px; }
-.fold-flap {
-  position: absolute; top: 0; left: 0; width: var(--fold); height: var(--fold);
-  background: linear-gradient(to bottom right, transparent 50%, var(--c-lime) 50%);
-  border-bottom-right-radius: 14px; filter: drop-shadow(2px 2px 2px rgba(0,0,0,.18));
-  display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 9px 6px 0;
-}
-.fold-flap b { font-size: 17px; font-weight: 800; color: var(--c-ink); line-height: 1; font-variant-numeric: tabular-nums; }
-/* diagonal crease line */
-.fold-card::before { content: ""; position: absolute; top: 0; left: 0; width: var(--fold); height: var(--fold);
-  background: linear-gradient(to bottom right, transparent calc(50% - 1px), var(--c-line-2) 50%, transparent calc(50% + 1px)); pointer-events: none; }
-[data-theme="dark"] .fold-flap b { color: #0b1210; }
+/* Folded corner (FoldCorner): SVG flap with rounded joins = all three corners curved */
+.fold { position: absolute; top: 0; z-index: 2; pointer-events: none; filter: drop-shadow(1px 2px 2px rgba(0,0,0,.22)); }
+.fold-tl { left: 0; }
+.fold-tr { right: 0; }
+.fold svg { position: absolute; inset: 0; overflow: visible; }
+.fold polygon { fill: var(--c-lime); stroke: var(--c-lime); stroke-width: 10; stroke-linejoin: round; }
+.fold b { position: absolute; bottom: 5px; font-weight: 800; color: #0b1210; line-height: 1; font-variant-numeric: tabular-nums; }
+.fold-tl b { right: 8px; font-size: 17px; }
+.fold-tr b { left: 5px; bottom: 4px; font-size: 12px; }
+/* drawer Orders item: its top-right corner folds over */
+.drawer-item.has-fold { position: relative; clip-path: polygon(0 0, calc(100% - 34px) 0, 100% 34px, 100% 100%, 0 100%); }
+@media (min-width: 1024px) { .dash.sb-collapsed .drawer-item.has-fold .fold b { display: none; } }
 
-/* Drawer: active count on the Orders item, same folded-paper look */
-.nav-count { margin-left: auto; min-width: 30px; height: 26px; padding: 0 8px 0 10px; display: grid; place-items: center;
-  background: var(--c-lime); color: #0b1210; font-size: 13.5px; font-weight: 800; border-radius: 4px 8px 8px 8px;
-  clip-path: polygon(9px 0, 100% 0, 100% 100%, 0 100%, 0 9px); position: relative; font-variant-numeric: tabular-nums; }
-.nav-count::before { content: ""; position: absolute; top: 0; left: 0; width: 9px; height: 9px;
-  background: linear-gradient(to bottom right, transparent 50%, #7fb31a 50%); border-bottom-right-radius: 3px; }
-@media (min-width: 1024px) { .dash.sb-collapsed .nav-count { display: none; } }

@@ -621,11 +621,11 @@ export default function Dashboard() {
               {g.items.map((id) => {
                 const x = TABS.find((y) => y.id === id)!
                 return (
-                  <button key={id} type="button" className={`drawer-item${tab === id ? ' on' : ''}`}
+                  <button key={id} type="button" className={`drawer-item${tab === id ? ' on' : ''}${id === 'orders' && activeCount ? ' has-fold' : ''}`}
                     aria-current={tab === id ? 'page' : undefined} onClick={() => go(id)}>
                     <Icon name={x.icon} size={22} />
                     <span>{t(x.label)}</span>
-                    {id === 'orders' && activeCount !== null && <span className="nav-count" aria-label={`${t('dActive')}: ${activeCount}`}>{activeCount}</span>}
+                    {id === 'orders' && !!activeCount && <FoldCorner n={activeCount} corner="tr" size={34} />}
                   </button>
                 )
               })}
@@ -863,8 +863,8 @@ function Orders({ shop, counters, onCount }: { shop: Shop; counters: Counter[]; 
       )}
       {loaded && (
         // Paper sheet with a folded top-left corner; the fold shows the active order count
-        <div className={`card fold-card${active.length ? ' has-orders' : ' empty'}`} aria-label={`${t('dActive')}: ${active.length}`}>
-          <span className="fold-flap" aria-hidden="true"><b>{active.length}</b></span>
+        <div className={`card${active.length ? ' fold-card has-orders' : ' empty'}`} aria-label={`${t('dActive')}: ${active.length}`}>
+          {active.length > 0 && <FoldCorner n={active.length} corner="tl" size={58} />}
           {active.length > 0 && (
             <div className="queue-summary" aria-hidden="true">
               {(['received', 'printing', 'ready'] as OrderStatus[]).map((st) => {
@@ -901,6 +901,18 @@ function Orders({ shop, counters, onCount }: { shop: Shop; counters: Counter[]; 
         </div>
       )}
     </section>
+  )
+}
+
+// Folded paper corner (dog-ear) with all three corners rounded; shows a count. corner: tl or tr.
+function FoldCorner({ n, corner, size }: { n: number; corner: 'tl' | 'tr'; size: number }) {
+  const S = size, r = 5
+  const pts = corner === 'tl' ? `${S - r},${r} ${r},${S - r} ${S - r},${S - r}` : `${r},${r} ${r},${S - r} ${S - r},${S - r}`
+  return (
+    <span className={`fold fold-${corner}`} style={{ width: S, height: S }} aria-hidden="true">
+      <svg width={S} height={S} viewBox={`0 0 ${S} ${S}`}><polygon points={pts} /></svg>
+      <b>{n}</b>
+    </span>
   )
 }
 
