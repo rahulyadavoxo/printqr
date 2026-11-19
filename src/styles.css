@@ -1237,3 +1237,33 @@ html.in-app input, html.in-app textarea, html.in-app select, html.in-app [conten
 .drawer-item.has-fold .fold { --fold-bg: var(--c-surface); }
 @media (min-width: 1024px) { .dash.sb-collapsed .drawer-item.has-fold .fold b { display: none; } }
 
+
+/* ===== Admin panel ===== */
+.admin-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 4px; }
+.admin-head h1 { margin: 0; }
+.admin-sec { margin: 26px 0 12px; font-size: 18px; }
+.admin-search { display: flex; gap: 8px; margin-bottom: 12px; }
+.admin-search input { flex: 1; min-width: 0; }
+.admin-list { display: grid; gap: 10px; }
+.admin-shop { padding: 0; overflow: hidden; margin: 0; }
+.admin-shop.is-blocked { border-color: #e5484d; }
+.admin-shop-head { all: unset; box-sizing: border-box; cursor: pointer; width: 100%; padding: 14px 16px; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; }
+.admin-shop-head:focus-visible { outline: 2px solid var(--c-ink); outline-offset: -2px; }
+.admin-shop-name { font-weight: 750; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-shop-sub { grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-tags { display: flex; gap: 6px; }
+.admin-tag { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: rgba(127, 127, 127, .15); white-space: nowrap; }
+.admin-tag.pro { background: #a6e22e; color: #111; }
+.admin-tag.bad { background: #e5484d; color: #fff; }
+.admin-shop-body { padding: 0 16px 16px; border-top: 1px solid rgba(127, 127, 127, .18); }
+.admin-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 14px 0; font-size: 14px; }
+.admin-facts dt { color: var(--c-muted); font-weight: 600; }
+.admin-facts dd { margin: 0; overflow-wrap: anywhere; }
+.admin-actions { display: grid; gap: 8px; }
+.admin-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.admin-days { width: 90px; }
+.admin-reason { flex: 1; min-width: 160px; }
+.admin-log { padding: 6px 16px; }
+.admin-log-row { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(127, 127, 127, .15); }
+.admin-log-row:last-child { border-bottom: 0; }
+.admin-log-row > span:first-child { min-width: 110px; }
