@@ -74,6 +74,17 @@ jobs:
           echo "" > android/app/src/main/assets/www/registerSW.js
           rm -f android/app/src/main/assets/www/sw.js android/app/src/main/assets/www/workbox-*.js
           test -f android/app/src/main/assets/www/index.html
+      - name: Firebase config (new-order push notifications)
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            grep -q '"in.receipto.print"' android/app/google-services.json || echo "::warning::google-services.json has no Android app for in.receipto.print"
+            echo "Push notifications: on"
+          else
+            echo "::warning::GOOGLE_SERVICES_JSON secret missing: app builds without push notifications"
+          fi
       - name: Build AAB and APK
         env:
           PQ_KEY_PASS: ${{ secrets.PQ_KEY_PASS }}

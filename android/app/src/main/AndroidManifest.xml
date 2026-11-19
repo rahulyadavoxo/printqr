@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+: new-order push notifications -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- in-app update: open the installer for the APK downloaded from the GitHub release -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
@@ -38,6 +40,24 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- New-order push notifications (Firebase Cloud Messaging) -->
+        <service
+            android:name="com.receipto.print.PushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="orders" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_print" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notif" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

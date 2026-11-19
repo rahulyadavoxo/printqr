@@ -42,6 +42,8 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.messaging.FirebaseMessaging;
 import com.razorpay.Checkout;
 import com.razorpay.PaymentData;
 import com.razorpay.PaymentResultWithDataListener;
@@ -118,6 +120,8 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         web = new WebView(this);
         root.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(root);
+        PushService.ensureChannel(this);
+        PushService.active = this;
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -712,6 +716,25 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
             return res[0];
         }
 
+        /** Saved push token ("" until Firebase gives one; a new one also arrives via window.__pqPush). */
+        @JavascriptInterface
+        public String pushToken() {
+            if (!trustedPage) return "";
+            runOnUiThread(MainActivity.this::fetchPushToken);
+            return getSharedPreferences(PushService.PREFS, MODE_PRIVATE).getString(PushService.KEY_TOKEN, "");
+        }
+
+        /** Android 13+: ask once for permission to show new-order notifications. */
+        @JavascriptInterface
+        public void askNotify() {
+            if (!trustedPage || Build.VERSION.SDK_INT < 33) return;
+            runOnUiThread(() -> {
+                if (checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[] { "android.permission.POST_NOTIFICATIONS" }, 1002);
+                }
+            });
+        }
+
         @JavascriptInterface
         public void toast(String msg) {
             if (!trustedPage) return;
@@ -789,15 +812,43 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         if (web != null) web.saveState(out);
     }
 
+    /** Hands a push token to the page (Dashboard registers it with Supabase). */
+    void sendPushToken(String token) {
+        if (token == null || token.isEmpty() || !trustedPage) return;
+        js("window.__pqPush&&window.__pqPush(" + JSONObject.quote(token) + ")");
+    }
+
+    private void fetchPushToken() {
+        try {
+            if (FirebaseApp.getApps(this).isEmpty()) return; // built without google-services.json: push off
+            FirebaseMessaging.getInstance().getToken().addOnCompleteListener(task -> {
+                if (!task.isSuccessful() || task.getResult() == null) return;
+                String t = task.getResult();
+                getSharedPreferences(PushService.PREFS, MODE_PRIVATE).edit().putString(PushService.KEY_TOKEN, t).apply();
+                sendPushToken(t);
+            });
+        } catch (Exception ignored) {
+            // push is optional
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (PushService.active == this) PushService.active = null;
+        super.onDestroy();
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
+        PushService.foreground = true;
         if (web != null) web.evaluateJavascript("window.__pqResume&&window.__pqResume()", null);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        PushService.foreground = false;
         CookieManager.getInstance().flush();
     }
 }

@@ -2,4 +2,5 @@
 <resources>
     <color name="bar">#0B1210</color>
     <color name="icon_bg">#A6E22E</color>
+    <color name="notif">#4D7C0F</color>
 </resources>

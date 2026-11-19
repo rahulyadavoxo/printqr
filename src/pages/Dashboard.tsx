@@ -3,12 +3,14 @@ import { AppDownloadBanner } from '../components/AppDownload'
 import { FormEvent, lazy, ReactNode, Suspense, PointerEvent as RPointerEvent, TouchEvent as RTouchEvent, WheelEvent as RWheelEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
-import { Counter, DEFAULT_PASSPORT_RATE, Order, OrderStatus, plansReady, QrLink, qrCodeUrl, Rates, Shop, shopIsPro, shopUrl, supabase } from '../lib/supabase'
+import { Counter, DEFAULT_PASSPORT_RATE, Order, OrderFile, OrderStatus, plansReady, QrLink, qrCodeUrl, Rates, Shop, shopIsPro, shopUrl, supabase } from '../lib/supabase'
 import { useSession } from '../lib/useSession'
 import { rupees } from '../lib/pricing'
 import { ding, unlockAudio } from '../lib/sound'
 import { Key, useI18n } from '../lib/i18n'
 import { useAppSettings } from '../lib/appSettings'
+import { canDirectPrint, DesktopPrinter, desktopApi, savedPrinter, savePrinter } from '../lib/desktop'
+import { removePush, setupPush } from '../lib/push'
 import { LangToggle, LogoMark, TopBar, Wordmark } from '../components/TopBar'
 import { ThemePref, useTheme } from '../lib/theme'
 import Icon from '../components/Icon'
@@ -451,6 +453,8 @@ export default function Dashboard() {
   const [params, setParams] = useSearchParams()
   const tab = (params.get('tab') as Tab) || 'orders'
   const [shop, setShop] = useState<Shop | null>(null)
+  // Android app: new-order push notifications for this phone
+  useEffect(() => { if (shop?.id) setupPush() }, [shop?.id])
   // true when the shop could not be loaded (no internet / server error). Never treat that as "no shop yet".
   const [loadErr, setLoadErr] = useState(false)
   const [counters, setCounters] = useState<Counter[]>([])
@@ -524,6 +528,7 @@ export default function Dashboard() {
   })
 
   async function logout() {
+    await removePush()
     await supabase.auth.signOut()
     nav('/', { replace: true })
   }
@@ -756,6 +761,16 @@ function Orders({ shop, counters, onCount }: { shop: Shop; counters: Counter[]; 
   filterRef.current = activeFilter
   const [showDone, setShowDone] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [info, setInfo] = useState<string | null>(null)
+  // Windows app: print straight to a printer
+  const desk = desktopApi()
+  const [printers, setPrinters] = useState<DesktopPrinter[]>([])
+  const [printer, setPrinterState] = useState(savedPrinter)
+  const [printingId, setPrintingId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!desk) return
+    desk.printers().then(setPrinters).catch(() => setPrinters([]))
+  }, [desk])
   const known = useRef<Set<string> | null>(null)
   // Keep the latest translators in refs so the realtime subscription does not restart on language change.
   const tRef = useRef(t)
@@ -831,6 +846,43 @@ function Orders({ shop, counters, onCount }: { shop: Shop; counters: Counter[]; 
     else window.location.href = data.signedUrl
   }
 
+  async function printOne(o: Order, f: OrderFile): Promise<boolean> {
+    if (!desk) return false
+    const { data, error } = await supabase.storage.from('uploads').createSignedUrl(f.storage_path, 300)
+    if (error || !data) {
+      setErr(error ? te(error) : t('fileOpenFail'))
+      return false
+    }
+    const r = await desk.print({
+      url: data.signedUrl,
+      name: f.file_name,
+      copies: f.item_kind === 'passport' ? Math.max(1, Number(f.pages_to_print) || 1) : Math.max(1, Number(f.copies) || 1),
+      color: f.item_kind === 'passport' ? true : !!f.color,
+      duplex: f.item_kind === 'passport' ? false : !!f.duplex,
+      pages: f.item_kind === 'passport' ? null : f.page_range,
+      kind: f.item_kind || 'print',
+      printer
+    }).catch(() => ({ ok: false }))
+    if (!r.ok) setErr(t('dpFail'))
+    return r.ok
+  }
+
+  async function printDirect(o: Order, files: OrderFile[]) {
+    if (!desk || printingId) return
+    setErr(null)
+    setInfo(null)
+    setPrintingId(files.length === 1 ? files[0].id : o.id)
+    let ok = true
+    for (const f of files) {
+      if (!(await printOne(o, f))) { ok = false; break }
+    }
+    setPrintingId(null)
+    if (ok) {
+      setInfo(t('dpSent', { token: o.token }))
+      if (o.status === 'received') void setStatus(o, 'printing')
+    }
+  }
+
   async function downloadFile(path: string, name: string) {
     const { data, error } = await supabase.storage.from('uploads').download(path)
     if (error || !data) return setErr(error ? te(error) : t('downloadFail'))
@@ -859,6 +911,16 @@ function Orders({ shop, counters, onCount }: { shop: Shop; counters: Counter[]; 
   return (
     <section>
       {err && <p className="notice error" role="alert"><Icon name="alert" size={18} /> <span>{err}</span></p>}
+      {info && <p className="notice success" role="status"><Icon name="printer" size={18} /> <span>{info}</span></p>}
+      {desk && printers.length > 0 && (
+        <div className="counter-filter">
+          <label className="small muted" htmlFor="printer-pick">{t('dpPrinter')}</label>
+          <select id="printer-pick" value={printer} onChange={(e) => { setPrinterState(e.target.value); savePrinter(e.target.value) }}>
+            <option value="">{t('dpDefaultPrinter')}{(() => { const d = printers.find((p) => p.isDefault); return d ? ` (${d.displayName})` : '' })()}</option>
+            {printers.map((p) => <option key={p.name} value={p.name}>{p.displayName}</option>)}
+          </select>
+        </div>
+      )}
       {counters.length > 0 && (
         <div className="counter-filter">
           <label className="small muted" htmlFor="counter-filter">{t('cFilter')}</label>
@@ -903,7 +965,7 @@ function Orders({ shop, counters, onCount }: { shop: Shop; counters: Counter[]; 
           ) : (
             <div className="orders-grid">
               {active.map((o) => (
-                <OrderCard key={o.id} o={o} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} />
+                <OrderCard key={o.id} o={o} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} printingId={printingId} />
               ))}
             </div>
           )}
@@ -917,7 +979,7 @@ function Orders({ shop, counters, onCount }: { shop: Shop; counters: Counter[]; 
       {showDone && (
         <div className="orders-grid">
           {finished.map((o) => (
-            <OrderCard key={o.id} o={o} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} />
+            <OrderCard key={o.id} o={o} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} printingId={printingId} />
           ))}
         </div>
       )}
@@ -964,8 +1026,12 @@ function OrderCard(props: {
   onOpen: (path: string) => void
   onDownload: (path: string, name: string) => void
   onDelete: (o: Order) => void
+  onPrint?: (o: Order, files: OrderFile[]) => void
+  printingId?: string | null
 }) {
-  const { o, onStatus, onOpen, onDownload, onDelete } = props
+  const { o, onStatus, onOpen, onDownload, onDelete, onPrint, printingId } = props
+  const printable = (o.order_files || []).filter((f) => canDirectPrint(f.file_name))
+  const busy = !!printingId
   const { t } = useI18n()
   const next = NEXT[o.status]
   const nextIcon = o.status === 'received' ? 'printer' : o.status === 'printing' ? 'check' : 'user'
@@ -1006,6 +1072,11 @@ function OrderCard(props: {
             )}
             {!o.files_deleted && (
               <div className="file-actions">
+                {onPrint && canDirectPrint(f.file_name) && (
+                  <button type="button" className="btn small primary" disabled={busy} onClick={() => onPrint(o, [f])}>
+                    <Icon name="printer" size={17} /> {printingId === f.id ? t('dpPrinting') : t('dpPrint')}
+                  </button>
+                )}
                 <button type="button" className="btn small soft" onClick={() => onOpen(f.storage_path)}><Icon name="printer" size={17} /> {t('openPrint')}</button>
                 <button type="button" className="btn small" onClick={() => onDownload(f.storage_path, f.file_name)}><Icon name="download" size={17} /> {t('download')}</button>
               </div>
@@ -1015,6 +1086,11 @@ function OrderCard(props: {
       </ul>
       {o.files_deleted && <p className="small muted files-gone"><Icon name="trash" size={15} /> {t('filesDeleted')}</p>}
       <div className="order-actions">
+        {onPrint && !o.files_deleted && printable.length > 1 && ['received', 'printing'].includes(o.status) && (
+          <button type="button" className="btn soft" disabled={busy} onClick={() => onPrint(o, printable)}>
+            <Icon name="printer" size={19} /> {printingId === o.id ? t('dpPrinting') : t('dpPrintAll', { n: printable.length })}
+          </button>
+        )}
         {next && <button type="button" className={`btn primary next-${o.status}`} onClick={() => onStatus(o, next.to)}><Icon name={nextIcon} size={19} /> {t(next.label)}</button>}
         {['received', 'printing', 'ready'].includes(o.status) && (
           <button type="button" className="btn danger-outline" onClick={() => confirm(t('confirmCancel')) && onStatus(o, 'cancelled')}>{t('cancel')}</button>
