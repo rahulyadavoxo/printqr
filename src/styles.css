@@ -1209,3 +1209,37 @@ button.ed-top-title:hover { background: var(--c-sunken); }
   .dash .dash-main { padding-top: 14px; }
   [data-theme="dark"] .dash .dash-bar { background: #070b09; }
 }
+
+/* App: no long-press text selection / copy menu (fields stay editable and selectable) */
+html.in-app body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+html.in-app input, html.in-app textarea, html.in-app select, html.in-app [contenteditable="true"], html.in-app .selectable {
+  -webkit-user-select: text; user-select: text; -webkit-touch-callout: default;
+}
+
+/* Orders: paper sheet with a folded top-left corner holding the active-order count */
+.fold-card .queue-summary { margin: 0 0 2px calc(var(--fold) - 6px); min-height: calc(var(--fold) - 26px); justify-content: flex-start; align-content: flex-start; }
+.fold-card { --fold: 58px; position: relative; overflow: visible;
+  clip-path: polygon(var(--fold) 0, 100% 0, 100% 100%, 0 100%, 0 var(--fold)); }
+.fold-card.has-orders { padding: 14px 12px 12px; margin-top: 16px; }
+.fold-card.empty { margin-top: 16px; }
+.fold-card.has-orders .orders-grid { margin: 0; }
+.fold-card.empty { padding-top: 40px; }
+.fold-flap {
+  position: absolute; top: 0; left: 0; width: var(--fold); height: var(--fold);
+  background: linear-gradient(to bottom right, transparent 50%, var(--c-lime) 50%);
+  border-bottom-right-radius: 14px; filter: drop-shadow(2px 2px 2px rgba(0,0,0,.18));
+  display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 9px 6px 0;
+}
+.fold-flap b { font-size: 17px; font-weight: 800; color: var(--c-ink); line-height: 1; font-variant-numeric: tabular-nums; }
+/* diagonal crease line */
+.fold-card::before { content: ""; position: absolute; top: 0; left: 0; width: var(--fold); height: var(--fold);
+  background: linear-gradient(to bottom right, transparent calc(50% - 1px), var(--c-line-2) 50%, transparent calc(50% + 1px)); pointer-events: none; }
+[data-theme="dark"] .fold-flap b { color: #0b1210; }
+
+/* Drawer: active count on the Orders item, same folded-paper look */
+.nav-count { margin-left: auto; min-width: 30px; height: 26px; padding: 0 8px 0 10px; display: grid; place-items: center;
+  background: var(--c-lime); color: #0b1210; font-size: 13.5px; font-weight: 800; border-radius: 4px 8px 8px 8px;
+  clip-path: polygon(9px 0, 100% 0, 100% 100%, 0 100%, 0 9px); position: relative; font-variant-numeric: tabular-nums; }
+.nav-count::before { content: ""; position: absolute; top: 0; left: 0; width: 9px; height: 9px;
+  background: linear-gradient(to bottom right, transparent 50%, #7fb31a 50%); border-bottom-right-radius: 3px; }
+@media (min-width: 1024px) { .dash.sb-collapsed .nav-count { display: none; } }

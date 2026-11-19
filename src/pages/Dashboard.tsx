@@ -508,6 +508,7 @@ export default function Dashboard() {
     if (!error && data) setShop(data as Shop)
   }
 
+  const [activeCount, setActiveCount] = useState<number | null>(null)
   const [appVer] = useState(() => {
     try {
       const v = nativeBridge()?.appVersion?.() || (navigator.userAgent.match(/PrintQR\/(\d[\d.]*)/i) || [])[1] || ''
@@ -624,6 +625,7 @@ export default function Dashboard() {
                     aria-current={tab === id ? 'page' : undefined} onClick={() => go(id)}>
                     <Icon name={x.icon} size={22} />
                     <span>{t(x.label)}</span>
+                    {id === 'orders' && activeCount !== null && <span className="nav-count" aria-label={`${t('dActive')}: ${activeCount}`}>{activeCount}</span>}
                   </button>
                 )
               })}
@@ -657,7 +659,7 @@ export default function Dashboard() {
 
       <div className="page wide dash-main">
         <AppDownloadBanner />
-        {tab === 'orders' && <Orders shop={shop} counters={counters} />}
+        {tab === 'orders' && <Orders shop={shop} counters={counters} onCount={setActiveCount} />}
         {tab === 'rates' && <RatesTab shop={shop} v2={v2} passportLocked={free} onUpgrade={goPlan} onSaved={setShop} />}
         {tab === 'qr' && (
           <QrTab shop={shop} counters={usable} counterId={params.get('c') || ''} pro={pro} free={free} onUpgrade={goPlan}
@@ -714,7 +716,7 @@ function matchesCounter(o: Order, filter: string) {
   return o.counter_id === filter
 }
 
-function Orders({ shop, counters }: { shop: Shop; counters: Counter[] }) {
+function Orders({ shop, counters, onCount }: { shop: Shop; counters: Counter[]; onCount?: (n: number) => void }) {
   const { t, te } = useI18n()
   const [orders, setOrders] = useState<Order[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -830,6 +832,8 @@ function Orders({ shop, counters }: { shop: Shop; counters: Counter[] }) {
   const shown = orders.filter((o) => matchesCounter(o, activeFilter))
   const active = shown.filter((o) => ['received', 'printing', 'ready'].includes(o.status))
   const finished = shown.filter((o) => ['done', 'cancelled'].includes(o.status))
+  const allActive = orders.filter((o) => ['received', 'printing', 'ready'].includes(o.status)).length
+  useEffect(() => { if (loaded) onCount?.(allActive) }, [loaded, allActive]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <section>
@@ -844,18 +848,6 @@ function Orders({ shop, counters }: { shop: Shop; counters: Counter[] }) {
           </select>
         </div>
       )}
-      <div className="section-head">
-        <h2>{t('dActive')}</h2>
-        <span className="count-badge">{active.length}</span>
-        {active.length > 0 && (
-          <div className="queue-summary" aria-hidden="true">
-            {(['received', 'printing', 'ready'] as OrderStatus[]).map((st) => {
-              const n = active.filter((o) => o.status === st).length
-              return n ? <span key={st} className={`pill tiny s-${st}`}>{t(STATUS_TEXT[st])} · {n}</span> : null
-            })}
-          </div>
-        )}
-      </div>
       {!loaded && (
         <div className="orders-grid" aria-busy="true">
           <span className="sr-only">{t('loading')}</span>
@@ -869,18 +861,33 @@ function Orders({ shop, counters }: { shop: Shop; counters: Counter[] }) {
           ))}
         </div>
       )}
-      {loaded && !active.length && (
-        <div className="card empty">
-          <span className="state-icon" aria-hidden="true"><Icon name="bell" size={28} /></span>
-          <strong>{t('noOrders')}</strong>
-          <p className="muted small">{t('noOrdersSub')}</p>
+      {loaded && (
+        // Paper sheet with a folded top-left corner; the fold shows the active order count
+        <div className={`card fold-card${active.length ? ' has-orders' : ' empty'}`} aria-label={`${t('dActive')}: ${active.length}`}>
+          <span className="fold-flap" aria-hidden="true"><b>{active.length}</b></span>
+          {active.length > 0 && (
+            <div className="queue-summary" aria-hidden="true">
+              {(['received', 'printing', 'ready'] as OrderStatus[]).map((st) => {
+                const n = active.filter((o) => o.status === st).length
+                return n ? <span key={st} className={`pill tiny s-${st}`}>{t(STATUS_TEXT[st])} · {n}</span> : null
+              })}
+            </div>
+          )}
+          {!active.length ? (
+            <>
+              <span className="state-icon" aria-hidden="true"><Icon name="bell" size={28} /></span>
+              <strong>{t('noOrders')}</strong>
+              <p className="muted small">{t('noOrdersSub')}</p>
+            </>
+          ) : (
+            <div className="orders-grid">
+              {active.map((o) => (
+                <OrderCard key={o.id} o={o} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} />
+              ))}
+            </div>
+          )}
         </div>
       )}
-      <div className="orders-grid">
-        {active.map((o) => (
-          <OrderCard key={o.id} o={o} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} />
-        ))}
-      </div>
       {finished.length > 0 && (
         <button type="button" className="btn ghost block show-done" onClick={() => setShowDone(!showDone)}>
           {showDone ? t('hideFinished') : t('showFinished', { n: finished.length })}
