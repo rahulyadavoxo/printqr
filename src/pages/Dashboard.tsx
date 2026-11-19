@@ -582,6 +582,11 @@ export default function Dashboard() {
           <button type="button" className="menu-btn" onClick={() => setMenu(true)} aria-label={t('menu')} aria-expanded={menu}>
             <Icon name="menu" size={24} />
           </button>
+          {/* Phone/tablet: current page as a Supabase-style tab on the right of the bar */}
+          <div className="bar-tab m-only" aria-current="page">
+            <Icon name={current.icon} size={16} />
+            <span>{t(current.label)}</span>
+          </div>
           <div className="bar-title d-only">
             <h1>{t(current.label)}</h1>
           </div>
@@ -651,12 +656,6 @@ export default function Dashboard() {
       </aside>
 
       <div className="page wide dash-main">
-        {/* Phone/tablet only (hidden at >=1024px): the original page heading */}
-        <div className="dash-head m-only no-print">
-          <div className="dash-title">
-            <h1>{t(current.label)}</h1>
-          </div>
-        </div>
         <AppDownloadBanner />
         {tab === 'orders' && <Orders shop={shop} counters={counters} />}
         {tab === 'rates' && <RatesTab shop={shop} v2={v2} passportLocked={free} onUpgrade={goPlan} onSaved={setShop} />}

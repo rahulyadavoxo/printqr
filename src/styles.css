@@ -1185,3 +1185,22 @@ button.ed-top-title:hover { background: var(--c-sunken); }
 @media (max-width: 600px) { .update-note { right: 12px; left: 12px; width: auto; bottom: calc(12px + env(safe-area-inset-bottom)); } }
 @media print { .update-note { display: none; } }
 @media (prefers-reduced-motion: reduce) { .update-note { animation: none; } }
+
+/* Phone/tablet top bar: Supabase SQL-editor tab strip. Grey strip, current page is a white tab
+   on the right that sits on the bar's bottom line (no separate big heading). */
+@media (max-width: 1023.98px) {
+  .dash .dash-bar { background: var(--c-sunken); border-bottom: 1px solid var(--c-line); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .dash .dash-bar .topbar-in { min-height: 52px; padding-top: 0; padding-bottom: 0; align-items: stretch; }
+  .dash .dash-bar .menu-btn { align-self: center; }
+  .bar-tab {
+    margin-left: auto; margin-bottom: -1px; display: flex; align-items: center; gap: 8px;
+    max-width: 62vw; padding: 0 16px; background: var(--c-surface); color: var(--c-ink);
+    border: 1px solid var(--c-line); border-bottom-color: var(--c-surface); border-top: 2px solid var(--c-ink);
+    font-size: 15px; font-weight: 600;
+  }
+  .bar-tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-tab svg { flex: none; color: var(--c-muted); }
+  .dash .dash-main { padding-top: 14px; }
+  [data-theme="dark"] .dash .dash-bar { background: #070b09; }
+  [data-theme="dark"] .bar-tab { border-top-color: var(--c-lime); }
+}
