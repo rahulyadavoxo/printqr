@@ -27,10 +27,11 @@ export default function Setup() {
       nav('/login', { replace: true })
       return
     }
-    supabase.from('shops').select('id').eq('owner_id', session.user.id).maybeSingle().then(({ data }) => {
-      if (data) nav('/dashboard', { replace: true })
+    supabase.from('shops').select('id').eq('owner_id', session.user.id).maybeSingle().then(({ data, error }) => {
+      // On a network/server error we don't know if a shop exists: let the dashboard show its retry screen.
+      if (data || error) nav('/dashboard', { replace: true })
       else setChecking(false)
-    })
+    }, () => nav('/dashboard', { replace: true }))
   }, [session, loading, nav])
 
   async function submit(e: FormEvent) {

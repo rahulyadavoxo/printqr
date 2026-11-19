@@ -457,6 +457,8 @@ export default function Dashboard() {
   const [params, setParams] = useSearchParams()
   const tab = (params.get('tab') as Tab) || 'orders'
   const [shop, setShop] = useState<Shop | null>(null)
+  // true when the shop could not be loaded (no internet / server error). Never treat that as "no shop yet".
+  const [loadErr, setLoadErr] = useState(false)
   const [counters, setCounters] = useState<Counter[]>([])
   // false until the v2 database update (supabase/migrations/2026-11-17-v2.sql) has been run
   const [v2, setV2] = useState(false)
@@ -474,7 +476,19 @@ export default function Dashboard() {
 
   const loadShop = useCallback(async () => {
     if (!session) return
-    const { data } = await supabase.from('shops').select('*').eq('owner_id', session.user.id).maybeSingle()
+    setLoadErr(false)
+    let res: { data: unknown; error: unknown }
+    try {
+      res = await supabase.from('shops').select('*').eq('owner_id', session.user.id).maybeSingle()
+    } catch (e) {
+      res = { data: null, error: e }
+    }
+    const { data, error } = res
+    if (error) {
+      // Offline or server error: show the retry screen, never the setup form.
+      setLoadErr(true)
+      return
+    }
     if (!data) nav('/setup', { replace: true })
     else {
       setShop(data as Shop)
@@ -487,6 +501,14 @@ export default function Dashboard() {
     if (!session) nav('/login', { replace: true })
     else void loadShop()
   }, [session, loading, nav, loadShop])
+
+  // Coming back online after a failed load: try again by itself.
+  useEffect(() => {
+    if (!loadErr) return
+    const on = () => void loadShop()
+    window.addEventListener('online', on)
+    return () => window.removeEventListener('online', on)
+  }, [loadErr, loadShop])
 
   async function toggleOpen() {
     if (!shop) return
@@ -504,6 +526,22 @@ export default function Dashboard() {
   async function logout() {
     await supabase.auth.signOut()
     nav('/', { replace: true })
+  }
+
+  if (!shop && loadErr) {
+    return (
+      <div className="app-page">
+        <TopBar to={null} wide lang={false} />
+        <div className="page">
+          <div className="card empty" role="alert">
+            <span className="state-icon" aria-hidden="true"><Icon name="wifi" size={28} /></span>
+            <strong>{t('netOffTitle')}</strong>
+            <p className="muted small">{t('netOffSub')}</p>
+            <button type="button" className="btn primary lg" onClick={() => void loadShop()}>{t('netRetry')}</button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (!shop) {
