@@ -1218,22 +1218,22 @@ html.in-app input, html.in-app textarea, html.in-app select, html.in-app [conten
 
 /* Orders: paper sheet with a folded top-left corner holding the active-order count */
 .fold-card .queue-summary { margin: 0 0 2px calc(var(--fold) - 6px); min-height: calc(var(--fold) - 26px); justify-content: flex-start; align-content: flex-start; }
-.fold-card { --fold: 58px; position: relative; overflow: visible;
-  clip-path: polygon(var(--fold) 0, 100% 0, 100% 100%, 0 100%, 0 var(--fold)); }
+.fold-card { --fold: 58px; position: relative; overflow: visible; }
 .fold-card.has-orders { padding: 14px 12px 12px; margin-top: 16px; }
 .fold-card.empty { margin-top: 16px; }
 .fold-card.has-orders .orders-grid { margin: 0; }
 .fold-card.empty { padding-top: 40px; }
-/* Folded corner (FoldCorner): SVG flap with rounded joins = all three corners curved */
-.fold { position: absolute; top: 0; z-index: 2; pointer-events: none; filter: drop-shadow(1px 2px 2px rgba(0,0,0,.22)); }
-.fold-tl { left: 0; }
-.fold-tr { right: 0; }
-.fold svg { position: absolute; inset: 0; overflow: visible; }
-.fold polygon { fill: var(--c-lime); stroke: var(--c-lime); stroke-width: 10; stroke-linejoin: round; }
-.fold b { position: absolute; bottom: 5px; font-weight: 800; color: #0b1210; line-height: 1; font-variant-numeric: tabular-nums; }
-.fold-tl b { right: 8px; font-size: 17px; }
-.fold-tr b { left: 5px; bottom: 4px; font-size: 12px; }
-/* drawer Orders item: its top-right corner folds over */
-.drawer-item.has-fold { position: relative; clip-path: polygon(0 0, calc(100% - 34px) 0, 100% 34px, 100% 100%, 0 100%); }
+/* Page curl (FoldCorner) */
+.fold { position: absolute; top: -1px; z-index: 2; pointer-events: none; --fold-bg: var(--c-bg); }
+.fold-tl { left: -1px; }
+.fold-tr { right: -1px; }
+.fold svg { position: absolute; top: 0; left: 0; overflow: visible; }
+.fold-tr svg { left: auto; right: -8px; }
+.fold .fold-bg { fill: var(--fold-bg); }
+.fold b { position: absolute; font-weight: 800; color: #0b1210; line-height: 1; font-variant-numeric: tabular-nums; }
+.fold-tl b { right: 20%; bottom: 20%; font-size: 17px; }
+.fold-tr b { left: 22%; bottom: 18%; font-size: 12px; }
+.drawer-item.has-fold { position: relative; overflow: visible; }
+.drawer-item.has-fold .fold { --fold-bg: var(--c-surface); }
 @media (min-width: 1024px) { .dash.sb-collapsed .drawer-item.has-fold .fold b { display: none; } }
 

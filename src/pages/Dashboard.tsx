@@ -904,13 +904,34 @@ function Orders({ shop, counters, onCount }: { shop: Shop; counters: Counter[]; 
   )
 }
 
-// Folded paper corner (dog-ear) with all three corners rounded; shows a count. corner: tl or tr.
+// Realistic page curl on a corner (tl or tr), showing a count. The corner behind the curl is painted
+// in the surrounding colour (--fold-bg) so the page looks peeled; the flap has a curved edge, a light
+// gradient and a soft shadow underneath.
+let foldSeq = 0
 function FoldCorner({ n, corner, size }: { n: number; corner: 'tl' | 'tr'; size: number }) {
-  const S = size, r = 5
-  const pts = corner === 'tl' ? `${S - r},${r} ${r},${S - r} ${S - r},${S - r}` : `${r},${r} ${r},${S - r} ${S - r},${S - r}`
+  const [id] = useState(() => 'fc' + ++foldSeq)
+  const S = size
+  const edge = `M${S} 0 Q${S * 0.56} ${S * 0.56} 0 ${S}`
+  const flap = `${edge} C${S * 0.36} ${S * 1.02} ${S * 0.72} ${S * 0.98} ${S * 0.9} ${S * 0.9} C${S * 0.98} ${S * 0.72} ${S * 1.02} ${S * 0.36} ${S} 0Z`
   return (
     <span className={`fold fold-${corner}`} style={{ width: S, height: S }} aria-hidden="true">
-      <svg width={S} height={S} viewBox={`0 0 ${S} ${S}`}><polygon points={pts} /></svg>
+      <svg width={S + 8} height={S + 8} viewBox={`0 0 ${S + 8} ${S + 8}`}>
+        <defs>
+          <linearGradient id={id + 'g'} x1="0.25" y1="0.25" x2="0.85" y2="0.85">
+            <stop offset="0" stopColor="#7fb31a" />
+            <stop offset="0.35" stopColor="#b5e84a" />
+            <stop offset="0.8" stopColor="#e4f7b8" />
+            <stop offset="1" stopColor="#f6fce6" />
+          </linearGradient>
+          <filter id={id + 's'} x="-30%" y="-30%" width="160%" height="160%">
+            <feDropShadow dx="2" dy="3" stdDeviation="2.4" floodColor="#000" floodOpacity="0.28" />
+          </filter>
+        </defs>
+        <g transform={corner === 'tr' ? `translate(${S} 0) scale(-1 1)` : undefined}>
+          <path d={`M0 0H${S} Q${S * 0.56} ${S * 0.56} 0 ${S}Z`} className="fold-bg" />
+          <path d={flap} fill={`url(#${id}g)`} filter={`url(#${id}s)`} />
+        </g>
+      </svg>
       <b>{n}</b>
     </span>
   )
