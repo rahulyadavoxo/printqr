@@ -8,7 +8,7 @@
 const A4_W = 595.28 // points (1/72 inch)
 const A4_H = 841.89
 
-type PdfPage = {
+export type PdfPage = {
   jpeg: Uint8Array
   pxW: number
   pxH: number
@@ -21,7 +21,7 @@ type PdfPage = {
   h: number
 }
 
-function buildPdf(pages: PdfPage[]): Blob {
+export function buildPdf(pages: PdfPage[]): Blob {
   const enc = new TextEncoder()
   const chunks: Uint8Array[] = []
   const offsets: number[] = []
@@ -99,7 +99,7 @@ function canvas(w: number, h: number) {
   return { c, g }
 }
 
-async function toJpeg(c: HTMLCanvasElement, quality: number): Promise<Uint8Array> {
+export async function toJpeg(c: HTMLCanvasElement, quality: number): Promise<Uint8Array> {
   const blob = await new Promise<Blob | null>((resolve) => c.toBlob(resolve, 'image/jpeg', quality))
   if (!blob) throw new Error('Could not make JPEG')
   return new Uint8Array(await blob.arrayBuffer())

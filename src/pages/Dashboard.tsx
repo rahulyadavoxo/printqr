@@ -1,6 +1,6 @@
 import { nativeBridge } from '../lib/app'
 import { AppDownloadBanner } from '../components/AppDownload'
-import { FormEvent, ReactNode, PointerEvent as RPointerEvent, TouchEvent as RTouchEvent, WheelEvent as RWheelEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { FormEvent, lazy, ReactNode, Suspense, PointerEvent as RPointerEvent, TouchEvent as RTouchEvent, WheelEvent as RWheelEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { Counter, DEFAULT_PASSPORT_RATE, FREE_COUNTER_LIMIT, Order, OrderStatus, plansReady, QrLink, qrCodeUrl, Rates, Shop, shopIsPro, shopUrl, supabase } from '../lib/supabase'
@@ -13,18 +13,22 @@ import { ThemePref, useTheme } from '../lib/theme'
 import Icon from '../components/Icon'
 import { Period, PLAN_PRICES, startUpgrade, callFn } from '../lib/billing'
 
-type Tab = 'orders' | 'rates' | 'qr' | 'report' | 'settings' | 'plan'
+type Tab = 'orders' | 'rates' | 'qr' | 'edit' | 'report' | 'settings' | 'plan'
+
+// The document editor is a separate chunk, loaded only when the Edit tab opens.
+const Editor = lazy(() => import('./editor/Editor'))
 const TABS: { id: Tab; label: Key; icon: string }[] = [
   { id: 'orders', label: 'tabOrders', icon: 'inbox' },
   { id: 'rates', label: 'tabRates', icon: 'rupee' },
   { id: 'qr', label: 'tabQr', icon: 'qr' },
+  { id: 'edit', label: 'tabEdit', icon: 'scan' },
   { id: 'report', label: 'tabReport', icon: 'chart' },
   { id: 'settings', label: 'tabSettings', icon: 'settings' },
   { id: 'plan', label: 'tabPlan', icon: 'star' }
 ]
 
 const NAV: { group: Key; items: Tab[] }[] = [
-  { group: 'navShop', items: ['orders', 'rates', 'qr'] },
+  { group: 'navShop', items: ['orders', 'rates', 'qr', 'edit'] },
   { group: 'navBusiness', items: ['report', 'plan'] },
   { group: 'navAccount', items: ['settings'] }
 ]
@@ -630,6 +634,11 @@ export default function Dashboard() {
         {tab === 'qr' && (
           <QrTab shop={shop} counters={usable} counterId={params.get('c') || ''} pro={pro} free={free} onUpgrade={goPlan}
             onCounter={(c) => setParams(c ? { tab: 'qr', c } : { tab: 'qr' }, { replace: true })} />
+        )}
+        {tab === 'edit' && (
+          <Suspense fallback={<div className="card skel-card" aria-busy="true"><div className="skel skel-line w60" /><div className="skel skel-block" /></div>}>
+            <Editor />
+          </Suspense>
         )}
         {tab === 'report' && <Report shop={shop} />}
         {tab === 'settings' && (
