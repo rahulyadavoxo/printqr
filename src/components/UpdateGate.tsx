@@ -10,6 +10,7 @@ import { IN_APP, nativeBridge } from '../lib/app'
 import { useI18n } from '../lib/i18n'
 import { applyWebUpdate, onWebUpdate } from '../lib/pwa'
 import Icon from './Icon'
+import { onRelease } from '../lib/releaseSignal'
 
 const CHECK_EVERY_MS = 60 * 1000
 const POLL_WHILE_OPEN_MS = 60 * 1000
@@ -203,7 +204,10 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
     }, POLL_WHILE_OPEN_MS)
     const onOnline = () => { if (visible()) run(true, true).catch(() => {}) }
     window.addEventListener('online', onOnline)
+    // instant: CI broadcasts right after the APK is published
+    const offRelease = onRelease((k) => { if (k === 'app' && statusRef.current === 'idle') run(true, true).catch(() => {}) })
     return () => {
+      offRelease()
       clearInterval(tick)
       window.removeEventListener('online', onOnline)
       window.__pqResume = undefined

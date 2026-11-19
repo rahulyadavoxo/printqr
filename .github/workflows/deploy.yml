@@ -45,3 +45,11 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Tell open apps/sites a new web version is live (Supabase Realtime broadcast)
+        env:
+          SB_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SB_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          curl -sS -m 15 -X POST "$SB_URL/realtime/v1/api/broadcast" \
+            -H "apikey: $SB_KEY" -H "Authorization: Bearer $SB_KEY" -H "Content-Type: application/json" \
+            -d '{"messages":[{"topic":"pq-releases","event":"web","payload":{}}]}' -w "\nHTTP %{http_code}\n" || true

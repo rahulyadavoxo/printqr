@@ -134,3 +134,11 @@ jobs:
           # Fixed names so the website can always link releases/latest/download/<name>
           cp files/*.apk PrintQR.apk && cp files/*.exe PrintQR-Setup.exe
           gh release upload "$GITHUB_REF_NAME" PrintQR.apk PrintQR-Setup.exe --clobber
+      - name: Tell open apps/sites a new app version is live (Supabase Realtime broadcast)
+        env:
+          SB_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SB_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          curl -sS -m 15 -X POST "$SB_URL/realtime/v1/api/broadcast" \
+            -H "apikey: $SB_KEY" -H "Authorization: Bearer $SB_KEY" -H "Content-Type: application/json" \
+            -d '{"messages":[{"topic":"pq-releases","event":"app","payload":{}}]}' -w "\nHTTP %{http_code}\n" || true

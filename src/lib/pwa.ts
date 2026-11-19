@@ -4,6 +4,7 @@
 // The Android app bundles the site, so it updates through UpdateGate's native APK flow instead.
 import { registerSW } from 'virtual:pwa-register'
 import { IN_APP } from './app'
+import { onRelease } from './releaseSignal'
 
 const CHECK_MS = 60 * 1000
 let ready = false
@@ -37,6 +38,7 @@ export function startPwa() {
       setInterval(() => { if (document.visibilityState === 'visible') check() }, CHECK_MS)
       document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check() })
       window.addEventListener('online', check)
+      onRelease((k) => { if (k === 'web') check() })
     }
   })
 }
