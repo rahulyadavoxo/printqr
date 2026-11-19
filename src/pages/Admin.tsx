@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState, type ReactElement } from 'react'
 import { Navigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useSession } from '../lib/useSession'
-import { useI18n } from '../lib/i18n'
+import { Key, useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
+import { callFn } from '../lib/billing'
+import { AdminOrders, AdminPayments, AdminSettings, AdminSpam, AdminUsers, fmtBytes, fmtDate } from './AdminTabs'
 
 /* Admin panel. The page only hides itself; the real check is is_admin() inside every admin_* SQL function. */
 
@@ -12,6 +14,8 @@ type Overview = {
   pro_active: number; pro_paid: number; pro_monthly: number; pro_yearly: number; blocked: number
   orders_today: number; orders_week: number; orders_total: number
   storage_bytes: number; files_waiting: number
+  pay_failed?: number; orders_stuck?: number; reports_open?: number; users_total?: number
+  cleanup_last?: string | null; cleanup_failed_day?: number | null
 }
 
 type ShopRow = {
@@ -29,16 +33,19 @@ const PRICE_YEARLY = 539
 
 const PAGE = 50
 
-function fmtDate(s: string | null, lang: string) {
-  if (!s) return '—'
-  return new Date(s).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+const TAB_KEYS: Record<Tab, Key> = {
+  overview: 'admOverview', shops: 'admShops', users: 'admUsers', orders: 'admOrders', payments: 'admPayments',
+  spam: 'admSpam', settings: 'admSettings', log: 'admLog'
 }
+const LOG_KEYS: Record<string, Key> = {
+  pro_given: 'admLogProGiven', pro_removed: 'admLogProRemoved', blocked: 'admLogBlocked', unblocked: 'admLogUnblocked',
+  qr_reset: 'admLogQrReset', shop_edited: 'admLogShopEdited', settings: 'admLogSettings', ip_blocked: 'admLogIpBlocked',
+  ip_unblocked: 'admLogIpUnblocked', report_resolved: 'admLogReport', user_disabled: 'admLogUserDisabled',
+  user_enabled: 'admLogUserEnabled', reset_sent: 'admLogResetSent', sub_cancelled: 'admLogSubCancelled', files_deleted: 'admLogFilesDeleted'
+}
+type Tab = 'overview' | 'shops' | 'users' | 'orders' | 'payments' | 'spam' | 'settings' | 'log'
+const TABS: Tab[] = ['overview', 'shops', 'users', 'orders', 'payments', 'spam', 'settings', 'log']
 
-function fmtBytes(n: number) {
-  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`
-  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`
-  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`
-}
 
 export default function Admin() {
   const { session, loading } = useSession()
@@ -55,6 +62,8 @@ export default function Admin() {
   const [log, setLog] = useState<LogRow[] | null>(null)
   const [days, setDays] = useState<Record<string, string>>({})
   const [reason, setReason] = useState<Record<string, string>>({})
+  const [names, setNames] = useState<Record<string, string>>({})
+  const [tab, setTab] = useState<Tab>('overview')
 
   useEffect(() => {
     if (!session) return
@@ -119,6 +128,31 @@ export default function Admin() {
     refreshAll()
   }
 
+  const shopTool = async (s: ShopRow, kind: 'qr' | 'name' | 'logo' | 'cancel') => {
+    const ask = kind === 'qr' ? t('admResetQrAsk', { name: s.name }) : kind === 'logo' ? t('admRemoveLogoAsk', { name: s.name })
+      : kind === 'cancel' ? t('admCancelSubAsk', { name: s.name }) : null
+    if (ask && !window.confirm(ask)) return
+    if (kind === 'name' && !(names[s.id] || '').trim()) return
+    setBusy(s.id)
+    setMsg(null)
+    try {
+      if (kind === 'cancel') {
+        await callFn('admin-action', { action: 'cancel_subscription', shop_id: s.id })
+      } else {
+        const { error } = kind === 'qr'
+          ? await supabase.rpc('admin_reset_qr', { p_shop: s.id })
+          : await supabase.rpc('admin_edit_shop', { p_shop: s.id, p_name: kind === 'name' ? names[s.id].trim() : null, p_remove_logo: kind === 'logo' })
+        if (error) throw error
+      }
+      setMsg({ text: t('admDone') })
+      refreshAll()
+    } catch (e) {
+      setMsg({ text: te(e), error: true })
+    } finally {
+      setBusy(null)
+    }
+  }
+
   if (loading) return null
   if (!session) return <Navigate to="/login" replace />
 
@@ -134,8 +168,7 @@ export default function Admin() {
 
   const mrr = ov ? Math.round(ov.pro_monthly * PRICE_MONTHLY + (ov.pro_yearly * PRICE_YEARLY) / 12) : 0
 
-  const actionLabel = (a: string) =>
-    a === 'pro_given' ? t('admLogProGiven') : a === 'pro_removed' ? t('admLogProRemoved') : a === 'blocked' ? t('admLogBlocked') : a === 'unblocked' ? t('admLogUnblocked') : a
+  const actionLabel = (a: string) => (LOG_KEYS[a] ? t(LOG_KEYS[a]) : a)
 
   return shell(
     <>
@@ -146,6 +179,13 @@ export default function Admin() {
 
       {msg && <div className={`notice${msg.error ? ' error' : ''}`} role="status">{msg.text}</div>}
 
+      <nav className="tabs admin-tabs" aria-label={t('admTitle')}>
+        {TABS.map((x) => (
+          <button type="button" key={x} className={tab === x ? 'on' : ''} aria-current={tab === x ? 'page' : undefined} onClick={() => setTab(x)}>{t(TAB_KEYS[x])}</button>
+        ))}
+      </nav>
+
+      {tab === 'overview' && (<>
       <h2 className="admin-sec">{t('admOverview')}</h2>
       {!ov ? <p className="muted">{t('loading')}</p> : (
         <div className="stats">
@@ -174,9 +214,31 @@ export default function Admin() {
             <div className="big-num">{fmtBytes(ov.storage_bytes)}</div>
             <div className="small stat-sub">{t('admStorageLine', { n: ov.files_waiting })}</div>
           </div>
+          {ov.users_total !== undefined && (
+            <>
+              <div className={`card stat${ov.pay_failed ? ' warn' : ''}`}>
+                <div className="small stat-label">{t('admPayFailed')}</div>
+                <div className="big-num">{ov.pay_failed ?? 0}</div>
+                <div className="small stat-sub">{t('admUsersLine', { n: ov.users_total })}</div>
+              </div>
+              <div className={`card stat${ov.orders_stuck || ov.reports_open ? ' warn' : ''}`}>
+                <div className="small stat-label">{t('admAttention')}</div>
+                <div className="big-num">{(ov.orders_stuck ?? 0) + (ov.reports_open ?? 0)}</div>
+                <div className="small stat-sub">{t('admAttentionLine', { s: ov.orders_stuck ?? 0, r: ov.reports_open ?? 0 })}</div>
+              </div>
+              <div className={`card stat${ov.cleanup_failed_day ? ' warn' : ''}`}>
+                <div className="small stat-label">{t('admCleanup')}</div>
+                <div className="big-num small-num">{ov.cleanup_last ? new Date(ov.cleanup_last).toLocaleTimeString(lang === 'hi' ? 'hi-IN' : 'en-IN', { hour: 'numeric', minute: '2-digit' }) : '—'}</div>
+                <div className="small stat-sub">{t('admCleanupLine', { n: ov.cleanup_failed_day ?? 0 })}</div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
+      </>)}
+
+      {tab === 'shops' && (<>
       <h2 className="admin-sec">{t('admShops')}</h2>
       <form className="admin-search" onSubmit={(e) => { e.preventDefault(); setQuery(q.trim()) }}>
         <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('admSearch')} aria-label={t('admSearch')} />
@@ -236,6 +298,20 @@ export default function Admin() {
                       )}
                     </div>
                     {s.paid && <p className="small muted">{t('admPaidNote')}</p>}
+
+                    <div className="small muted">{t('admShopTools')}</div>
+                    <div className="admin-row">
+                      <input type="text" maxLength={80} className="admin-reason" value={names[s.id] ?? ''} placeholder={t('admNewName')}
+                        onChange={(e) => setNames((m) => ({ ...m, [s.id]: e.target.value }))} aria-label={t('admNewName')} />
+                      <button type="button" className="btn small" disabled={busy === s.id || (names[s.id] || '').trim().length < 2} onClick={() => shopTool(s, 'name')}>{t('admRename')}</button>
+                    </div>
+                    <div className="admin-row">
+                      <button type="button" className="btn small soft" disabled={busy === s.id} onClick={() => shopTool(s, 'logo')}>{t('admRemoveLogo')}</button>
+                      <button type="button" className="btn small soft" disabled={busy === s.id} onClick={() => shopTool(s, 'qr')}>{t('admResetQr')}</button>
+                      {s.paid && s.subscription_status !== 'cancelled' && (
+                        <button type="button" className="btn small danger-outline" disabled={busy === s.id} onClick={() => shopTool(s, 'cancel')}>{t('admCancelSub')}</button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -245,6 +321,15 @@ export default function Admin() {
         </div>
       )}
 
+      </>)}
+
+      {tab === 'users' && <AdminUsers onMsg={setMsg} />}
+      {tab === 'orders' && <AdminOrders onMsg={setMsg} />}
+      {tab === 'payments' && <AdminPayments onMsg={setMsg} />}
+      {tab === 'spam' && <AdminSpam onMsg={setMsg} onChanged={loadLog} />}
+      {tab === 'settings' && <AdminSettings onMsg={setMsg} />}
+
+      {tab === 'log' && (<>
       <h2 className="admin-sec">{t('admLog')}</h2>
       {!log ? <p className="muted">{t('loading')}</p> : log.length === 0 ? <p className="muted">{t('admLogEmpty')}</p> : (
         <div className="card admin-log">
@@ -256,6 +341,7 @@ export default function Admin() {
           ))}
         </div>
       )}
+      </>)}
     </>
   )
 }

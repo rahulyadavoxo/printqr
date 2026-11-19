@@ -9,6 +9,7 @@ import { TopBar } from '../components/TopBar'
 import AdSlot from '../components/AdSlot'
 import Icon from '../components/Icon'
 import PagePicker from '../components/PagePicker'
+import ReportShop from '../components/ReportShop'
 
 type ShopPublic = {
   id: string
@@ -685,6 +686,7 @@ export default function Upload() {
         {t('uAgreePre')} <Link to="/legal/terms">{t('agreeTerms')}</Link> {t('agreeAnd')} <Link to="/legal/privacy">{t('agreePrivacy')}</Link>{t('uAgreePost')}
       </p>
       {shop.is_pro === false && <AdSlot className="upload-ad" />}
+      <ReportShop slug={slug} />
 
       {pickItem && (
         <PagePicker key={pickItem.key} file={pickItem.file} total={pickItem.totalPages} initial={pickItem.pages}

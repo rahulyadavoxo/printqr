@@ -42,6 +42,8 @@ export type Shop = {
   created_at: string
   /** Profile picture (public URL). Present once the v6 update (2026-11-18-v6-shop-photo.sql) has run. */
   logo_url?: string | null
+  blocked?: boolean
+  blocked_reason?: string | null
   /** Plan columns: present once the v3 database update (2026-11-17-v3-plans.sql) has run. */
   plan?: 'free' | 'pro'
   plan_period?: 'monthly' | 'yearly' | null
@@ -60,7 +62,7 @@ export function shopIsPro(s: Shop): boolean {
   return s.plan === 'pro' && !!s.plan_expires_at && new Date(s.plan_expires_at).getTime() > Date.now()
 }
 
-/** Named counters a free shop may use (main queue not counted). Must match public.free_counter_limit(). */
+/** Default named counters a free shop may use; the live value is app_settings.free_counter_limit (useAppSettings). */
 export const FREE_COUNTER_LIMIT = 0
 
 export type OrderStatus = 'uploading' | 'received' | 'printing' | 'ready' | 'done' | 'cancelled'

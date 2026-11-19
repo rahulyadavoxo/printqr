@@ -4,6 +4,7 @@ import { isConfigured, supabase } from './lib/supabase'
 import { useI18n } from './lib/i18n'
 import { TopBar } from './components/TopBar'
 import UpdateGate from './components/UpdateGate'
+import AppNotices from './components/AppNotices'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Upload from './pages/Upload'
@@ -45,6 +46,7 @@ export default function App() {
   }
   return (
     <UpdateGate>
+    <AppNotices />
     <Suspense fallback={
       <div className="page skeleton-wrap" aria-busy="true">
         <div className="skel skel-line w40 skel-title" />

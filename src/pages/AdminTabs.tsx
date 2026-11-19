@@ -1,0 +1,450 @@
+import { FormEvent, useCallback, useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase'
+import { useI18n } from '../lib/i18n'
+import { callFn } from '../lib/billing'
+import { AppSettings, DEFAULT_SETTINGS, setAppSettingsCache } from '../lib/appSettings'
+import { rupees } from '../lib/pricing'
+
+/* Admin panel tabs: Users, Orders, Payments, Spam watch, Settings. Every RPC checks is_admin() in SQL;
+   the admin-action Edge Function checks public.admins too. */
+
+export function fmtDate(s: string | null, lang: string) {
+  if (!s) return '—'
+  return new Date(s).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+export function fmtBytes(n: number) {
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`
+}
+
+type Msg = (m: { text: string; error?: boolean } | null) => void
+const PAGE = 50
+
+function useDateTime() {
+  const { lang } = useI18n()
+  return (s: string | null) => s
+    ? new Date(s).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+    : '—'
+}
+
+function Search({ value, onChange, onSubmit, placeholder }: { value: string; onChange: (v: string) => void; onSubmit: () => void; placeholder: string }) {
+  const { t } = useI18n()
+  return (
+    <form className="admin-search" onSubmit={(e: FormEvent) => { e.preventDefault(); onSubmit() }}>
+      <input type="search" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={placeholder} />
+      <button type="submit" className="btn">{t('admSearchBtn')}</button>
+    </form>
+  )
+}
+
+/* ---------------- Users ---------------- */
+
+type UserRow = {
+  user_id: string; email: string | null; created_at: string; last_sign_in_at: string | null
+  confirmed: boolean; banned: boolean; shop_id: string | null; shop_name: string | null; is_admin: boolean
+}
+
+export function AdminUsers({ onMsg }: { onMsg: Msg }) {
+  const { t, te, lang } = useI18n()
+  const dt = useDateTime()
+  const [q, setQ] = useState('')
+  const [query, setQuery] = useState('')
+  const [rows, setRows] = useState<UserRow[] | null>(null)
+  const [more, setMore] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const load = useCallback(async (search: string, offset: number) => {
+    const { data, error } = await supabase.rpc('admin_users', { p_q: search, p_limit: PAGE, p_offset: offset })
+    if (error) { onMsg({ text: te(error), error: true }); return }
+    const r = (data || []) as UserRow[]
+    setRows((prev) => (offset === 0 ? r : [...(prev || []), ...r]))
+    setMore(r.length === PAGE)
+  }, [onMsg, te])
+
+  useEffect(() => { load(query, 0) }, [query, load])
+
+  const act = async (u: UserRow, action: 'disable_user' | 'enable_user' | 'send_reset') => {
+    const ask = action === 'disable_user' ? t('admDisableAsk', { email: u.email || '' }) : action === 'send_reset' ? t('admResetAsk', { email: u.email || '' }) : null
+    if (ask && !window.confirm(ask)) return
+    setBusy(u.user_id)
+    onMsg(null)
+    try {
+      await callFn('admin-action', { action, user_id: u.user_id })
+      onMsg({ text: action === 'send_reset' ? t('admResetSent', { email: u.email || '' }) : t('admDone') })
+      load(query, 0)
+    } catch (e) {
+      onMsg({ text: te(e), error: true })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <>
+      <h2 className="admin-sec">{t('admUsers')}</h2>
+      <Search value={q} onChange={setQ} onSubmit={() => setQuery(q.trim())} placeholder={t('admUserSearch')} />
+      {!rows ? <p className="muted">{t('loading')}</p> : rows.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
+        <div className="admin-list">
+          {rows.map((u) => (
+            <div className={`card admin-item${u.banned ? ' is-blocked' : ''}`} key={u.user_id}>
+              <div className="admin-item-top">
+                <b className="admin-ellipsis">{u.email || '—'}</b>
+                <span className="admin-tags">
+                  {u.is_admin && <span className="admin-tag pro">{t('admTagAdmin')}</span>}
+                  {u.banned && <span className="admin-tag bad">{t('admTagDisabled')}</span>}
+                  {!u.confirmed && <span className="admin-tag">{t('admTagUnconfirmed')}</span>}
+                </span>
+              </div>
+              <div className="small muted">
+                {t('admUserLine', { shop: u.shop_name || t('admNoShop'), joined: fmtDate(u.created_at, lang), last: dt(u.last_sign_in_at) })}
+              </div>
+              {!u.is_admin && (
+                <div className="admin-row">
+                  <button type="button" className="btn small soft" disabled={busy === u.user_id} onClick={() => act(u, 'send_reset')}>{t('admSendReset')}</button>
+                  {u.banned
+                    ? <button type="button" className="btn small" disabled={busy === u.user_id} onClick={() => act(u, 'enable_user')}>{t('admEnableUser')}</button>
+                    : <button type="button" className="btn small danger-outline" disabled={busy === u.user_id} onClick={() => act(u, 'disable_user')}>{t('admDisableUser')}</button>}
+                </div>
+              )}
+            </div>
+          ))}
+          {more && <button type="button" className="btn block" onClick={() => load(query, rows.length)}>{t('admMore')}</button>}
+        </div>
+      )}
+    </>
+  )
+}
+
+/* ---------------- Orders ---------------- */
+
+type OrderRow = {
+  id: string; token: number; shop_id: string; shop_name: string; status: string; total: number; files: number; bytes: number
+  files_deleted: boolean; counter_name: string | null; created_at: string; updated_at: string
+}
+
+export function AdminOrders({ onMsg }: { onMsg: Msg }) {
+  const { t, te } = useI18n()
+  const dt = useDateTime()
+  const [q, setQ] = useState('')
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<'all' | 'stuck' | 'files'>('all')
+  const [rows, setRows] = useState<OrderRow[] | null>(null)
+  const [more, setMore] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const load = useCallback(async (search: string, f: string, offset: number) => {
+    const { data, error } = await supabase.rpc('admin_orders', { p_q: search, p_filter: f, p_limit: PAGE, p_offset: offset })
+    if (error) { onMsg({ text: te(error), error: true }); return }
+    const r = (data || []) as OrderRow[]
+    setRows((prev) => (offset === 0 ? r : [...(prev || []), ...r]))
+    setMore(r.length === PAGE)
+  }, [onMsg, te])
+
+  useEffect(() => { setRows(null); load(query, filter, 0) }, [query, filter, load])
+
+  const delFiles = async (o: OrderRow) => {
+    if (!window.confirm(t('admDelFilesAsk', { n: o.token, shop: o.shop_name }))) return
+    setBusy(o.id)
+    onMsg(null)
+    try {
+      await callFn('admin-action', { action: 'delete_files', order_id: o.id })
+      onMsg({ text: t('admDone') })
+      load(query, filter, 0)
+    } catch (e) {
+      onMsg({ text: te(e), error: true })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <>
+      <h2 className="admin-sec">{t('admOrders')}</h2>
+      <p className="small muted">{t('admOrdersPrivacy')}</p>
+      <Search value={q} onChange={setQ} onSubmit={() => setQuery(q.trim())} placeholder={t('admOrderSearch')} />
+      <div className="seg" role="group" aria-label={t('admOrders')}>
+        {(['all', 'stuck', 'files'] as const).map((f) => (
+          <button type="button" key={f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)}>
+            {f === 'all' ? t('admFilterAll') : f === 'stuck' ? t('admFilterStuck') : t('admFilterFiles')}
+          </button>
+        ))}
+      </div>
+      {!rows ? <p className="muted">{t('loading')}</p> : rows.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
+        <div className="admin-list">
+          {rows.map((o) => (
+            <div className="card admin-item" key={o.id}>
+              <div className="admin-item-top">
+                <b className="admin-ellipsis">#{o.token} · {o.shop_name}</b>
+                <span className="admin-tags"><span className="admin-tag">{o.status}</span></span>
+              </div>
+              <div className="small muted">
+                {dt(o.created_at)} · {rupees(Number(o.total))} · {t('admFilesLine', { n: o.files, size: fmtBytes(Number(o.bytes)) })}
+                {o.counter_name ? ` · ${o.counter_name}` : ''}{o.files_deleted ? ` · ${t('admFilesGone')}` : ''}
+              </div>
+              {!o.files_deleted && (
+                <div className="admin-row">
+                  <button type="button" className="btn small danger-outline" disabled={busy === o.id} onClick={() => delFiles(o)}>{t('admDelFiles')}</button>
+                </div>
+              )}
+            </div>
+          ))}
+          {more && <button type="button" className="btn block" onClick={() => load(query, filter, rows.length)}>{t('admMore')}</button>}
+        </div>
+      )}
+    </>
+  )
+}
+
+/* ---------------- Payments ---------------- */
+
+type Sub = { shop_id: string; name: string; email: string | null; plan_period: string | null; subscription_status: string | null; plan_expires_at: string | null; sub_id: string; is_pro: boolean }
+type Ev = { event: string | null; received_at: string }
+
+export function AdminPayments({ onMsg }: { onMsg: Msg }) {
+  const { t, te, lang } = useI18n()
+  const dt = useDateTime()
+  const [data, setData] = useState<{ subs: Sub[]; events: Ev[] } | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    const { data: d, error } = await supabase.rpc('admin_payments')
+    if (error) onMsg({ text: te(error), error: true })
+    else setData(d as { subs: Sub[]; events: Ev[] })
+  }, [onMsg, te])
+  useEffect(() => { load() }, [load])
+
+  const cancel = async (s: Sub) => {
+    if (!window.confirm(t('admCancelSubAsk', { name: s.name }))) return
+    setBusy(s.shop_id)
+    onMsg(null)
+    try {
+      await callFn('admin-action', { action: 'cancel_subscription', shop_id: s.shop_id })
+      onMsg({ text: t('admDone') })
+      load()
+    } catch (e) {
+      onMsg({ text: te(e), error: true })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const bad = (st: string | null) => st === 'halted' || st === 'pending'
+
+  return (
+    <>
+      <div className="admin-head">
+        <h2 className="admin-sec">{t('admPayments')}</h2>
+        <a className="btn small soft" href="https://dashboard.razorpay.com/app/subscriptions" target="_blank" rel="noreferrer">{t('admRazorpay')}</a>
+      </div>
+      {!data ? <p className="muted">{t('loading')}</p> : (
+        <>
+          {data.subs.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
+            <div className="admin-list">
+              {data.subs.map((s) => (
+                <div className={`card admin-item${bad(s.subscription_status) ? ' is-blocked' : ''}`} key={s.shop_id}>
+                  <div className="admin-item-top">
+                    <b className="admin-ellipsis">{s.name}</b>
+                    <span className="admin-tags">
+                      <span className={`admin-tag${bad(s.subscription_status) ? ' bad' : s.is_pro ? ' pro' : ''}`}>{s.subscription_status || '—'}</span>
+                    </span>
+                  </div>
+                  <div className="small muted">
+                    {s.email || '—'} · {s.plan_period || '—'} · {t('admUntil', { date: fmtDate(s.plan_expires_at, lang) })} · <span className="mono">{s.sub_id}</span>
+                  </div>
+                  {s.subscription_status !== 'cancelled' && s.subscription_status !== 'completed' && (
+                    <div className="admin-row">
+                      <button type="button" className="btn small danger-outline" disabled={busy === s.shop_id} onClick={() => cancel(s)}>{t('admCancelSub')}</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <h2 className="admin-sec">{t('admEvents')}</h2>
+          {data.events.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
+            <div className="card admin-log">
+              {data.events.map((e, i) => (
+                <div className="admin-log-row small" key={i}>
+                  <span className="muted">{dt(e.received_at)}</span>
+                  <span>{e.event || '—'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </>
+  )
+}
+
+/* ---------------- Spam watch ---------------- */
+
+type Spam = {
+  shops: { shop_id: string; name: string; created_at: string; blocked: boolean; orders_day: number }[]
+  networks: { ip_hash: string; orders_day: number; last_at: string; blocked: boolean }[]
+  blocked_ips: { ip_hash: string; reason: string | null; created_at: string }[]
+  reports: { id: number; shop_id: string; name: string; slug: string; reason: string; created_at: string; resolved: boolean }[]
+}
+
+export function AdminSpam({ onMsg, onChanged }: { onMsg: Msg; onChanged: () => void }) {
+  const { t, te, lang } = useI18n()
+  const dt = useDateTime()
+  const [data, setData] = useState<Spam | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(async () => {
+    const { data: d, error } = await supabase.rpc('admin_spam')
+    if (error) onMsg({ text: te(error), error: true })
+    else setData(d as Spam)
+  }, [onMsg, te])
+  useEffect(() => { load() }, [load])
+
+  const run = async (fn: () => PromiseLike<{ error: unknown }>, ask?: string) => {
+    if (ask && !window.confirm(ask)) return
+    setBusy(true)
+    onMsg(null)
+    const { error } = await fn()
+    setBusy(false)
+    if (error) { onMsg({ text: te(error), error: true }); return }
+    onMsg({ text: t('admDone') })
+    load()
+    onChanged()
+  }
+
+  const blockIp = (hash: string, block: boolean) =>
+    run(() => supabase.rpc('admin_block_ip', { p_hash: hash, p_block: block, p_reason: block ? 'admin' : null }),
+      block ? t('admBlockIpAsk') : undefined)
+
+  if (!data) return <p className="muted">{t('loading')}</p>
+  const openReports = data.reports.filter((r) => !r.resolved)
+
+  return (
+    <>
+      <h2 className="admin-sec">{t('admReports')} ({openReports.length})</h2>
+      {data.reports.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
+        <div className="admin-list">
+          {data.reports.map((r) => (
+            <div className={`card admin-item${r.resolved ? ' is-done' : ''}`} key={r.id}>
+              <div className="admin-item-top">
+                <b className="admin-ellipsis"><a href={`#/s/${r.slug}`} target="_blank" rel="noreferrer">{r.name}</a></b>
+                <span className="small muted">{dt(r.created_at)}</span>
+              </div>
+              <p className="small admin-quote">{r.reason}</p>
+              {!r.resolved && (
+                <div className="admin-row">
+                  <button type="button" className="btn small soft" disabled={busy}
+                    onClick={() => run(() => supabase.rpc('admin_resolve_report', { p_id: r.id, p_resolved: true }))}>{t('admResolve')}</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <h2 className="admin-sec">{t('admTopShops')}</h2>
+      {data.shops.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
+        <div className="card admin-log">
+          {data.shops.map((s) => (
+            <div className="admin-log-row small" key={s.shop_id}>
+              <span><b>{s.orders_day}</b></span>
+              <span>{s.name}{s.blocked ? ` · ${t('admTagBlocked')}` : ''} · {t('admJoinedOn', { date: fmtDate(s.created_at, lang) })}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <h2 className="admin-sec">{t('admTopNetworks')}</h2>
+      <p className="small muted">{t('admNetworksHint')}</p>
+      {data.networks.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
+        <div className="card admin-log">
+          {data.networks.map((n) => (
+            <div className="admin-log-row small admin-net" key={n.ip_hash}>
+              <span><b>{n.orders_day}</b></span>
+              <span className="mono">{n.ip_hash.slice(0, 10)}…</span>
+              <span className="muted">{dt(n.last_at)}</span>
+              {n.blocked
+                ? <button type="button" className="btn small" disabled={busy} onClick={() => blockIp(n.ip_hash, false)}>{t('admUnblock')}</button>
+                : <button type="button" className="btn small danger-outline" disabled={busy} onClick={() => blockIp(n.ip_hash, true)}>{t('admBlock')}</button>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <h2 className="admin-sec">{t('admBlockedNets')}</h2>
+      {data.blocked_ips.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
+        <div className="card admin-log">
+          {data.blocked_ips.map((b) => (
+            <div className="admin-log-row small admin-net" key={b.ip_hash}>
+              <span className="mono">{b.ip_hash.slice(0, 10)}…</span>
+              <span className="muted">{fmtDate(b.created_at, lang)}</span>
+              <button type="button" className="btn small" disabled={busy} onClick={() => blockIp(b.ip_hash, false)}>{t('admUnblock')}</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
+/* ---------------- Settings ---------------- */
+
+export function AdminSettings({ onMsg }: { onMsg: Msg }) {
+  const { t, te } = useI18n()
+  const [s, setS] = useState<AppSettings | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    supabase.rpc('get_app_settings').then(({ data, error }) => {
+      if (error) onMsg({ text: te(error), error: true })
+      setS({ ...DEFAULT_SETTINGS, ...((data as Partial<AppSettings>) || {}) })
+    })
+  }, [onMsg, te])
+
+  if (!s) return <p className="muted">{t('loading')}</p>
+  const set = (patch: Partial<AppSettings>) => setS({ ...s, ...patch })
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault()
+    if (s.maintenance && !window.confirm(t('admMaintAsk'))) return
+    setBusy(true)
+    onMsg(null)
+    const { data, error } = await supabase.rpc('admin_set_settings', { p: s })
+    setBusy(false)
+    if (error) { onMsg({ text: te(error), error: true }); return }
+    const next = { ...DEFAULT_SETTINGS, ...(data as Partial<AppSettings>) }
+    setS(next)
+    setAppSettingsCache(next)
+    onMsg({ text: t('saved') })
+  }
+
+  return (
+    <form className="card admin-settings" onSubmit={save}>
+      <h2 className="admin-sec">{t('admSettings')}</h2>
+
+      <label htmlFor="set-ann">{t('admAnnouncement')}</label>
+      <textarea id="set-ann" rows={2} maxLength={300} value={s.announcement || ''} onChange={(e) => set({ announcement: e.target.value })} placeholder={t('admAnnouncementPh')} />
+      <label htmlFor="set-ann-hi">{t('admAnnouncementHi')}</label>
+      <textarea id="set-ann-hi" rows={2} maxLength={300} value={s.announcement_hi || ''} onChange={(e) => set({ announcement_hi: e.target.value })} />
+      <p className="small muted">{t('admAnnouncementHint')}</p>
+
+      <label className="admin-check">
+        <input type="checkbox" checked={s.maintenance} onChange={(e) => set({ maintenance: e.target.checked })} />
+        <span>{t('admMaintenance')}</span>
+      </label>
+      <input type="text" maxLength={300} value={s.maintenance_msg || ''} onChange={(e) => set({ maintenance_msg: e.target.value })} placeholder={t('maintDefault')} aria-label={t('admMaintMsg')} />
+      <p className="small muted">{t('admMaintHint')}</p>
+
+      <label htmlFor="set-minv">{t('admMinVersion')}</label>
+      <input id="set-minv" type="text" inputMode="decimal" pattern="\d+\.\d+\.\d+" placeholder="1.5.19" value={s.min_app_version || ''} onChange={(e) => set({ min_app_version: e.target.value.trim() })} />
+      <p className="small muted">{t('admMinVersionHint')}</p>
+
+      <label htmlFor="set-fcl">{t('admFreeCounters')}</label>
+      <input id="set-fcl" type="number" min={0} max={20} value={s.free_counter_limit} onChange={(e) => set({ free_counter_limit: Math.max(0, Math.min(20, Math.floor(Number(e.target.value) || 0))) })} />
+      <p className="small muted">{t('admPricesHint', { m: '₹49', y: '₹539' })}</p>
+
+      <button type="submit" className="btn primary" disabled={busy}>{busy ? t('pleaseWait') : t('save')}</button>
+    </form>
+  )
+}

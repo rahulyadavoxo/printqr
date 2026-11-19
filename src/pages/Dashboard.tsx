@@ -3,11 +3,12 @@ import { AppDownloadBanner } from '../components/AppDownload'
 import { FormEvent, lazy, ReactNode, Suspense, PointerEvent as RPointerEvent, TouchEvent as RTouchEvent, WheelEvent as RWheelEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
-import { Counter, DEFAULT_PASSPORT_RATE, FREE_COUNTER_LIMIT, Order, OrderStatus, plansReady, QrLink, qrCodeUrl, Rates, Shop, shopIsPro, shopUrl, supabase } from '../lib/supabase'
+import { Counter, DEFAULT_PASSPORT_RATE, Order, OrderStatus, plansReady, QrLink, qrCodeUrl, Rates, Shop, shopIsPro, shopUrl, supabase } from '../lib/supabase'
 import { useSession } from '../lib/useSession'
 import { rupees } from '../lib/pricing'
 import { ding, unlockAudio } from '../lib/sound'
 import { Key, useI18n } from '../lib/i18n'
+import { useAppSettings } from '../lib/appSettings'
 import { LangToggle, LogoMark, TopBar, Wordmark } from '../components/TopBar'
 import { ThemePref, useTheme } from '../lib/theme'
 import Icon from '../components/Icon'
@@ -387,6 +388,7 @@ function ProfileMenu({ shop, planChip, onSettings, onLogout }: {
 }
 
 export default function Dashboard() {
+  const { free_counter_limit: freeLimit } = useAppSettings()
   const { session, loading } = useSession()
   const { t, lang } = useI18n()
   const [menu, setMenu] = useState(false)
@@ -563,8 +565,8 @@ export default function Dashboard() {
   const ready = plansReady(shop)
   const pro = shopIsPro(shop)
   const free = ready && !pro
-  // Free shops can use only the first FREE_COUNTER_LIMIT counters (the rest show a lock).
-  const usable = free ? counters.slice(0, FREE_COUNTER_LIMIT) : counters
+  // Free shops can use only the first freeLimit counters (admin setting; the rest show a lock).
+  const usable = free ? counters.slice(0, freeLimit) : counters
   const goPlan = () => setParams({ tab: 'plan' })
 
   const current = TABS.find((x) => x.id === tab) || TABS[0]
@@ -673,6 +675,11 @@ export default function Dashboard() {
 
       <div className="page wide dash-main">
         <AppDownloadBanner />
+        {shop.blocked && (
+          <div className="notice error" role="alert">
+            <strong>{t('blockedTitle')}</strong> {t('blockedBody')}{shop.blocked_reason ? ` ${t('blockedReason', { r: shop.blocked_reason })}` : ''}
+          </div>
+        )}
         {tab === 'orders' && <Orders shop={shop} counters={counters} onCount={setActiveCount} />}
         {tab === 'rates' && <RatesTab shop={shop} v2={v2} passportLocked={free} onUpgrade={goPlan} onSaved={setShop} />}
         {tab === 'qr' && (
@@ -1560,6 +1567,7 @@ function CountersCard({ shop, counters, usable, locked, v2, onChanged, onUpgrade
   onUpgrade: () => void
   onShowQr: (id: string) => void
 }) {
+  const { free_counter_limit: freeLimit } = useAppSettings()
   const { t, te } = useI18n()
   const [names, setNames] = useState<Record<string, string>>({})
   const [newName, setNewName] = useState('')
@@ -1630,7 +1638,7 @@ function CountersCard({ shop, counters, usable, locked, v2, onChanged, onUpgrade
               ))}
             </ul>
           )}
-          {locked && counters.length >= FREE_COUNTER_LIMIT ? (
+          {locked && counters.length >= freeLimit ? (
             <div className="upgrade-prompt">
               <span>🔒 {t('cUpgradePrompt')} <span className="pro-badge">{t('planPro')}</span></span>
               <button type="button" className="btn primary small" onClick={onUpgrade}>{t('seePlans')}</button>
