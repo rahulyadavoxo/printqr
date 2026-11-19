@@ -1,13 +1,14 @@
 import { ChangeEvent, DragEvent, ReactElement, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Rates, supabase, UUID_RE } from '../lib/supabase'
-import { countPdfPages } from '../lib/pdf'
-import { countRange, rateFor, rupees } from '../lib/pricing'
+import { countPdfPages, extractPages, pagesToRange } from '../lib/pdf'
+import { rateFor, rupees } from '../lib/pricing'
 import { imagesToPdf, PASSPORT_OPTIONS, passportPreview, passportSheetPdf, passportSheets } from '../lib/imagePdf'
 import { useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
 import AdSlot from '../components/AdSlot'
 import Icon from '../components/Icon'
+import PagePicker from '../components/PagePicker'
 
 type ShopPublic = {
   id: string
@@ -26,7 +27,8 @@ type Item = {
   kind: 'pdf' | 'image' | 'doc'
   totalPages: number
   counting: boolean
-  range: string
+  /** PDF: the pages to print (1-based, sorted); null = all pages. */
+  pages: number[] | null
   copies: number
   color: boolean
   duplex: boolean
@@ -146,6 +148,8 @@ export default function Upload() {
   const [combo, setCombo] = useState<Opts>({ copies: 1, color: true, duplex: false })
   const [passport, setPassport] = useState<Passport | null>(null)
   const [counterName, setCounterName] = useState<string | null>(null)
+  /** PDFs waiting for the page picker (opens right after upload), first one is shown. */
+  const [pickQueue, setPickQueue] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const passportRef = useRef<HTMLInputElement>(null)
 
@@ -192,7 +196,7 @@ export default function Upload() {
         kind,
         totalPages: 1,
         counting: kind === 'pdf',
-        range: '',
+        pages: null,
         copies: 1,
         color: kind === 'image',
         duplex: false
@@ -204,6 +208,7 @@ export default function Upload() {
       try {
         const n = await countPdfPages(it.file)
         update(it.key, { totalPages: n, counting: false })
+        if (n > 1) setPickQueue((q) => [...q, it.key])
       } catch {
         update(it.key, { counting: false, kind: 'doc' })
         setMsg(t('uCountFail', { name: it.file.name }))
@@ -250,7 +255,7 @@ export default function Upload() {
     return items
       .filter((it) => !(combineOn && it.kind === 'image'))
       .map((it) => {
-        const pages = it.kind === 'pdf' ? countRange(it.range, it.totalPages) : it.totalPages
+        const pages = it.kind === 'pdf' ? (it.pages ? it.pages.length : it.totalPages) : it.totalPages
         const price = pages ? pages * it.copies * rateFor(shop.rates, it.color, it.duplex) : 0
         return { it, pages, price }
       })
@@ -270,21 +275,35 @@ export default function Upload() {
     try {
       localStorage.setItem('pq_name', name.trim())
       const uploads: Upload[] = []
-      const fileUpload = (it: Item, pages: number): Upload => ({
-        payload: {
-          name: it.file.name,
-          mime: mimeOf(it.file) || 'application/pdf',
-          size: it.file.size,
-          total_pages: it.totalPages,
-          page_range: it.kind === 'pdf' ? it.range.replace(/\s+/g, '') : '',
-          pages_to_print: pages,
-          copies: it.copies,
-          color: it.color,
-          duplex: it.duplex
-        },
-        blob: it.file,
-        contentType: mimeOf(it.file) || 'application/pdf'
-      })
+      // A PDF with chosen pages is sent as a new PDF of just those pages (copied as they are, same look).
+      // The shop prints the whole file; the server counts its pages and sets the price (v11).
+      const fileUpload = async (it: Item, pages: number): Promise<Upload> => {
+        let blob: Blob = it.file
+        let name = it.file.name
+        if (it.kind === 'pdf' && it.pages && it.pages.length < it.totalPages) {
+          try {
+            blob = await extractPages(it.file, it.pages)
+          } catch {
+            throw new Error(t('ppkSplitFail', { name: it.file.name }))
+          }
+          name = it.file.name.replace(/\.pdf$/i, '') + ` (p${pagesToRange(it.pages)}).pdf`
+        }
+        return {
+          payload: {
+            name,
+            mime: mimeOf(it.file) || 'application/pdf',
+            size: blob.size,
+            total_pages: pages,
+            page_range: '',
+            pages_to_print: pages,
+            copies: it.copies,
+            color: it.color,
+            duplex: it.duplex
+          },
+          blob,
+          contentType: mimeOf(it.file) || 'application/pdf'
+        }
+      }
       let comboAdded = false
       for (const it of items) {
         if (combineOn && it.kind === 'image') {
@@ -317,7 +336,10 @@ export default function Upload() {
           continue
         }
         const p = priced.find((x) => x.it.key === it.key)
-        if (p?.pages) uploads.push(fileUpload(it, p.pages))
+        if (p?.pages) {
+          setProgress({ text: t('ppkPreparing', { name: it.file.name }), pct: 0 })
+          uploads.push(await fileUpload(it, p.pages))
+        }
       }
       if (passport) {
         setProgress({ text: t('ppMaking'), pct: 50 })
@@ -355,8 +377,13 @@ export default function Upload() {
         if (upErr) throw upErr
       }
       setProgress({ text: t('uSending'), pct: 100 })
-      const { error: finErr } = await supabase.rpc('finalize_order', { p_order_id: order.order_id, p_key: order.access_key })
-      if (finErr) throw finErr
+      // v11: the server counts the pages of every uploaded PDF, fixes the price if needed, then queues the order.
+      const fin = await supabase.functions.invoke('finalize-order', { body: { order_id: order.order_id, key: order.access_key } })
+      if (fin.error) {
+        let m: string | undefined
+        try { m = ((await (fin.error as { context?: Response }).context?.json()) as { message?: string })?.message } catch { /* none */ }
+        throw new Error(m || t('uFinalizeFail'))
+      }
       const saved = JSON.parse(localStorage.getItem('pq_orders') || '[]') as unknown[]
       localStorage.setItem('pq_orders', JSON.stringify([{ id: order.order_id, key: order.access_key, shop: shop.name, at: Date.now() }, ...saved].slice(0, 10)))
       nav(`/o/${order.order_id}/${order.access_key}`, { replace: true })
@@ -397,6 +424,8 @@ export default function Upload() {
   const roomLeft = MAX_FILES - items.length - (passport ? 1 : 0)
   const flowAt = !hasItems ? 0 : busy ? 2 : 1
   const flow = [t('flowAdd'), t('flowOptions'), t('flowSend')]
+  const pickItem = busy ? null : pickQueue.map((k) => items.find((it) => it.key === k)).find((it) => it && it.kind === 'pdf' && !it.counting) ?? null
+  const closePicker = (key: string) => setPickQueue((q) => q.filter((k) => k !== key))
 
   return shell(
     <>
@@ -535,11 +564,14 @@ export default function Upload() {
 
               <div className="grid2">
                 {it.kind === 'pdf' ? (
-                  <label className="field">
+                  <div className="field">
                     <span>{t('uWhichPages')}</span>
-                    <input value={it.range} placeholder={`1-${it.totalPages}`} inputMode="numeric"
-                      onChange={(e) => update(it.key, { range: e.target.value })} />
-                  </label>
+                    <button type="button" className="btn pp-open" disabled={busy || it.counting}
+                      onClick={() => setPickQueue((q) => [it.key, ...q.filter((k) => k !== it.key)])}>
+                      <Icon name="file" size={16} />
+                      <span>{it.pages ? t('ppkSome', { r: pagesToRange(it.pages) }) : t('ppkAllPages')}</span>
+                    </button>
+                  </div>
                 ) : (
                   <label className="field">
                     <span>{t('uNumPages')}</span>
@@ -554,7 +586,7 @@ export default function Upload() {
 
               <div className="file-price">
                 <span className={pages ? 'small muted' : 'small err-text'}>
-                  {pages ? t('calcLine', { p: pages, c: it.copies }) : t('uBadRange')}
+                  {t('calcLine', { p: pages, c: it.copies })}
                 </span>
                 <strong>{rupees(price)}</strong>
               </div>
@@ -653,6 +685,12 @@ export default function Upload() {
         {t('uAgreePre')} <Link to="/legal/terms">{t('agreeTerms')}</Link> {t('agreeAnd')} <Link to="/legal/privacy">{t('agreePrivacy')}</Link>{t('uAgreePost')}
       </p>
       {shop.is_pro === false && <AdSlot className="upload-ad" />}
+
+      {pickItem && (
+        <PagePicker key={pickItem.key} file={pickItem.file} total={pickItem.totalPages} initial={pickItem.pages}
+          onDone={(pages) => { update(pickItem.key, { pages }); closePicker(pickItem.key) }}
+          onCancel={() => closePicker(pickItem.key)} />
+      )}
     </>,
     hasItems ? 'has-sticky' : ''
   )
