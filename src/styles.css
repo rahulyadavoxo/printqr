@@ -1167,12 +1167,21 @@ button.ed-top-title:hover { background: var(--c-sunken); }
 }
 .ed-bgload .spinner { width: 14px; height: 14px; }
 
-/* update ready banner (app and website), does not block the page */
-.update-bar {
-  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom));
-  z-index: 1001; display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 16px;
-  background: #0b1210; color: #fff; border-radius: 14px; font-size: 14px; font-weight: 600;
-  box-shadow: 0 8px 24px rgba(0,0,0,.22); max-width: calc(100vw - 24px);
+/* update notice (app and website), bottom-right card like Supabase's; does not block the page */
+.update-note {
+  position: fixed; right: 20px; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 1001;
+  width: min(440px, calc(100vw - 24px)); display: grid; grid-template-columns: auto 1fr; gap: 4px 12px;
+  padding: 16px 16px 14px; background: var(--c-surface); color: var(--c-ink);
+  border: 1px solid var(--c-line); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.14);
+  animation: upd-in .22s ease-out;
 }
-.update-bar .btn { background: #a6e22e; color: #0b1210; border-color: #a6e22e; white-space: nowrap; }
-@media print { .update-bar { display: none; } }
+.update-note-icon { color: var(--c-muted); padding-top: 1px; }
+.update-note-text { display: grid; gap: 2px; font-size: 14px; }
+.update-note-text strong { font-weight: 600; }
+.update-note-text span { color: var(--c-muted); }
+.update-note-btns { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.update-note-btns .btn { min-height: 36px; }
+@keyframes upd-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (max-width: 600px) { .update-note { right: 12px; left: 12px; width: auto; bottom: calc(12px + env(safe-area-inset-bottom)); } }
+@media print { .update-note { display: none; } }
+@media (prefers-reduced-motion: reduce) { .update-note { animation: none; } }

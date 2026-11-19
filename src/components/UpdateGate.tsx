@@ -9,6 +9,7 @@ import { ReactNode, useEffect, useRef, useState } from 'react'
 import { IN_APP, nativeBridge } from '../lib/app'
 import { useI18n } from '../lib/i18n'
 import { applyWebUpdate, onWebUpdate } from '../lib/pwa'
+import Icon from './Icon'
 
 const CHECK_EVERY_MS = 60 * 1000
 const POLL_WHILE_OPEN_MS = 3 * 60 * 1000
@@ -103,6 +104,13 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
   // update found while the app is open (native: version waiting; web: new deploy installed)
   const [waiting, setWaiting] = useState<string | null>(null)
   const [webReady, setWebReady] = useState(false)
+  // "Not now" hides the notice for 30 minutes
+  const [snoozed, setSnoozed] = useState(false)
+  useEffect(() => {
+    if (!snoozed) return
+    const id = setTimeout(() => setSnoozed(false), 30 * 60 * 1000)
+    return () => clearTimeout(id)
+  }, [snoozed])
   useEffect(() => (IN_APP ? undefined : onWebUpdate(setWebReady)), [])
   const lastCheck = useRef(0)
   const queued = useRef<string | null>(null)
@@ -211,12 +219,19 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
     <>
       <div style={{ display: upd ? 'none' : 'contents' }}>{children}</div>
       {rejected && <div className="update-toast" role="status">{t('updRejected')}</div>}
-      {!upd && (waiting || webReady) && (
-        <div className="update-bar no-print" role="status">
-          <span>{waiting ? t('updReadyV', { v: waiting }) : t('updReadyWeb')}</span>
-          <button type="button" className="btn primary small" onClick={() => {
-            if (waiting) { queued.current = null; setWaiting(null); show(waiting) } else applyWebUpdate()
-          }}>{t('updNow')}</button>
+      {!upd && !snoozed && (waiting || webReady) && (
+        <div className="update-note no-print" role="status" aria-live="polite">
+          <span className="update-note-icon" aria-hidden="true"><Icon name="info" size={18} /></span>
+          <div className="update-note-text">
+            <strong>{waiting ? t('updReadyV', { v: waiting }) : t('updReadyWeb')}</strong>
+            <span>{waiting ? t('updReadyVSub') : t('updReadyWebSub')}</span>
+          </div>
+          <div className="update-note-btns">
+            <button type="button" className="btn small" onClick={() => setSnoozed(true)}>{t('updNotNow')}</button>
+            <button type="button" className="btn primary small" onClick={() => {
+              if (waiting) { queued.current = null; setWaiting(null); show(waiting) } else applyWebUpdate()
+            }}>{waiting ? t('updNow') : t('updRefresh')}</button>
+          </div>
         </div>
       )}
       {upd && (
