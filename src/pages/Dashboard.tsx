@@ -454,6 +454,11 @@ export default function Dashboard() {
   const [counters, setCounters] = useState<Counter[]>([])
   // false until the v2 database update (supabase/migrations/2026-11-17-v2.sql) has been run
   const [v2, setV2] = useState(false)
+  // Admin link in the drawer: shown only when the database says this account is an admin (v12).
+  const [isAdmin, setIsAdmin] = useState(false)
+  useEffect(() => {
+    supabase.rpc('is_admin').then(({ data, error }) => setIsAdmin(!error && data === true))
+  }, [])
 
   const loadCounters = useCallback(async (shopId: string) => {
     const { data, error } = await supabase.from('counters').select('*').eq('shop_id', shopId).order('created_at')
@@ -631,6 +636,15 @@ export default function Dashboard() {
               })}
             </div>
           ))}
+          {isAdmin && (
+            <div className="drawer-group">
+              <div className="drawer-label">{t('admTitle')}</div>
+              <button type="button" className="drawer-item" onClick={() => { setMenu(false); nav('/admin') }}>
+                <Icon name="shield" size={22} />
+                <span>{t('admTitle')}</span>
+              </button>
+            </div>
+          )}
         </nav>
         {/* Phone/tablet only (hidden at >=1024px): the original drawer footer */}
         <div className="drawer-foot m-only">
