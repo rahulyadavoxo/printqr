@@ -34,14 +34,6 @@ const NAV: { group: Key; items: Tab[] }[] = [
 ]
 
 
-function greeting(t: (k: Key) => string): string {
-  const h = new Date().getHours()
-  return t(h < 12 ? 'goodMorning' : h < 17 ? 'goodAfternoon' : 'goodEvening')
-}
-function today(lang: string): string {
-  return new Date().toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
-}
-
 function ShopAvatar({ shop, size }: { shop: Shop; size: number }) {
   const [broken, setBroken] = useState(false)
   useEffect(() => setBroken(false), [shop.logo_url])
@@ -663,7 +655,6 @@ export default function Dashboard() {
         <div className="dash-head m-only no-print">
           <div className="dash-title">
             <h1>{t(current.label)}</h1>
-            <p className="muted dash-sub">{greeting(t)} · {today(lang)} · {shop.name}</p>
           </div>
         </div>
         <AppDownloadBanner />
