@@ -1,5 +1,5 @@
 // In-app update for the Android app, the same system as Dairy Diary.
-// Checked on start, on resume (at most once a minute), every 10 min while open, and when internet
+// Checked on start, on resume (at most once a minute), every minute while open, and when internet
 // returns. When GitHub has a newer app release (tag app-vX.Y.Z with PrintQR-X.Y.Z.apk uploaded),
 // the app is covered by an Update screen: the APK downloads inside the app and Android's installer
 // opens. An update found while the app is in use shows a banner at once (tap Update), and the full
@@ -12,7 +12,7 @@ import { applyWebUpdate, onWebUpdate } from '../lib/pwa'
 import Icon from './Icon'
 
 const CHECK_EVERY_MS = 60 * 1000
-const POLL_WHILE_OPEN_MS = 3 * 60 * 1000
+const POLL_WHILE_OPEN_MS = 60 * 1000
 const SKIP_KEY = 'pq_upd_skip'
 const SKIP_MS = 12 * 60 * 60 * 1000
 const PERMANENT = ['NOT_NEWER', 'WRONG_SIGNER', 'WRONG_APP', 'NOT_APK', 'NO_INSTALLER']

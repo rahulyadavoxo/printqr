@@ -8,6 +8,8 @@ const base = process.env.BASE_PATH || '/'
 export default defineConfig({
   base,
   build: { target: 'es2022' },
+  // Build time (IST) shown under Settings, so a new deploy is easy to recognise
+  define: { __BUILD__: JSON.stringify(new Date(Date.now() + 330 * 60000).toISOString().slice(0, 16).replace('T', ' ')) },
   plugins: [
     react(),
     VitePWA({

@@ -7,3 +7,4 @@ interface ImportMetaEnv {
   /** AdSense display ad unit (slot) id. Unset = no ads. */
   readonly VITE_ADSENSE_SLOT?: string
 }
+declare const __BUILD__: string

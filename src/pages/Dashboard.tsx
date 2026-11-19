@@ -511,8 +511,8 @@ export default function Dashboard() {
   const [appVer] = useState(() => {
     try {
       const v = nativeBridge()?.appVersion?.() || (navigator.userAgent.match(/PrintQR\/(\d[\d.]*)/i) || [])[1] || ''
-      return v ? 'v' + v : ''
-    } catch { return '' }
+      return (v ? 'v' + v + ' · ' : 'Web · ') + 'build ' + __BUILD__
+    } catch { return 'build ' + __BUILD__ }
   })
 
   async function logout() {
