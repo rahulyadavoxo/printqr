@@ -114,8 +114,37 @@ jobs:
           path: desktop/dist/*.exe
           retention-days: 1
 
+  # Publish the APK as soon as Android is built (doesn't wait for Windows), then tell open apps.
+  release-android:
+    needs: android
+    if: startsWith(github.ref, 'refs/tags/app-v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: printqr-android, path: files }
+      - name: Publish Android to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -la files
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "PrintQR apps ${GITHUB_REF_NAME#app-v}" --notes "Android (AAB for Play Store, APK for direct install) and Windows installer."
+          gh release upload "$GITHUB_REF_NAME" files/* --clobber
+          cp files/*.apk PrintQR.apk
+          gh release upload "$GITHUB_REF_NAME" PrintQR.apk --clobber
+      - name: Tell open apps/sites a new app version is live (Supabase Realtime broadcast)
+        env:
+          SB_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SB_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          curl -sS -m 15 -X POST "$SB_URL/realtime/v1/api/broadcast" \
+            -H "apikey: $SB_KEY" -H "Authorization: Bearer $SB_KEY" -H "Content-Type: application/json" \
+            -d '{"messages":[{"topic":"pq-releases","event":"app","payload":{}}]}' -w "\nHTTP %{http_code}\n" || true
+
   release:
-    needs: [android, windows]
+    needs: [release-android, windows]
     if: startsWith(github.ref, 'refs/tags/app-v')
     runs-on: ubuntu-24.04
     permissions:
@@ -130,15 +159,8 @@ jobs:
         run: |
           ls -la files
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "PrintQR apps ${GITHUB_REF_NAME#app-v}" --notes "Android (AAB for Play Store, APK for direct install) and Windows installer."
-          gh release upload "$GITHUB_REF_NAME" files/* --clobber
+          # Android files are already up (release-android); re-uploading the APK would briefly remove it
+          # while apps may be downloading, so only add the Windows installer here.
           # Fixed names so the website can always link releases/latest/download/<name>
-          cp files/*.apk PrintQR.apk && cp files/*.exe PrintQR-Setup.exe
-          gh release upload "$GITHUB_REF_NAME" PrintQR.apk PrintQR-Setup.exe --clobber
-      - name: Tell open apps/sites a new app version is live (Supabase Realtime broadcast)
-        env:
-          SB_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          SB_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-        run: |
-          curl -sS -m 15 -X POST "$SB_URL/realtime/v1/api/broadcast" \
-            -H "apikey: $SB_KEY" -H "Authorization: Bearer $SB_KEY" -H "Content-Type: application/json" \
-            -d '{"messages":[{"topic":"pq-releases","event":"app","payload":{}}]}' -w "\nHTTP %{http_code}\n" || true
+          cp files/*.exe PrintQR-Setup.exe
+          gh release upload "$GITHUB_REF_NAME" files/*.exe PrintQR-Setup.exe --clobber
