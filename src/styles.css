@@ -1189,18 +1189,23 @@ button.ed-top-title:hover { background: var(--c-sunken); }
 /* Phone/tablet top bar: Supabase SQL-editor tab strip. Grey strip, current page is a white tab
    on the right that sits on the bar's bottom line (no separate big heading). */
 @media (max-width: 1023.98px) {
-  .dash .dash-bar { background: var(--c-sunken); border-bottom: 1px solid var(--c-line); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .dash .dash-bar { background: #e6e1d6; border-bottom: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
   .dash .dash-bar .topbar-in { min-height: 52px; padding-top: 0; padding-bottom: 0; align-items: stretch; }
   .dash .dash-bar .menu-btn { align-self: center; }
+  /* Chrome-style tab: rounded top corners + concave curved feet that flow into the strip */
   .bar-tab {
-    margin-left: auto; margin-bottom: -1px; display: flex; align-items: center; gap: 8px;
-    max-width: 62vw; padding: 0 16px; background: var(--c-surface); color: var(--c-ink);
-    border: 1px solid var(--c-line); border-bottom-color: var(--c-surface); border-top: 2px solid var(--c-ink);
+    position: relative; margin-left: auto; margin-right: 6px; margin-top: 8px; margin-bottom: -1px;
+    display: flex; align-items: center; gap: 8px; max-width: 62vw; padding: 0 18px;
+    background: var(--c-bg); color: var(--c-ink); border: none; border-radius: 12px 12px 0 0;
     font-size: 15px; font-weight: 600;
   }
+  .bar-tab::before, .bar-tab::after {
+    content: ""; position: absolute; bottom: 0; width: 12px; height: 12px; pointer-events: none;
+  }
+  .bar-tab::before { left: -12px; background: radial-gradient(circle at 0 0, transparent 12px, var(--c-bg) 12.5px); }
+  .bar-tab::after { right: -12px; background: radial-gradient(circle at 100% 0, transparent 12px, var(--c-bg) 12.5px); }
   .bar-tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .bar-tab svg { flex: none; color: var(--c-muted); }
   .dash .dash-main { padding-top: 14px; }
   [data-theme="dark"] .dash .dash-bar { background: #070b09; }
-  [data-theme="dark"] .bar-tab { border-top-color: var(--c-lime); }
 }
