@@ -424,6 +424,8 @@ export default function Upload() {
       const { data, error } = res
       if (error) throw error
       const order = (data as { order_id: string; access_key: string; token: number; paths: string[] }[])[0]
+      // v18: the 'order ready' notification comes in the language the customer ordered in (ignored if the DB is older).
+      void supabase.rpc('set_order_lang', { p_order_id: order.order_id, p_key: order.access_key, p_lang: lang === 'hi' ? 'hi' : 'en' }).then(() => {}, () => {})
       for (let i = 0; i < uploads.length; i++) {
         setProgress({ text: t('uUploading', { i: i + 1, n: uploads.length }), pct: Math.round((i / uploads.length) * 100) })
         const u = uploads[i]

@@ -72,16 +72,17 @@ async function fcmSend(sa: ServiceAccount, access: string, message: Record<strin
 
 /** Customer's browsers (web push) or Android app phones (FCM, v18) that asked "tell me when it's ready" on the status page (public.order_push). */
 async function sendReady(sa: ServiceAccount, orderId: string): Promise<Record<string, unknown>> {
-  const rows = (await call(`/rest/v1/orders?id=eq.${orderId}&select=id,token,status,access_key,shop_id`)) as
-    { id: string; token: number; status: string; access_key: string; shop_id: string }[]
+  const rows = (await call(`/rest/v1/orders?id=eq.${orderId}&select=*`)) as
+    { id: string; token: number; status: string; access_key: string; shop_id: string; lang?: string | null }[]
   const o = rows[0]
   if (!o || o.status !== 'ready') return { skipped: 'not_ready' }
   const tokens = (await call(`/rest/v1/order_push?order_id=eq.${o.id}&select=token`)) as { token: string }[]
   if (!tokens.length) return { sent: 0 }
   const shops = (await call(`/rest/v1/shops?id=eq.${o.shop_id}&select=name`)) as { name: string }[]
   const shop = shops[0]?.name || 'PrintQR'
-  const title = `Order #${o.token} is ready · ऑर्डर तैयार है`
-  const body = `${shop}: please collect your prints · अपने प्रिंट ले लें`
+  // v18: only the language the customer ordered in (both when unknown: older orders / apps).
+  const title = o.lang === 'hi' ? `ऑर्डर #${o.token} तैयार है` : o.lang === 'en' ? `Order #${o.token} is ready` : `Order #${o.token} is ready · ऑर्डर तैयार है`
+  const body = o.lang === 'hi' ? `${shop}: अपने प्रिंट ले लें` : o.lang === 'en' ? `${shop}: please collect your prints` : `${shop}: please collect your prints · अपने प्रिंट ले लें`
   const link = `https://print.receipto.in/#/o/${o.id}/${o.access_key}`
   const access = await googleToken(sa)
   let sent = 0
