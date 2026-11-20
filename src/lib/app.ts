@@ -25,6 +25,8 @@ export type NativeBridge = {
   askNotify?: () => void
   pushError?: () => string
   notifyAllowed?: () => boolean
+  // UI language for the app's own notifications and channel names (app 1.5.34+)
+  setLang?: (lang: string) => void
 }
 export function nativeBridge(): NativeBridge | undefined {
   return (window as unknown as { PQ?: NativeBridge }).PQ

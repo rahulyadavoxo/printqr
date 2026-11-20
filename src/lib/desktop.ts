@@ -14,6 +14,8 @@ type DesktopApi = {
   version?: number
   printers: () => Promise<DesktopPrinter[]>
   print: (job: DesktopPrintJob) => Promise<{ ok: boolean; error?: string }>
+  /** Windows app 1.5.34+: language of its own notifications and tray menu. */
+  setLang?: (lang: string) => void
 }
 
 export function desktopApi(): DesktopApi | undefined {

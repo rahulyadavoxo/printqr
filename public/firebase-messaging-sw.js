@@ -9,7 +9,10 @@ self.addEventListener('push', (e) => {
   try { d = e.data ? e.data.json() : {} } catch { d = {} }
   const n = d.notification || {}
   const data = d.data || {}
-  const title = n.title || data.title || 'New order'
+  // The server sends the text in the recipient's language; data.lang only picks this fallback title.
+  const ready0 = data.kind === 'ready'
+  const fallback = data.lang === 'hi' ? (ready0 ? 'ऑर्डर तैयार है' : 'नया ऑर्डर') : (ready0 ? 'Order ready' : 'New order')
+  const title = n.title || data.title || fallback
   const opts = {
     body: n.body || data.body || '',
     icon: n.icon || '/icon-192.png',

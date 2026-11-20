@@ -89,7 +89,7 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         "function save(a){var h=a.href,n=a.getAttribute('download')||'file';" +
         "fetch(h).then(function(r){return r.blob()}).then(function(b){var fr=new FileReader();" +
         "fr.onload=function(){var s=String(fr.result);PQ.saveFile(s.substring(s.indexOf(',')+1),n,b.type||'application/octet-stream')};fr.readAsDataURL(b)})" +
-        ".catch(function(){PQ.toast('Download failed')})}" +
+        ".catch(function(){PQ.toast(localStorage.getItem('printqr-lang')==='hi'?'\u0921\u093e\u0909\u0928\u0932\u094b\u0921 \u0928\u0939\u0940\u0902 \u0939\u0941\u0906':'Download failed')})}" +
         "var clickOrig=HTMLAnchorElement.prototype.click;" +
         "HTMLAnchorElement.prototype.click=function(){if(this.hasAttribute('download')&&/^(blob|data):/.test(this.href)){save(this);return}return clickOrig.call(this)};" +
         "document.addEventListener('click',function(e){var a=e.target&&e.target.closest&&e.target.closest('a[download]');" +
@@ -606,8 +606,8 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
             String fallback = i == null ? null : i.getStringExtra("browser_fallback_url");
             if (fallback != null && (fallback.startsWith("https://") || fallback.startsWith("http://"))) openExternal(fallback);
             else Toast.makeText(this, scheme.equals("upi") || uri.toString().contains("upi")
-                ? "No UPI app found. Install Google Pay, PhonePe or Paytm, or pay by card."
-                : "No app found to open this", Toast.LENGTH_LONG).show();
+                ? (PushService.hi(this) ? "कोई UPI ऐप नहीं मिला। Google Pay, PhonePe या Paytm इंस्टॉल करें, या कार्ड से भुगतान करें।" : "No UPI app found. Install Google Pay, PhonePe or Paytm, or pay by card.")
+                : (PushService.hi(this) ? "इसे खोलने के लिए कोई ऐप नहीं मिला" : "No app found to open this"), Toast.LENGTH_LONG).show();
         }
         return true;
     }
@@ -639,7 +639,7 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         } catch (Exception e) {
-            Toast.makeText(this, "No app found to open this file", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, PushService.hi(this) ? "यह फ़ाइल खोलने के लिए कोई ऐप नहीं मिला" : "No app found to open this file", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -653,9 +653,9 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
                 .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "PrintQR/" + name);
             DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
             dm.enqueue(r);
-            Toast.makeText(this, "Downloading " + name + " - tap the notification to open and print", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, PushService.hi(this) ? name + " डाउनलोड हो रहा है - खोलकर प्रिंट करने के लिए नोटिफ़िकेशन पर टैप करें" : "Downloading " + name + " - tap the notification to open and print", Toast.LENGTH_LONG).show();
         } catch (Exception e) {
-            Toast.makeText(this, "Download failed", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, PushService.hi(this) ? "डाउनलोड नहीं हुआ" : "Download failed", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -788,6 +788,13 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
             });
         }
 
+        /** UI language (EN / हिं on the page): the app's own notifications, channel names and messages use it. */
+        @JavascriptInterface
+        public void setLang(String lang) {
+            if (!trustedPage) return;
+            PushService.setLang(MainActivity.this, lang);
+        }
+
         @JavascriptInterface
         public void toast(String msg) {
             if (!trustedPage) return;
@@ -816,7 +823,7 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
                 }
                 final Uri open = saved;
                 runOnUiThread(() -> {
-                    Toast.makeText(MainActivity.this, "Saved: Downloads/PrintQR/" + name, Toast.LENGTH_LONG).show();
+                    Toast.makeText(MainActivity.this, (PushService.hi(MainActivity.this) ? "सेव हो गया: Downloads/PrintQR/" : "Saved: Downloads/PrintQR/") + name, Toast.LENGTH_LONG).show();
                     if (open != null) {
                         try {
                             startActivity(new Intent(Intent.ACTION_VIEW).setDataAndType(open, mime)
@@ -825,7 +832,7 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
                     }
                 });
             } catch (Exception e) {
-                toast("Download failed");
+                toast(PushService.hi(MainActivity.this) ? "डाउनलोड नहीं हुआ" : "Download failed");
             }
         }
     }

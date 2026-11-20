@@ -37,16 +37,31 @@ public class PushService extends FirebaseMessagingService {
     /** Set by MainActivity so a fresh token can be handed to the page right away. */
     static volatile MainActivity active = null;
 
+    static final String KEY_LANG = "lang";
+
+    /** UI language picked in the app (the page sends it through PQ.setLang); English until then. */
+    static boolean hi(Context c) {
+        return "hi".equals(c.getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_LANG, "en"));
+    }
+
+    static void setLang(Context c, String lang) {
+        if (!"en".equals(lang) && !"hi".equals(lang)) return;
+        c.getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_LANG, lang).apply();
+        ensureChannel(c);
+    }
+
+    /** Creates the channels, or renames existing ones to the picked language (sound / importance stay). */
     static void ensureChannel(Context c) {
         if (Build.VERSION.SDK_INT < 26) return;
         NotificationManager nm = c.getSystemService(NotificationManager.class);
         if (nm == null) return;
-        if (nm.getNotificationChannel(CHANNEL) == null) {
-            nm.createNotificationChannel(channel(CHANNEL, c.getString(R.string.notif_channel), c.getString(R.string.notif_channel_desc)));
-        }
-        if (nm.getNotificationChannel(CHANNEL_READY) == null) {
-            nm.createNotificationChannel(channel(CHANNEL_READY, c.getString(R.string.notif_channel_ready), c.getString(R.string.notif_channel_ready_desc)));
-        }
+        boolean hi = hi(c);
+        nm.createNotificationChannel(channel(CHANNEL,
+            c.getString(hi ? R.string.notif_channel_hi : R.string.notif_channel),
+            c.getString(hi ? R.string.notif_channel_desc_hi : R.string.notif_channel_desc)));
+        nm.createNotificationChannel(channel(CHANNEL_READY,
+            c.getString(hi ? R.string.notif_channel_ready_hi : R.string.notif_channel_ready),
+            c.getString(hi ? R.string.notif_channel_ready_desc_hi : R.string.notif_channel_ready_desc)));
     }
 
     private static NotificationChannel channel(String id, String name, String desc) {
@@ -80,14 +95,16 @@ public class PushService extends FirebaseMessagingService {
         // That order's status page is on screen: it rings by itself.
         String url = currentUrl == null ? "" : currentUrl;
         if (foreground && url.contains("#" + path)) return;
-        showReady(msg, path, d.get("order_id"));
+        showReady(msg, path, d.get("order_id"), d.get("lang"));
     }
 
-    private void showReady(RemoteMessage msg, String path, String orderId) {
+    private void showReady(RemoteMessage msg, String path, String orderId, String lang) {
         try {
             ensureChannel(this);
             RemoteMessage.Notification n = msg.getNotification();
-            String title = n != null && n.getTitle() != null ? n.getTitle() : "Order ready";
+            // The server already sends the customer's language; this is only the fallback title.
+            boolean hi = "hi".equals(lang) || ((lang == null || lang.isEmpty()) && hi(this));
+            String title = n != null && n.getTitle() != null ? n.getTitle() : (hi ? "ऑर्डर तैयार है" : "Order ready");
             String body = n != null && n.getBody() != null ? n.getBody() : "";
             Intent open = new Intent(this, MainActivity.class)
                 .putExtra("kind", "ready")

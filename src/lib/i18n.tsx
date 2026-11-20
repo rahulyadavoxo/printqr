@@ -1752,6 +1752,10 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.lang = lang
+    // The Android / Windows app show some notifications themselves: tell them the language (v18).
+    const w = window as unknown as { PQ?: { setLang?: (l: string) => void }; PQDesktop?: { setLang?: (l: string) => void } }
+    try { w.PQ?.setLang?.(lang) } catch { /* old app */ }
+    try { w.PQDesktop?.setLang?.(lang) } catch { /* old app */ }
   }, [lang])
 
   const setLang = useCallback((l: Lang) => {
@@ -1761,6 +1765,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
+    // Push tokens are re-saved with the new language (lib/push.ts listens).
+    try { window.dispatchEvent(new CustomEvent('pq-lang', { detail: l })) } catch { /* ignore */ }
   }, [])
 
   const value = useMemo<Ctx>(() => {

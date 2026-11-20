@@ -169,6 +169,61 @@ function setupPrinting() {
   })
 }
 
+// ---------------------------------------------------------------------------
+// Language of the app's own texts (update notification, tray): the one picked on the site.
+// The site sends it through preload (pq:lang); it is saved so the next start uses it too.
+let lang = 'en'
+const LANG_FILE = () => path.join(app.getPath('userData'), 'lang')
+const TXT = {
+  en: {
+    updTitle: 'PrintQR update ready',
+    updBody: (v) => `Version ${v} is downloaded. Click to restart and update.`,
+    open: 'Open PrintQR',
+    restart: 'Restart to update',
+    autostart: 'Start with Windows',
+    quit: 'Quit',
+    tip: 'PrintQR – new orders will notify you'
+  },
+  hi: {
+    updTitle: 'PrintQR अपडेट तैयार है',
+    updBody: (v) => `वर्ज़न ${v} डाउनलोड हो गया है। रीस्टार्ट करके अपडेट करने के लिए क्लिक करें।`,
+    open: 'PrintQR खोलें',
+    restart: 'अपडेट के लिए रीस्टार्ट करें',
+    autostart: 'Windows के साथ शुरू करें',
+    quit: 'बंद करें',
+    tip: 'PrintQR – नए ऑर्डर आने पर नोटिफ़िकेशन मिलेगा'
+  }
+}
+const tx = () => TXT[lang] || TXT.en
+
+function loadLang() {
+  try {
+    const v = fs.readFileSync(LANG_FILE(), 'utf8').trim()
+    if (v === 'en' || v === 'hi') lang = v
+  } catch { /* first run: English until the site says otherwise */ }
+}
+
+function setupLang() {
+  loadLang()
+  ipcMain.on('pq:lang', (e, v) => {
+    if (!trustedSender(e) || (v !== 'en' && v !== 'hi') || v === lang) return
+    lang = v
+    try { fs.writeFileSync(LANG_FILE(), v) } catch { /* ignore */ }
+    refreshTrayMenu()
+    if (tray) tray.setToolTip(tx().tip)
+  })
+}
+
+/** The site's saved language (printqr-lang), read straight from the page; falls back to the saved one. */
+async function pageLang() {
+  try {
+    const w = BrowserWindow.getAllWindows()[0]
+    const v = w ? await w.webContents.executeJavaScript("localStorage.getItem('printqr-lang')", true) : null
+    if (v === 'en' || v === 'hi') lang = v
+  } catch { /* keep the saved one */ }
+  return lang
+}
+
 // One window only: opening the app again focuses it.
 // ---------------------------------------------------------------------------
 // Tray + start with Windows: the dashboard keeps listening for orders in the background.
@@ -193,13 +248,14 @@ function setupUpdates() {
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.on('error', (e) => console.warn('update', e && e.message))
-  autoUpdater.on('update-downloaded', (info) => {
+  autoUpdater.on('update-downloaded', async (info) => {
     updateReady = true
+    await pageLang()
     refreshTrayMenu()
     if (Notification.isSupported()) {
       const n = new Notification({
-        title: 'PrintQR update ready',
-        body: `Version ${info.version} is downloaded. Click to restart and update.`
+        title: tx().updTitle,
+        body: tx().updBody(info.version)
       })
       n.on('click', () => { quitting = true; autoUpdater.quitAndInstall() })
       n.show()
@@ -214,17 +270,17 @@ function refreshTrayMenu() {
   if (!tray) return
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: 'Open PrintQR', click: showWindow },
-      ...(updateReady ? [{ label: 'Restart to update', click: () => { quitting = true; autoUpdater.quitAndInstall() } }] : []),
+      { label: tx().open, click: showWindow },
+      ...(updateReady ? [{ label: tx().restart, click: () => { quitting = true; autoUpdater.quitAndInstall() } }] : []),
       {
-        label: 'Start with Windows',
+        label: tx().autostart,
         type: 'checkbox',
         enabled: app.isPackaged,
         checked: app.getLoginItemSettings({ args: ['--hidden'] }).openAtLogin,
         click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked, args: ['--hidden'] })
       },
       { type: 'separator' },
-      { label: 'Quit', click: () => { quitting = true; app.quit() } }
+      { label: tx().quit, click: () => { quitting = true; app.quit() } }
     ])
   )
 }
@@ -233,7 +289,7 @@ function setupTray() {
   let icon = nativeImage.createFromPath(path.join(__dirname, 'build', 'icon.png'))
   if (!icon.isEmpty()) icon = icon.resize({ width: 16, height: 16 })
   tray = new Tray(icon)
-  tray.setToolTip('PrintQR – new orders will notify you')
+  tray.setToolTip(tx().tip)
   refreshTrayMenu()
   tray.on('click', showWindow)
 }
@@ -254,6 +310,7 @@ if (!app.requestSingleInstanceLock()) {
       }
     }
     setupPrinting()
+    setupLang()
     createWindow()
     setupTray()
     setupUpdates()

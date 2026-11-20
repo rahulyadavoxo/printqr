@@ -46,11 +46,22 @@ export async function setupWebPush() {
   try {
     const token = await webPushToken(true)
     if (!token) return
-    const { error } = await supabase.rpc('register_push_token', { p_token: token, p_platform: 'web' })
+    const lang = localStorage.getItem('printqr-lang') === 'hi' ? 'hi' : 'en'
+    const { error } = await supabase.rpc('register_push_token', { p_token: token, p_platform: 'web', p_lang: lang })
     if (!error) localStorage.setItem(KEY, token)
   } catch (e) {
     console.warn('web push', e)
   }
+}
+
+/** Language switched: this browser's saved owner token gets the new language (v18). */
+export async function syncWebPushLang(lang: 'en' | 'hi') {
+  let token = ''
+  try { token = localStorage.getItem(KEY) || '' } catch { /* ignore */ }
+  if (!token) return
+  try {
+    await supabase.rpc('register_push_token', { p_token: token, p_platform: 'web', p_lang: lang })
+  } catch { /* ignore */ }
 }
 
 /** Customer status page (v17): tell this browser when the order is ready. */

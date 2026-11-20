@@ -4,8 +4,10 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 if (location.protocol === 'https:' && location.hostname === 'print.receipto.in') {
   contextBridge.exposeInMainWorld('PQDesktop', {
-    version: 2,
+    version: 3,
     printers: () => ipcRenderer.invoke('pq:printers'),
-    print: (job) => ipcRenderer.invoke('pq:print', job)
+    print: (job) => ipcRenderer.invoke('pq:print', job),
+    // Language of the app's own notifications and tray menu (the site's EN / हिं switch).
+    setLang: (lang) => ipcRenderer.send('pq:lang', lang === 'hi' ? 'hi' : 'en')
   })
 }

@@ -92,7 +92,7 @@ async function sendReady(sa: ServiceAccount, orderId: string): Promise<Record<st
       token,
       notification: { title, body },
       // `path` opens the order's status page inside the Android app (MainActivity reads it on tap).
-      data: { kind: 'ready', order_id: o.id, token: String(o.token), link, path: `/o/${o.id}/${o.access_key}` },
+      data: { kind: 'ready', order_id: o.id, token: String(o.token), link, path: `/o/${o.id}/${o.access_key}`, lang: o.lang === 'hi' || o.lang === 'en' ? o.lang : '' },
       // v18: the same token may be the PrintQR Android app's (status page opened in the app).
       android: {
         priority: 'HIGH',
@@ -170,7 +170,11 @@ Deno.serve(async (req) => {
       const staff = (await call(`/rest/v1/shop_staff?shop_id=eq.${o.shop_id}&user_id=not.is.null&select=user_id`).catch(() => [])) as { user_id: string }[]
       for (const s of staff) if (s.user_id && !users.includes(s.user_id)) users.push(s.user_id)
     }
-    const tokens = (await call(`/rest/v1/push_tokens?owner_id=in.(${users.join(',')})&select=token`)) as { token: string }[]
+    // v18: each phone / browser gets its own language (push_tokens.lang). Before the v18 SQL has run the
+    // column does not exist yet, so fall back to tokens only (both languages, as before).
+    const inList = `owner_id=in.(${users.join(',')})`
+    const tokens = (await call(`/rest/v1/push_tokens?${inList}&select=token,lang`)
+      .catch(() => call(`/rest/v1/push_tokens?${inList}&select=token`))) as { token: string; lang?: string | null }[]
     if (!tokens.length) return reply(200, { sent: 0 })
 
     let counter = ''
@@ -179,14 +183,19 @@ Deno.serve(async (req) => {
       counter = c[0]?.name || ''
     }
     const amount = `₹${Number(o.total).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
-    const title = `New order #${o.token} · नया ऑर्डर`
-    const body = [o.customer_name || 'Customer', amount, counter].filter(Boolean).join(' · ')
+    // v18: only the recipient's language; both (as before) when the token has no language yet.
+    const texts = (lang: string | null | undefined) => {
+      const who = o.customer_name || (lang === 'hi' ? 'ग्राहक' : 'Customer')
+      const title = lang === 'hi' ? `नया ऑर्डर #${o.token}` : lang === 'en' ? `New order #${o.token}` : `New order #${o.token} · नया ऑर्डर`
+      return { title, body: [who, amount, counter].filter(Boolean).join(' · ') }
+    }
 
     const access = await googleToken(sa)
     let sent = 0
     let lastErr = ''
     const dead: string[] = []
-    for (const { token } of tokens) {
+    for (const { token, lang } of tokens) {
+      const { title, body } = texts(lang)
       const res = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json' },
@@ -194,7 +203,7 @@ Deno.serve(async (req) => {
           message: {
             token,
             notification: { title, body },
-            data: { order_id: o.id, token: String(o.token) },
+            data: { order_id: o.id, token: String(o.token), lang: lang === 'hi' || lang === 'en' ? lang : '' },
             android: {
               priority: 'HIGH',
               notification: { channel_id: 'orders', sound: 'default', tag: `order-${o.id}`, icon: 'ic_stat_print' }

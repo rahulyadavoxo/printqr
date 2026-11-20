@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">PrintQR</string>
-    <string name="notif_channel">New orders / नए ऑर्डर</string>
+    <!-- Notification channels: shown in the language picked in the app (PushService.hi), not both. -->
+    <string name="notif_channel">New orders</string>
     <string name="notif_channel_desc">A new print order arrived at your shop</string>
-    <string name="notif_channel_ready">Order ready / ऑर्डर तैयार</string>
+    <string name="notif_channel_ready">Order ready</string>
     <string name="notif_channel_ready_desc">Your print order is ready to collect</string>
+    <string name="notif_channel_hi">नए ऑर्डर</string>
+    <string name="notif_channel_desc_hi">आपकी दुकान पर नया प्रिंट ऑर्डर आया है</string>
+    <string name="notif_channel_ready_hi">ऑर्डर तैयार</string>
+    <string name="notif_channel_ready_desc_hi">आपका प्रिंट ऑर्डर लेने के लिए तैयार है</string>
     <string name="launch_url">https://print.receipto.in/</string>
     <string name="asset_statements" translatable="false">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://print.receipto.in\"}}]</string>
 </resources>

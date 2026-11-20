@@ -1,6 +1,21 @@
 import { nativeBridge } from './app'
 import { supabase } from './supabase'
-import { removeWebPush, setupWebPush } from './webpush'
+import { removeWebPush, setupWebPush, syncWebPushLang } from './webpush'
+
+/** UI language saved by i18n (printqr-lang); push texts are sent only in this language (v18). */
+export function pushLang(): 'en' | 'hi' {
+  try { return localStorage.getItem('printqr-lang') === 'hi' ? 'hi' : 'en' } catch { return 'en' }
+}
+
+/** Language switched (i18n fires 'pq-lang'): save it with this device's push tokens. */
+if (typeof window !== 'undefined') {
+  window.addEventListener('pq-lang', () => {
+    let token = ''
+    try { token = localStorage.getItem('pq-push-token') || '' } catch { /* ignore */ }
+    if (token) void supabase.rpc('register_push_token', { p_token: token, p_platform: 'android', p_lang: pushLang() })
+    void syncWebPushLang(pushLang())
+  })
+}
 
 /** Android app: register this phone for new-order push notifications (Firebase). Safe to call often. */
 export function setupPush() {
@@ -13,7 +28,7 @@ export function setupPush() {
   const register = (token: string) => {
     if (!token) return
     try { localStorage.setItem('pq-push-token', token) } catch { /* ignore */ }
-    void supabase.rpc('register_push_token', { p_token: token, p_platform: 'android' }).then(({ error }) => {
+    void supabase.rpc('register_push_token', { p_token: token, p_platform: 'android', p_lang: pushLang() }).then(({ error }) => {
       try { localStorage.setItem('pq-push-state', error ? 'save: ' + (error.message || error.code || 'error').slice(0, 80) : 'ok') } catch { /* ignore */ }
     })
   }
