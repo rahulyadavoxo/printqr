@@ -724,6 +724,19 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
             return getSharedPreferences(PushService.PREFS, MODE_PRIVATE).getString(PushService.KEY_TOKEN, "");
         }
 
+        /** Last Firebase token problem ("" when fine), for the Settings push line. */
+        @JavascriptInterface
+        public String pushError() {
+            if (!trustedPage) return "";
+            return getSharedPreferences(PushService.PREFS, MODE_PRIVATE).getString("push_err", "");
+        }
+
+        /** True when the user allowed notifications for the app. */
+        @JavascriptInterface
+        public boolean notifyAllowed() {
+            return androidx.core.app.NotificationManagerCompat.from(MainActivity.this).areNotificationsEnabled();
+        }
+
         /** Android 13+: ask once for permission to show new-order notifications. */
         @JavascriptInterface
         public void askNotify() {
@@ -820,16 +833,25 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
 
     private void fetchPushToken() {
         try {
-            if (FirebaseApp.getApps(this).isEmpty()) return; // built without google-services.json: push off
+            if (FirebaseApp.getApps(this).isEmpty()) { pushErr("no firebase config"); return; } // built without google-services.json: push off
             FirebaseMessaging.getInstance().getToken().addOnCompleteListener(task -> {
-                if (!task.isSuccessful() || task.getResult() == null) return;
+                if (!task.isSuccessful() || task.getResult() == null) {
+                    Exception e = task.getException();
+                    pushErr("token: " + (e == null ? "empty" : (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage())));
+                    return;
+                }
+                pushErr("");
                 String t = task.getResult();
                 getSharedPreferences(PushService.PREFS, MODE_PRIVATE).edit().putString(PushService.KEY_TOKEN, t).apply();
                 sendPushToken(t);
             });
-        } catch (Exception ignored) {
-            // push is optional
+        } catch (Exception e) {
+            pushErr("init: " + e.getClass().getSimpleName()); // push is optional
         }
+    }
+
+    private void pushErr(String msg) {
+        getSharedPreferences(PushService.PREFS, MODE_PRIVATE).edit().putString("push_err", msg == null ? "" : msg).apply();
     }
 
     @Override

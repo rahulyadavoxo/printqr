@@ -8,7 +8,9 @@ export function setupPush() {
   const register = (token: string) => {
     if (!token) return
     try { localStorage.setItem('pq-push-token', token) } catch { /* ignore */ }
-    void supabase.rpc('register_push_token', { p_token: token, p_platform: 'android' })
+    void supabase.rpc('register_push_token', { p_token: token, p_platform: 'android' }).then(({ error }) => {
+      try { localStorage.setItem('pq-push-state', error ? 'save: ' + (error.message || error.code || 'error').slice(0, 80) : 'ok') } catch { /* ignore */ }
+    })
   }
   ;(window as unknown as { __pqPush?: (t: string) => void }).__pqPush = register
   try {
@@ -29,5 +31,21 @@ export async function removePush() {
     localStorage.removeItem('pq-push-token')
   } catch {
     /* ignore */
+  }
+}
+
+/** One-line push state for Settings (app only): ok, or what is stuck. */
+export function pushStatus(): string {
+  const b = nativeBridge()
+  if (!b?.pushToken) return ''
+  try {
+    if (b.notifyAllowed && !b.notifyAllowed()) return 'notifications blocked'
+    const err = b.pushError?.() || ''
+    if (err) return err
+    const st = localStorage.getItem('pq-push-state') || ''
+    if (st) return st
+    return localStorage.getItem('pq-push-token') ? 'saving' : 'waiting for token'
+  } catch {
+    return ''
   }
 }

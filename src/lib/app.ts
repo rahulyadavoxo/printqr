@@ -23,6 +23,8 @@ export type NativeBridge = {
   // push notifications (app 1.5.21+); a new token also arrives through window.__pqPush
   pushToken?: () => string
   askNotify?: () => void
+  pushError?: () => string
+  notifyAllowed?: () => boolean
 }
 export function nativeBridge(): NativeBridge | undefined {
   return (window as unknown as { PQ?: NativeBridge }).PQ
