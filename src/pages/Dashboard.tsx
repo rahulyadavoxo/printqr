@@ -4,7 +4,7 @@ import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, PointerEvent as RP
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { Counter, DEFAULT_PASSPORT_RATE, Order, OrderFile, OrderStatus, plansReady, PRO_COUNTER_LIMIT, QrDesign, QrLink, qrCodeUrl, Rates, Shop, shopIsPlus, shopIsPro, shopUrl, supabase } from '../lib/supabase'
-import { autoPrintOn, fileHours, FILE_HOURS, HISTORY_DAYS, PlanTier, setAutoPrint, shopTier, tierFor } from '../lib/plans'
+import { fileHours, FILE_HOURS, HISTORY_DAYS, PlanTier, shopTier, tierFor } from '../lib/plans'
 import { BRAND_SWATCHES, inkOn, validHex } from '../lib/brand'
 import { DAY_ORDER, normHours, ShopHours } from '../lib/hours'
 import AdSlot from '../components/AdSlot'
@@ -815,15 +815,8 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
   const [info, setInfo] = useState<string | null>(null)
   // Windows app: print straight to a printer (free on every plan).
   const desk = canPrint ? desktopApi() : null
-  // Auto-print (Pro / Plus): new orders go to the printer by themselves. Saved per computer.
-  const [auto, setAutoState] = useState(autoPrintOn)
-  const autoRef = useRef(false)
-  autoRef.current = !!desk && auto && autoPrintAllowed
-  const autoQueue = useRef<Order[]>([])
-  const autoBusy = useRef(false)
-  const autoDone = useRef<Set<string>>(new Set())
-  // load() is created once per shop; it calls the newest runAuto (current printer) through this ref.
-  const runAutoRef = useRef<() => void>(() => {})
+  // Start printing (Pro / Plus, Windows app): the tap also sends the order's files to the printer.
+  const startPrints = !!desk && autoPrintAllowed
   const [printers, setPrinters] = useState<DesktopPrinter[]>([])
   const [printer, setPrinterState] = useState(savedPrinter)
   const [printingId, setPrintingId] = useState<string | null>(null)
@@ -857,15 +850,6 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
       // Ring only for orders this screen shows (counter filter, saved per device)
       const f = filterRef.current
       const fresh = list.filter((o) => o.status === 'received' && !known.current!.has(o.id) && matchesCounter(o, f))
-      if (fresh.length && autoRef.current) {
-        // Oldest first, each order once.
-        for (const o of [...fresh].reverse()) {
-          if (autoDone.current.has(o.id)) continue
-          autoDone.current.add(o.id)
-          autoQueue.current.push(o)
-        }
-        runAutoRef.current()
-      }
       if (fresh.length) {
         ding()
         if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
@@ -936,41 +920,6 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
     return r.ok
   }
 
-  async function runAuto() {
-    if (autoBusy.current) return
-    autoBusy.current = true
-    try {
-      while (autoQueue.current.length && autoRef.current) {
-        const o = autoQueue.current.shift()!
-        const files = (o.order_files || []).filter((f) => canDirectPrint(f.file_name))
-        if (!files.length || o.files_deleted) continue
-        setPrintingId(o.id)
-        let ok = true
-        for (const f of files) {
-          if (!(await printOne(o, f))) { ok = false; break }
-        }
-        setPrintingId(null)
-        if (ok) {
-          setInfo(tRef.current('apSent', { token: o.token }))
-          const { error } = await supabase.from('orders').update({ status: 'printing', updated_at: new Date().toISOString() }).eq('id', o.id).eq('status', 'received')
-          if (!error) setOrders((l) => l.map((x) => (x.id === o.id && x.status === 'received' ? { ...x, status: 'printing' } : x)))
-        }
-      }
-    } finally {
-      autoBusy.current = false
-      setPrintingId(null)
-    }
-  }
-
-  runAutoRef.current = () => void runAuto()
-
-  function toggleAuto() {
-    if (!autoPrintAllowed) return onUpgrade?.()
-    const v = !auto
-    setAutoState(v)
-    setAutoPrint(v)
-  }
-
   async function printDirect(o: Order, files: OrderFile[]) {
     if (!desk || printingId) return
     setErr(null)
@@ -985,6 +934,14 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
       setInfo(t('dpSent', { token: o.token }))
       if (o.status === 'received') void setStatus(o, 'printing')
     }
+  }
+
+  /** "Start printing": Pro / Plus in the Windows app also send the files to the printer; otherwise only the status moves. */
+  async function startPrinting(o: Order) {
+    const files = (o.order_files || []).filter((f) => canDirectPrint(f.file_name))
+    if (startPrints && !o.files_deleted && files.length) return printDirect(o, files)
+    if (desk && !autoPrintAllowed && files.length) setInfo(t('apLocked'))
+    return setStatus(o, 'printing')
   }
 
   async function downloadFile(path: string, name: string) {
@@ -1024,21 +981,6 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
             <option value="">{t('dpDefaultPrinter')}{(() => { const d = printers.find((p) => p.isDefault); return d ? ` (${d.displayName})` : '' })()}</option>
             {printers.map((p) => <option key={p.name} value={p.name}>{p.displayName}</option>)}
           </select>
-        </div>
-      )}
-      {desk && (
-        <div className={`card auto-print${autoPrintAllowed ? '' : ' is-locked'}`}>
-          <div className="auto-print-text">
-            <strong>{autoPrintAllowed ? '' : '🔒 '}{t('apTitle')} {!autoPrintAllowed && <span className="pro-badge">{t('planPro')}</span>}</strong>
-            <span className="small muted">{autoPrintAllowed ? t('apSub') : t('apLocked')}</span>
-          </div>
-          {autoPrintAllowed ? (
-            <button type="button" role="switch" aria-checked={auto} className={`switch${auto ? ' on' : ''}`} onClick={toggleAuto} aria-label={t('apTitle')}>
-              <span className="switch-knob" />
-            </button>
-          ) : onUpgrade && (
-            <button type="button" className="btn small primary" onClick={onUpgrade}>{t('seePlans')}</button>
-          )}
         </div>
       )}
       {counters.length > 0 && (
@@ -1085,7 +1027,7 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
           ) : (
             <div className="orders-grid">
               {active.map((o) => (
-                <OrderCard key={o.id} o={o} keepHours={keepHours} lang={lang} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} printingId={printingId} />
+                <OrderCard key={o.id} o={o} keepHours={keepHours} lang={lang} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} onStart={startPrinting} printingId={printingId} />
               ))}
             </div>
           )}
@@ -1099,7 +1041,7 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
       {showDone && (
         <div className="orders-grid">
           {finished.map((o) => (
-            <OrderCard key={o.id} o={o} keepHours={keepHours} lang={lang} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} printingId={printingId} />
+            <OrderCard key={o.id} o={o} keepHours={keepHours} lang={lang} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} onStart={startPrinting} printingId={printingId} />
           ))}
         </div>
       )}
@@ -1148,12 +1090,13 @@ function OrderCard(props: {
   onDownload: (path: string, name: string) => void
   onDelete: (o: Order) => void
   onPrint?: (o: Order, files: OrderFile[]) => void
+  onStart?: (o: Order) => void
   printingId?: string | null
   /** Hours files stay (plan + owner setting): shows when they auto-delete. */
   keepHours?: number
   lang?: string
 }) {
-  const { o, onStatus, onOpen, onDownload, onDelete, onPrint, printingId, keepHours, lang } = props
+  const { o, onStatus, onOpen, onDownload, onDelete, onPrint, onStart, printingId, keepHours, lang } = props
   const expiry = keepHours ? new Date(new Date(o.created_at).getTime() + keepHours * 3600 * 1000) : null
   const expiryText = expiry
     ? expiry.toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN', expiry.toDateString() === new Date().toDateString()
@@ -1223,7 +1166,7 @@ function OrderCard(props: {
             <Icon name="printer" size={19} /> {printingId === o.id ? t('dpPrinting') : t('dpPrintAll', { n: printable.length })}
           </button>
         )}
-        {next && <button type="button" className={`btn primary next-${o.status}`} onClick={() => onStatus(o, next.to)}><Icon name={nextIcon} size={19} /> {t(next.label)}</button>}
+        {next && <button type="button" className={`btn primary next-${o.status}`} disabled={busy && o.status === 'received'} onClick={() => (o.status === 'received' && onStart ? onStart(o) : onStatus(o, next.to))}><Icon name={nextIcon} size={19} /> {printingId === o.id && o.status === 'received' ? t('dpPrinting') : t(next.label)}</button>}
         {['received', 'printing', 'ready'].includes(o.status) && (
           <button type="button" className="btn danger-outline" onClick={() => confirm(t('confirmCancel')) && onStatus(o, 'cancelled')}>{t('cancel')}</button>
         )}
