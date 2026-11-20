@@ -99,7 +99,7 @@ async function sendReady(sa: ServiceAccount, orderId: string): Promise<Record<st
       },
       webpush: {
         headers: { Urgency: 'high', TTL: '3600' },
-        notification: { title, body, icon: 'https://print.receipto.in/icon-192.png', tag: `ready-${o.id}`, vibrate: [200, 100, 200] },
+        notification: { title, body, icon: 'https://print.receipto.in/icon-192.png', badge: 'https://print.receipto.in/badge-96.png', tag: `ready-${o.id}`, vibrate: [200, 100, 200] },
         fcm_options: { link }
       }
     })
@@ -200,7 +200,7 @@ Deno.serve(async (req) => {
             },
             webpush: {
               headers: { Urgency: 'high', TTL: '3600' },
-              notification: { title, body, icon: 'https://print.receipto.in/icon-192.png', tag: `order-${o.id}` },
+              notification: { title, body, icon: 'https://print.receipto.in/icon-192.png', badge: 'https://print.receipto.in/badge-96.png', tag: `order-${o.id}` },
               fcm_options: { link: 'https://print.receipto.in/#/dashboard' }
             }
           }

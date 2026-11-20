@@ -13,7 +13,7 @@ self.addEventListener('push', (e) => {
   const opts = {
     body: n.body || data.body || '',
     icon: n.icon || '/icon-192.png',
-    badge: '/icon-192.png',
+    badge: '/badge-96.png', // monochrome (white on transparent); Android shows the badge as a silhouette
     tag: n.tag || (data.order_id ? 'order-' + data.order_id : 'order'),
     renotify: true,
     requireInteraction: false,
