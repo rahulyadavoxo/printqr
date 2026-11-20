@@ -1298,3 +1298,6 @@ html.in-app input, html.in-app textarea, html.in-app select, html.in-app [conten
 .ready-anim { display: block; width: 160px; max-width: 60%; height: auto; margin: 14px auto 4px; }
 
 .no-orders-art { display: block; margin: 0 auto 10px; max-width: 100%; height: auto; }
+.plan-period-toggle { max-width: 320px; margin: 16px 0 22px; }
+.plan-was { margin: -4px 0 8px; }
+.dash-ad { margin-top: 16px; }

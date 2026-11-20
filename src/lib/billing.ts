@@ -2,7 +2,18 @@ import { IN_APP, PUBLIC_BASE, nativeBridge } from './app'
 import { supabase } from './supabase'
 
 export type Period = 'monthly' | 'yearly'
-export const PLAN_PRICES: Record<Period, number> = { monthly: 49, yearly: 539 }
+export type Tier = 'pro' | 'plus'
+export const TIER_PRICES: Record<Tier, Record<Period, number>> = {
+  pro: { monthly: 49, yearly: 539 },
+  plus: { monthly: 99, yearly: 999 }
+}
+/** Old name: Pro prices. */
+export const PLAN_PRICES = TIER_PRICES.pro
+/** Yearly saving vs paying monthly for 12 months, in whole percent. */
+export function yearlyOff(tier: Tier): number {
+  const p = TIER_PRICES[tier]
+  return Math.round((1 - p.yearly / (p.monthly * 12)) * 100)
+}
 
 type RazorpayResponse = { razorpay_payment_id: string; razorpay_subscription_id: string; razorpay_signature: string }
 type RazorpayOptions = {
@@ -75,8 +86,8 @@ export async function callFn<T>(name: string, body: Record<string, unknown> = {}
  * Full upgrade flow: create the subscription, open Razorpay Checkout, verify the payment.
  * Resolves true when Pro is on, false when the owner closed the checkout.
  */
-export async function startUpgrade(period: Period, opts: { email?: string; description: string }): Promise<boolean> {
-  const { subscription_id, key_id } = await callFn<{ subscription_id: string; key_id: string }>('create-subscription', { period })
+export async function startUpgrade(period: Period, opts: { email?: string; description: string }, tier: Tier = 'pro'): Promise<boolean> {
+  const { subscription_id, key_id } = await callFn<{ subscription_id: string; key_id: string }>('create-subscription', { period, tier })
   const bridge = nativeBridge()
   if (IN_APP && bridge?.razorpay) return nativeCheckout((json: string) => bridge.razorpay!(json), { key: key_id, subscription_id, description: opts.description, email: opts.email })
   await loadRazorpay()

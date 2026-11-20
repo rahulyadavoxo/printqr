@@ -45,7 +45,7 @@ export type Shop = {
   blocked?: boolean
   blocked_reason?: string | null
   /** Plan columns: present once the v3 database update (2026-11-17-v3-plans.sql) has run. */
-  plan?: 'free' | 'pro'
+  plan?: 'free' | 'pro' | 'plus'
   plan_period?: 'monthly' | 'yearly' | null
   plan_expires_at?: string | null
   razorpay_subscription_id?: string | null
@@ -57,10 +57,18 @@ export function plansReady(s: Shop): boolean {
   return s.plan !== undefined
 }
 
-/** Pro = plan 'pro' and not expired (same rule as public.is_pro in the database). */
+/** Paid = plan 'pro' or 'plus' and not expired (same rule as public.is_pro in the database). */
 export function shopIsPro(s: Shop): boolean {
-  return s.plan === 'pro' && !!s.plan_expires_at && new Date(s.plan_expires_at).getTime() > Date.now()
+  return (s.plan === 'pro' || s.plan === 'plus') && !!s.plan_expires_at && new Date(s.plan_expires_at).getTime() > Date.now()
 }
+
+/** Plus = plan 'plus' and not expired: no ads for the owner either, unlimited counters. */
+export function shopIsPlus(s: Shop): boolean {
+  return s.plan === 'plus' && !!s.plan_expires_at && new Date(s.plan_expires_at).getTime() > Date.now()
+}
+
+/** New counters a Pro shop may add (public.pro_counter_limit). Plus has no limit. */
+export const PRO_COUNTER_LIMIT = 2
 
 /** Default named counters a free shop may use; the live value is app_settings.free_counter_limit (useAppSettings). */
 export const FREE_COUNTER_LIMIT = 0

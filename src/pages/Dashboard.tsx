@@ -3,7 +3,8 @@ import { AppDownloadBanner } from '../components/AppDownload'
 import { FormEvent, lazy, ReactNode, Suspense, PointerEvent as RPointerEvent, TouchEvent as RTouchEvent, WheelEvent as RWheelEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
-import { Counter, DEFAULT_PASSPORT_RATE, Order, OrderFile, OrderStatus, plansReady, QrLink, qrCodeUrl, Rates, Shop, shopIsPro, shopUrl, supabase } from '../lib/supabase'
+import { Counter, DEFAULT_PASSPORT_RATE, Order, OrderFile, OrderStatus, plansReady, PRO_COUNTER_LIMIT, QrLink, qrCodeUrl, Rates, Shop, shopIsPlus, shopIsPro, shopUrl, supabase } from '../lib/supabase'
+import AdSlot from '../components/AdSlot'
 import { useSession } from '../lib/useSession'
 import { rupees } from '../lib/pricing'
 import { ding, unlockAudio } from '../lib/sound'
@@ -15,7 +16,7 @@ import { pushStatus, removePush, setupPush } from '../lib/push'
 import { LangToggle, LogoMark, TopBar, Wordmark } from '../components/TopBar'
 import { ThemePref, useTheme } from '../lib/theme'
 import Icon from '../components/Icon'
-import { Period, PLAN_PRICES, startUpgrade, callFn } from '../lib/billing'
+import { Period, startUpgrade, callFn, Tier, TIER_PRICES, yearlyOff } from '../lib/billing'
 
 type Tab = 'orders' | 'rates' | 'qr' | 'edit' | 'report' | 'settings' | 'plan'
 
@@ -570,7 +571,11 @@ export default function Dashboard() {
   // Before the v3 database update there are no plans: no ads, no locks (old behaviour).
   const ready = plansReady(shop)
   const pro = shopIsPro(shop)
+  const plus = shopIsPlus(shop)
   const free = ready && !pro
+  const planLabel = plus ? t('planPlus') : pro ? t('planPro') : t('planFree')
+  // New counters allowed: Free = admin setting, Pro = 2, Plus = no limit.
+  const counterLimit = free ? freeLimit : ready && !plus ? PRO_COUNTER_LIMIT : Infinity
   // Free shops can use only the first freeLimit counters (admin setting; the rest show a lock).
   const usable = free ? counters.slice(0, freeLimit) : counters
   const goPlan = () => setParams({ tab: 'plan' })
@@ -609,7 +614,7 @@ export default function Dashboard() {
             <LangMenu />
             <ThemeMenu />
             <ProfileMenu shop={shop} onSettings={() => go('settings')} onLogout={logout}
-              planChip={ready ? <span className={`plan-chip${pro ? ' is-pro' : ''}`}>{pro ? t('planPro') : t('planFree')}</span> : null} />
+              planChip={ready ? <span className={`plan-chip${pro ? ' is-pro' : ''}`}>{planLabel}</span> : null} />
           </div>
         </div>
       </header>
@@ -621,7 +626,7 @@ export default function Dashboard() {
           <ShopAvatar shop={shop} size={44} />
           <div className="drawer-title">
             <strong>{shop.name}</strong>
-            {ready && <span className={`plan-chip${pro ? ' is-pro' : ''}`}>{pro ? t('planPro') : t('planFree')}</span>}
+            {ready && <span className={`plan-chip${pro ? ' is-pro' : ''}`}>{planLabel}</span>}
           </div>
           <button type="button" className="drawer-close" onClick={() => setMenu(false)} aria-label={t('close')}>
             <Icon name="x" size={24} />
@@ -686,7 +691,8 @@ export default function Dashboard() {
             <strong>{t('blockedTitle')}</strong> {t('blockedBody')}{shop.blocked_reason ? ` ${t('blockedReason', { r: shop.blocked_reason })}` : ''}
           </div>
         )}
-        {tab === 'orders' && <Orders shop={shop} counters={counters} onCount={setActiveCount} />}
+        {tab === 'orders' && <Orders shop={shop} counters={counters} onCount={setActiveCount} canPrint={!ready || pro} />}
+        {ready && !plus && tab === 'orders' && <AdSlot className="dash-ad" />}
         {tab === 'rates' && <RatesTab shop={shop} v2={v2} passportLocked={free} onUpgrade={goPlan} onSaved={setShop} />}
         {tab === 'qr' && (
           <QrTab shop={shop} counters={usable} counterId={params.get('c') || ''} pro={pro} free={free} onUpgrade={goPlan}
@@ -701,7 +707,7 @@ export default function Dashboard() {
         {tab === 'settings' && (
           <>
             <Settings shop={shop} onSaved={setShop} />
-            <CountersCard shop={shop} counters={counters} usable={usable.length} locked={free} v2={v2}
+            <CountersCard shop={shop} counters={counters} usable={usable.length} locked={free} limit={counterLimit} needPlus={pro} v2={v2}
               onChanged={() => loadCounters(shop.id)} onUpgrade={goPlan}
               onShowQr={(c) => setParams({ tab: 'qr', c })} />
             <button type="button" className="btn danger block lg logout-btn" onClick={logout}><Icon name="logout" size={18} /> {t('logout')}</button>
@@ -743,7 +749,7 @@ function matchesCounter(o: Order, filter: string) {
   return o.counter_id === filter
 }
 
-function Orders({ shop, counters, onCount }: { shop: Shop; counters: Counter[]; onCount?: (n: number) => void }) {
+function Orders({ shop, counters, onCount, canPrint = true }: { shop: Shop; counters: Counter[]; onCount?: (n: number) => void; canPrint?: boolean }) {
   const { t, te } = useI18n()
   const [orders, setOrders] = useState<Order[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -764,7 +770,8 @@ function Orders({ shop, counters, onCount }: { shop: Shop; counters: Counter[]; 
   const [err, setErr] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   // Windows app: print straight to a printer
-  const desk = desktopApi()
+  // Direct print from the Windows app is a paid (Pro/Plus) feature.
+  const desk = canPrint ? desktopApi() : null
   const [printers, setPrinters] = useState<DesktopPrinter[]>([])
   const [printer, setPrinterState] = useState(savedPrinter)
   const [printingId, setPrintingId] = useState<string | null>(null)
@@ -1633,19 +1640,22 @@ function Settings({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void })
 
 const MAX_COUNTERS = 20
 
-function CountersCard({ shop, counters, usable, locked, v2, onChanged, onUpgrade, onShowQr }: {
+function CountersCard({ shop, counters, usable, locked, limit, needPlus, v2, onChanged, onUpgrade, onShowQr }: {
   shop: Shop
   counters: Counter[]
   /** How many of `counters` (oldest first) can be used. The rest are locked on the Free plan. */
   usable: number
   /** Free plan: no new counters beyond the free limit. */
   locked: boolean
+  /** How many counters the plan allows adding up to (Free setting, Pro 2, Plus Infinity). */
+  limit: number
+  /** On Pro already: the next step is Plus. */
+  needPlus: boolean
   v2: boolean
   onChanged: () => Promise<void> | void
   onUpgrade: () => void
   onShowQr: (id: string) => void
 }) {
-  const { free_counter_limit: freeLimit } = useAppSettings()
   const { t, te } = useI18n()
   const [names, setNames] = useState<Record<string, string>>({})
   const [newName, setNewName] = useState('')
@@ -1716,9 +1726,9 @@ function CountersCard({ shop, counters, usable, locked, v2, onChanged, onUpgrade
               ))}
             </ul>
           )}
-          {locked && counters.length >= freeLimit ? (
+          {counters.length >= limit ? (
             <div className="upgrade-prompt">
-              <span>🔒 {t('cUpgradePrompt')} <span className="pro-badge">{t('planPro')}</span></span>
+              <span>🔒 {needPlus ? t('cUpgradePlus') : t('cUpgradePrompt')} <span className="pro-badge">{needPlus ? t('planPlus') : t('planPro')}</span></span>
               <button type="button" className="btn primary small" onClick={onUpgrade}>{t('seePlans')}</button>
             </div>
           ) : counters.length < MAX_COUNTERS && (
@@ -1742,7 +1752,8 @@ const ENDED = ['cancelled', 'completed', 'expired']
 
 function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onChanged: () => Promise<void> | void }) {
   const { t, lang } = useI18n()
-  const [busy, setBusy] = useState<Period | 'cancel' | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [period, setPeriod] = useState<Period>('yearly')
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
 
   if (!plansReady(shop)) {
@@ -1755,6 +1766,7 @@ function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onCha
   }
 
   const pro = shopIsPro(shop)
+  const plus = shopIsPlus(shop)
   const ended = ENDED.includes(shop.subscription_status || '')
   const until = shop.plan_expires_at
     ? new Date(shop.plan_expires_at).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -1770,12 +1782,14 @@ function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onCha
     return (e as Error)?.message || t('errGeneric')
   }
 
-  async function upgrade(period: Period) {
-    setBusy(period)
+  async function upgrade(tier: Tier) {
+    // Pro -> Plus: the Pro subscription stops at once and its unused days are not carried over.
+    if (pro && tier === 'plus' && !confirm(t('planUpgradeConfirm'))) return
+    setBusy(tier)
     setMsg(null)
     try {
-      const desc = `PrintQR Pro · ${period === 'yearly' ? t('planYearly') : t('planMonthly')}`
-      const ok = await startUpgrade(period, { email, description: desc })
+      const desc = `PrintQR ${tier === 'plus' ? 'Plus' : 'Pro'} · ${period === 'yearly' ? t('planYearly') : t('planMonthly')}`
+      const ok = await startUpgrade(period, { email, description: desc }, tier)
       if (ok) {
         setMsg({ text: t('planActivated'), error: false })
         await onChanged()
@@ -1802,10 +1816,13 @@ function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onCha
     }
   }
 
-  const options: { p: Period; label: string; per: string; save?: boolean }[] = [
-    { p: 'monthly', label: t('planMonthly'), per: t('perMonth') },
-    { p: 'yearly', label: t('planYearly'), per: t('perYear'), save: true }
+  const per = period === 'yearly' ? t('perYear') : t('perMonth')
+  const cards: { tier: Tier; feats: Key[] }[] = [
+    { tier: 'pro', feats: ['planFeatDynQr', 'planFeatNoAdsCust', 'planFeatPassport', 'planFeatCounters2', 'planFeatDirectPrint'] },
+    { tier: 'plus', feats: ['planFeatAllPro', 'planFeatNoAdsAll', 'planFeatCounters'] }
   ]
+  // Free: both plans. Pro: only the upgrade to Plus. Plus: nothing to buy.
+  const shown = cards.filter((c) => (!pro ? true : !plus && c.tier === 'plus'))
 
   return (
     <section>
@@ -1813,7 +1830,7 @@ function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onCha
         <div className="plan-current-top">
           <div>
             <div className="small muted">{t('planTitle')}</div>
-            <h2 className="plan-name">{pro ? t('planPro') : t('planFree')} {pro && <span className="pro-badge">{periodText}</span>}</h2>
+            <h2 className="plan-name">{plus ? t('planPlus') : pro ? t('planPro') : t('planFree')} {pro && <span className="pro-badge">{periodText}</span>}</h2>
           </div>
           <span className="plan-icon" aria-hidden="true"><Icon name={pro ? 'star' : 'store'} size={26} /></span>
         </div>
@@ -1828,29 +1845,42 @@ function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onCha
         )}
       </div>
 
-      {!pro && (
-        <div className="plan-grid">
-          {options.map((o) => (
-            <div key={o.p} className={`card plan-card${o.save ? ' best' : ''}`}>
-              {o.save && <span className="plan-save">{t('oneMonthFree')}</span>}
-              <div className="small muted plan-period">{o.label}</div>
-              <div className="plan-price">₹{PLAN_PRICES[o.p]}<span>{o.per}</span></div>
-              <ul className="plan-feats">
-                <li><Icon name="check" size={16} stroke={3} /> {t('planFeatNoAds')}</li>
-                <li><Icon name="check" size={16} stroke={3} /> {t('planFeatCounters')}</li>
-                <li><Icon name="check" size={16} stroke={3} /> {t('planFeatPassport')}</li>
-              </ul>
-              <button type="button" className={`btn block lg${o.save ? ' primary' : ''}`} disabled={busy !== null}
-                onClick={() => void upgrade(o.p)}>
-                {busy === o.p ? t('pleaseWait') : `${t('planGetPro')} · ₹${PLAN_PRICES[o.p]}${o.per}`}
+      {shown.length > 0 && (
+        <>
+          <div className="seg plan-period-toggle" role="group" aria-label={t('planTitle')}>
+            {(['monthly', 'yearly'] as Period[]).map((p) => (
+              <button key={p} type="button" className={period === p ? 'on' : ''} aria-pressed={period === p}
+                onClick={() => setPeriod(p)}>
+                {p === 'yearly' ? t('planYearly') : t('planMonthly')}
               </button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          <div className="plan-grid">
+            {shown.map((c) => {
+              const price = TIER_PRICES[c.tier][period]
+              const name = c.tier === 'plus' ? t('planPlus') : t('planPro')
+              return (
+                <div key={c.tier} className={`card plan-card${c.tier === 'plus' ? ' best' : ''}`}>
+                  {period === 'yearly' && <span className="plan-save">{t('planOff', { n: yearlyOff(c.tier) })}</span>}
+                  <div className="small muted plan-period">{name}</div>
+                  <div className="plan-price">₹{price}<span>{per}</span></div>
+                  {period === 'yearly' && <div className="small muted plan-was"><s>₹{TIER_PRICES[c.tier].monthly * 12}</s> · ₹{TIER_PRICES[c.tier].monthly}{t('perMonth')}</div>}
+                  <ul className="plan-feats">
+                    {c.feats.map((f) => <li key={f}><Icon name="check" size={16} stroke={3} /> {t(f)}</li>)}
+                  </ul>
+                  <button type="button" className={`btn block lg${c.tier === 'plus' ? ' primary' : ''}`} disabled={busy !== null}
+                    onClick={() => void upgrade(c.tier)}>
+                    {busy === c.tier ? t('pleaseWait') : `${pro ? t('planUpgradePlus') : c.tier === 'plus' ? t('planGetPlus') : t('planGetPro')} · ₹${price}${per}`}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </>
       )}
 
       {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
-      {!pro && <p className="small muted">{t('planPayNote')}</p>}
+      {shown.length > 0 && <p className="small muted">{t('planPayNote')}</p>}
 
       {pro && !ended && shop.razorpay_subscription_id && (
         <button type="button" className="btn danger-outline" disabled={busy !== null} onClick={() => void cancel()}>

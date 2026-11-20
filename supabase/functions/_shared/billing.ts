@@ -2,11 +2,22 @@
 // Env: RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, (webhook) RAZORPAY_WEBHOOK_SECRET,
 //      SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (auto-provided by the Edge Runtime).
 
-export const PRICES = {
-  monthly: { amount: 4900, total_count: 120, label: 'PrintQR Pro – monthly' },
-  yearly: { amount: 53900, total_count: 10, label: 'PrintQR Pro – yearly' }
-} as const
-export type Period = keyof typeof PRICES
+export type Period = 'monthly' | 'yearly'
+export type Tier = 'pro' | 'plus'
+type Price = { amount: number; total_count: number; label: string; description: string }
+
+export const PLANS: Record<Tier, Record<Period, Price>> = {
+  pro: {
+    monthly: { amount: 4900, total_count: 120, label: 'PrintQR Pro – monthly', description: 'Dynamic QR, no ads for customers, passport photo sheet' },
+    yearly: { amount: 53900, total_count: 10, label: 'PrintQR Pro – yearly', description: 'Dynamic QR, no ads for customers, passport photo sheet' }
+  },
+  plus: {
+    monthly: { amount: 9900, total_count: 120, label: 'PrintQR Plus – monthly', description: 'Everything in Pro, no ads anywhere, unlimited counters' },
+    yearly: { amount: 99900, total_count: 10, label: 'PrintQR Plus – yearly', description: 'Everything in Pro, no ads anywhere, unlimited counters' }
+  }
+}
+/** Old name, Pro prices. */
+export const PRICES = PLANS.pro
 
 /** Extra days of Pro after the paid cycle ends, so a late renewal does not drop features. */
 export const GRACE_DAYS = 2
@@ -85,7 +96,7 @@ export async function updateShop(id: string, patch: Partial<ShopRow>): Promise<v
 }
 
 export function isPro(s: ShopRow): boolean {
-  return s.plan === 'pro' && !!s.plan_expires_at && new Date(s.plan_expires_at).getTime() > Date.now()
+  return (s.plan === 'pro' || s.plan === 'plus') && !!s.plan_expires_at && new Date(s.plan_expires_at).getTime() > Date.now()
 }
 
 /** The logged-in owner's shop, from the caller's JWT. */
@@ -153,17 +164,17 @@ export function subNotes(s: Subscription): Record<string, string> {
   return s.notes && !Array.isArray(s.notes) ? (s.notes as Record<string, string>) : {}
 }
 
-/** Razorpay plan id for this period (created once, then cached in public.billing_plans). */
-export async function planId(period: Period): Promise<string> {
-  const p = PRICES[period]
+/** Razorpay plan id for this tier + period (created once, then cached in public.billing_plans by amount). */
+export async function planId(period: Period, tier: Tier = 'pro'): Promise<string> {
+  const p = PLANS[tier][period]
   const q = `billing_plans?period=eq.${period}&amount=eq.${p.amount}&select=razorpay_plan_id`
   const cached = await db<{ razorpay_plan_id: string }[]>(q)
   if (cached[0]) return cached[0].razorpay_plan_id
   const plan = await rzp<{ id: string }>('plans', 'POST', {
     period,
     interval: 1,
-    item: { name: p.label, amount: p.amount, currency: 'INR', description: 'No ads, unlimited counters, passport photo sheet' },
-    notes: { app: 'printqr', period }
+    item: { name: p.label, amount: p.amount, currency: 'INR', description: p.description },
+    notes: { app: 'printqr', period, tier }
   })
   await db('billing_plans?on_conflict=period,amount', {
     method: 'POST',
@@ -183,6 +194,15 @@ export async function periodOf(s: Subscription): Promise<Period | null> {
   return rows[0]?.period || null
 }
 
+/** Which tier a subscription is for (notes first, then the plan's amount). Old subscriptions are Pro. */
+export async function tierOf(s: Subscription): Promise<Tier> {
+  const n = subNotes(s).tier
+  if (n === 'pro' || n === 'plus') return n
+  const rows = await db<{ amount: number }[]>(`billing_plans?razorpay_plan_id=eq.${encodeURIComponent(s.plan_id)}&select=amount`)
+  const a = rows[0]?.amount
+  return a === PLANS.plus.monthly.amount || a === PLANS.plus.yearly.amount ? 'plus' : 'pro'
+}
+
 function addDays(d: Date, days: number): Date {
   return new Date(d.getTime() + days * 86400 * 1000)
 }
@@ -199,19 +219,30 @@ export async function activate(s: Subscription, expectShopId?: string): Promise<
   const shop = await getShopById(shopId)
   if (!shop) throw new HttpError(404, 'no_shop', 'Shop not found')
   const period = (await periodOf(s)) || (shop.plan_period as Period | null) || 'monthly'
+  const tier = await tierOf(s)
+  // A late event from the old Pro subscription must not pull an upgraded Plus shop back down.
+  if (tier === 'pro' && shop.plan === 'plus' && isPro(shop) && shop.razorpay_subscription_id && shop.razorpay_subscription_id !== s.id) {
+    return shop
+  }
   const end = s.current_end
     ? addDays(new Date(s.current_end * 1000), GRACE_DAYS)
     : addDays(period === 'yearly' ? addDays(new Date(), 365) : addDays(new Date(), 31), GRACE_DAYS)
   const prev = shop.plan_expires_at ? new Date(shop.plan_expires_at) : null
-  const expires = prev && prev > end ? prev : end
+  // Same tier: never move expiry backwards. Tier change (Pro -> Plus): the new subscription's cycle decides.
+  const expires = shop.plan === tier && prev && prev > end ? prev : end
+  const oldSub = shop.razorpay_subscription_id && shop.razorpay_subscription_id !== s.id ? shop.razorpay_subscription_id : null
   const patch: Partial<ShopRow> = {
-    plan: 'pro',
+    plan: tier,
     plan_period: period,
     plan_expires_at: expires.toISOString(),
     razorpay_subscription_id: s.id,
     subscription_status: s.status
   }
   await updateShop(shop.id, patch)
+  // Upgraded from another subscription (Pro -> Plus): stop billing the old one now.
+  if (oldSub) {
+    await rzp(`subscriptions/${encodeURIComponent(oldSub)}/cancel`, 'POST', { cancel_at_cycle_end: 0 }).catch((e) => console.warn('old sub cancel', e))
+  }
   return { ...shop, ...patch }
 }
 
