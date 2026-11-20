@@ -1333,3 +1333,4 @@ html.in-app input, html.in-app textarea, html.in-app select, html.in-app [conten
 @media (prefers-reduced-motion: reduce) { .watcher * { animation: none !important; } }
 [data-theme="dark"] .watcher .w-wall { fill: #17221b; stroke: #2c3d22; }
 .tracker .dot .dot-wait { width: 17px; height: 24px; display: block; }
+.ready-anim { display: block; width: 160px; max-width: 60%; height: auto; margin: 14px auto 4px; }

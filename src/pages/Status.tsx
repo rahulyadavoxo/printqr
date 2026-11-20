@@ -6,6 +6,7 @@ import { Key, useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
 import Icon from '../components/Icon'
 import hourglass from '../assets/hourglass.svg'
+import readyAnim from '../assets/ready-collect.svg'
 
 type Info = { token: number; status: OrderStatus; total: number; created_at: string; shop_name: string; upi_id: string | null; file_count: number }
 
@@ -20,8 +21,7 @@ const LABEL: Record<OrderStatus, Key> = {
 
 const STEPS: { s: OrderStatus; label: Key }[] = [
   { s: 'received', label: 'step_received' },
-  { s: 'printing', label: 'step_printing' },
-  { s: 'ready', label: 'step_ready' }
+  { s: 'printing', label: 'step_printing' }
 ]
 
 export default function Status() {
@@ -75,7 +75,8 @@ export default function Status() {
     )
   }
 
-  const stepIdx = STEPS.findIndex((x) => x.s === (info.status === 'done' ? 'ready' : info.status))
+  const isReady = info.status === 'ready' || info.status === 'done'
+  const stepIdx = isReady ? -1 : STEPS.findIndex((x) => x.s === info.status)
   const upiLink = info.upi_id
     ? `upi://pay?pa=${encodeURIComponent(info.upi_id)}&pn=${encodeURIComponent(info.shop_name)}&am=${Number(info.total).toFixed(2)}&cu=INR&tn=${encodeURIComponent('Print token ' + info.token)}`
     : null
@@ -92,11 +93,12 @@ export default function Status() {
         <p className="token-label">{t('sYourToken')}</p>
         <div className="token" aria-live="polite">#{info.token}</div>
         <span className={`pill status-pill s-${info.status}`} role="status">{t(LABEL[info.status])}</span>
+        {isReady && <img className="ready-anim" src={readyAnim} alt="" />}
         {stepIdx >= 0 && (
           <ol className="tracker">
             {STEPS.map((x, i) => (
-              <li key={x.s} className={i < stepIdx || info.status === 'done' ? 'done' : i === stepIdx ? 'current' : ''}>
-                <span className="dot">{i < stepIdx || info.status === 'done' ? <Icon name="check" size={16} stroke={3} /> : i === stepIdx ? <img className="dot-wait" src={hourglass} alt="" /> : i + 1}</span>
+              <li key={x.s} className={i < stepIdx ? 'done' : i === stepIdx ? 'current' : ''}>
+                <span className="dot">{i < stepIdx ? <Icon name="check" size={16} stroke={3} /> : i === stepIdx ? <img className="dot-wait" src={hourglass} alt="" /> : i + 1}</span>
                 <span className="lbl">{t(x.label)}</span>
               </li>
             ))}
