@@ -1,0 +1,96 @@
+name: Run Supabase SQL migrations
+
+# Runs SQL files from supabase/migrations on the live database via the Supabase Management API.
+# - On push to main: runs every migration file added or changed in that push, in version order (v2, v3, ... v20, v21).
+# - Manually (Actions -> Run Supabase SQL migrations -> Run workflow): give file names, or "all".
+# Every migration file must be safe to run more than once.
+# Logs are public (public repo): only OK / error is printed, never query results.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**.sql'
+  workflow_dispatch:
+    inputs:
+      files:
+        description: 'Space-separated file names from supabase/migrations (e.g. 2026-11-20-v20-admin-grants.sql), or "all"'
+        required: true
+        default: 'all'
+
+concurrency:
+  group: supabase-migrations
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: asqgdgzxkdksoikmffmd
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check token
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::Add the SUPABASE_ACCESS_TOKEN repository secret (Supabase -> Account -> Access Tokens)."
+            exit 1
+          fi
+
+      - name: Pick files
+        id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_FILES: ${{ github.event.inputs.files }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          cd supabase/migrations
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            if [ "$INPUT_FILES" = "all" ]; then
+              list=$(ls *.sql)
+            else
+              list="$INPUT_FILES"
+            fi
+          else
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
+              list=$(git diff-tree --no-commit-id --name-only --diff-filter=AM -r "$AFTER" -- . | xargs -r -n1 basename)
+            else
+              list=$(git diff --name-only --diff-filter=AM "$BEFORE" "$AFTER" -- . | xargs -r -n1 basename)
+            fi
+          fi
+          # sort by the vN version number in the file name
+          sorted=$(for f in $list; do
+            [ -f "$f" ] || { echo "::error::No such migration: $f" >&2; exit 1; }
+            n=$(echo "$f" | grep -oE -- '-v[0-9]+' | head -1 | tr -dc '0-9'); echo "${n:-0} $f"
+          done | sort -n | awk '{print $2}' | xargs)
+          echo "Will run: ${sorted:-nothing}"
+          echo "files=$sorted" >> "$GITHUB_OUTPUT"
+
+      - name: Run migrations
+        if: steps.pick.outputs.files != ''
+        env:
+          FILES: ${{ steps.pick.outputs.files }}
+        run: |
+          set -uo pipefail
+          cd supabase/migrations
+          for f in $FILES; do
+            body=$(jq -Rs '{query: .}' < "$f")
+            code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' -X POST \
+              "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
+              -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "$body")
+            if [ "$code" -ge 200 ] && [ "$code" -lt 300 ]; then
+              echo "OK   $f"
+            else
+              # print only the error message, never result rows
+              msg=$(jq -r '.message // .error // "unknown error"' /tmp/resp.json 2>/dev/null | head -c 500)
+              echo "::error::FAIL $f (HTTP $code): $msg"
+              exit 1
+            fi
+          done

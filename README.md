@@ -72,6 +72,9 @@ SQL Editor mein `supabase/migrations/2026-11-18-v5-dynamic-qr.sql` paste karke *
 Limits server pe bhi lagte hain (counter trigger, `create_order`, `get_shop_public.is_pro`). Owner plan columns khud update nahi kar sakta.
 
 ### 1f. Baaki database updates (v6 se v18)
+
+**Ab apne aap:** `supabase/migrations/` mein nayi ya badli hui `.sql` file `main` pe push hote hi workflow **"Run Supabase SQL migrations"** use live DB pe chala deta hai (version order mein, wahi `SUPABASE_ACCESS_TOKEN` secret). Haath se chalana ho to Actions → is workflow → **Run workflow** → file ka naam ya `all`. Log mein sirf OK/FAIL aata hai. Har nayi migration file dobara chalane pe safe honi chahiye.
+
 `supabase/migrations/` ki files **version number ke order mein** (v6, v7, … v18) SQL Editor mein paste karke **Run** karo. Sab file kitni bhi baar chala sakte ho.
 
 | File | Kya karti hai | Pehle chahiye |
