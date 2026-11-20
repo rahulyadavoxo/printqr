@@ -2,10 +2,12 @@ import { ChangeEvent, DragEvent, ReactElement, useEffect, useMemo, useRef, useSt
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Rates, supabase, UUID_RE } from '../lib/supabase'
 import { countPdfPages, extractPages, pagesToRange } from '../lib/pdf'
-import { rateFor, rupees } from '../lib/pricing'
+import { filePrice, rupees } from '../lib/pricing'
 import { imagesToPdf, PASSPORT_OPTIONS, passportPreview, passportSheetPdf, passportSheets } from '../lib/imagePdf'
 import { useI18n } from '../lib/i18n'
-import { TopBar } from '../components/TopBar'
+import { ShopBrand, TopBar } from '../components/TopBar'
+import { brandStyle } from '../lib/brand'
+import { nextOpening, normHours, timeLabel } from '../lib/hours'
 import AdSlot from '../components/AdSlot'
 import Icon from '../components/Icon'
 import PagePicker from '../components/PagePicker'
@@ -21,6 +23,13 @@ type ShopPublic = {
   upi_id: string | null
   /** From the v3 database update. undefined = older database (no plans: no ads, passport as before). */
   is_pro?: boolean
+  /** v17: Plus branding, plan order size, how long files stay, timings */
+  is_plus?: boolean
+  logo_url?: string | null
+  brand_color?: string | null
+  max_order_mb?: number
+  file_hours?: number
+  hours?: unknown
 }
 
 type Item = {
@@ -34,11 +43,13 @@ type Item = {
   copies: number
   color: boolean
   duplex: boolean
+  binding: boolean
+  lamination: boolean
 }
 
 type Progress = { text: string; pct: number }
 
-type Opts = { copies: number; color: boolean; duplex: boolean }
+type Opts = { copies: number; color: boolean; duplex: boolean; binding: boolean; lamination: boolean }
 
 type Passport = { file: File; photos: number; preview: string }
 
@@ -125,6 +136,31 @@ function SideColor({ o, onChange }: OptProps) {
   )
 }
 
+/** Binding / lamination (v17): shown only when the shop has a rate for them. */
+function Extras({ o, onChange, rates }: OptProps & { rates: Rates }) {
+  const { t } = useI18n()
+  const bind = Number(rates.binding ?? 0) > 0
+  const lam = Number(rates.lamination ?? 0) > 0
+  if (!bind && !lam) return null
+  return (
+    <div className="opt-row extras-row">
+      <span className="opt-label">{t('optExtras')}</span>
+      <div className="seg" role="group" aria-label={t('optExtras')}>
+        {bind && (
+          <button type="button" className={o.binding ? 'on' : ''} aria-pressed={o.binding} onClick={() => onChange({ binding: !o.binding })}>
+            {o.binding && <Icon name="check" size={14} stroke={3} />}{t('optBinding')} +{rupees(Number(rates.binding))}
+          </button>
+        )}
+        {lam && (
+          <button type="button" className={o.lamination ? 'on' : ''} aria-pressed={o.lamination} onClick={() => onChange({ lamination: !o.lamination })}>
+            {o.lamination && <Icon name="check" size={14} stroke={3} />}{t('optLamination')} +{rupees(Number(rates.lamination))}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function FileBadge({ kind }: { kind: Item['kind'] }) {
   const label = kind === 'pdf' ? 'PDF' : kind === 'image' ? 'IMG' : 'DOC'
   return <span className={`file-badge k-${kind}`}>{label}</span>
@@ -136,7 +172,7 @@ export default function Upload() {
   const rawCounter = params.get('c')
   const counterId = rawCounter && UUID_RE.test(rawCounter) ? rawCounter : null
   const nav = useNavigate()
-  const { t, tn, te } = useI18n()
+  const { t, tn, te, lang } = useI18n()
   const [shop, setShop] = useState<ShopPublic | null>(null)
   const [loadErr, setLoadErr] = useState<{ text?: string; notFound?: boolean } | null>(null)
   const [items, setItems] = useState<Item[]>([])
@@ -147,7 +183,7 @@ export default function Upload() {
   const [msg, setMsg] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
   const [combine, setCombine] = useState(true)
-  const [combo, setCombo] = useState<Opts>({ copies: 1, color: true, duplex: false })
+  const [combo, setCombo] = useState<Opts>({ copies: 1, color: true, duplex: false, binding: false, lamination: false })
   const [passport, setPassport] = useState<Passport | null>(null)
   const [counterName, setCounterName] = useState<string | null>(null)
   /** PDFs waiting for the page picker (opens right after upload), first one is shown. */
@@ -161,6 +197,7 @@ export default function Upload() {
       const row = (data as ShopPublic[] | null)?.[0]
       if (!row) return setLoadErr({ notFound: true })
       setShop(row)
+      if (row.is_plus) document.title = row.name
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug])
@@ -173,6 +210,9 @@ export default function Upload() {
     })
   }, [slug, counterId])
 
+  const maxMb = shop?.max_order_mb || 200
+  const maxOrder = maxMb * 1024 * 1024
+
   function update(key: string, patch: Partial<Item>) {
     setItems((list) => list.map((it) => (it.key === key ? { ...it, ...patch } : it)))
   }
@@ -182,11 +222,18 @@ export default function Upload() {
     const room = MAX_FILES - items.length - (passport ? 1 : 0)
     if (files.length > room) setMsg(t('uMaxFiles', { n: MAX_FILES }))
     const added: Item[] = []
+    // Whole order: up to the shop plan's size (50 / 100 / 200 MB, checked again by the server).
+    let bytes = items.reduce((n, it) => n + it.file.size, 0) + (passport?.file.size ?? 0)
     for (const f of files.slice(0, Math.max(0, room))) {
       if (f.size > MAX_SIZE) {
         setMsg(t('uTooBig', { name: f.name }))
         continue
       }
+      if (bytes + f.size > maxOrder) {
+        setMsg(t('uOrderTooBig', { mb: maxMb }))
+        continue
+      }
+      bytes += f.size
       if (!mimeOf(f)) {
         setMsg(t('uBadType', { name: f.name }))
         continue
@@ -201,7 +248,9 @@ export default function Upload() {
         pages: null,
         copies: 1,
         color: kind === 'image',
-        duplex: false
+        duplex: false,
+        binding: false,
+        lamination: false
       })
     }
     setItems((list) => [...list, ...added])
@@ -230,6 +279,7 @@ export default function Upload() {
     if (!f) return
     setMsg(null)
     if (f.size > MAX_SIZE) return setMsg(t('uTooBig', { name: f.name }))
+    if (items.reduce((n, it) => n + it.file.size, 0) + f.size > maxOrder) return setMsg(t('uOrderTooBig', { mb: maxMb }))
     if (!mimeOf(f)?.startsWith('image/')) return setMsg(t('uBadType', { name: f.name }))
     try {
       const preview = await passportPreview(f)
@@ -258,12 +308,12 @@ export default function Upload() {
       .filter((it) => !(combineOn && it.kind === 'image'))
       .map((it) => {
         const pages = it.kind === 'pdf' ? (it.pages ? it.pages.length : it.totalPages) : it.totalPages
-        const price = pages ? pages * it.copies * rateFor(shop.rates, it.color, it.duplex) : 0
+        const price = pages ? filePrice(shop.rates, pages, it.copies, it.color, it.duplex, it.binding, it.lamination) : 0
         return { it, pages, price }
       })
   }, [items, shop, combineOn])
 
-  const comboPrice = shop && combineOn ? images.length * combo.copies * rateFor(shop.rates, combo.color, combo.duplex) : 0
+  const comboPrice = shop && combineOn ? filePrice(shop.rates, images.length, combo.copies, combo.color, combo.duplex, combo.binding, combo.lamination) : 0
   const sheets = passport ? passportSheets(passport.photos) : 0
   const passportPrice = passport ? sheets * Number(passportRate ?? 0) : 0
   const total = priced.reduce((s, p) => s + p.price, 0) + comboPrice + passportPrice
@@ -300,7 +350,9 @@ export default function Upload() {
             pages_to_print: pages,
             copies: it.copies,
             color: it.color,
-            duplex: it.duplex
+            duplex: it.duplex,
+            binding: it.binding,
+            lamination: it.lamination
           },
           blob,
           contentType: mimeOf(it.file) || 'application/pdf'
@@ -330,7 +382,9 @@ export default function Upload() {
               pages_to_print: images.length,
               copies: combo.copies,
               color: combo.color,
-              duplex: combo.duplex
+              duplex: combo.duplex,
+              binding: combo.binding,
+              lamination: combo.lamination
             },
             blob: pdf,
             contentType: 'application/pdf'
@@ -358,6 +412,7 @@ export default function Upload() {
         })
       }
       setProgress(null)
+      if (uploads.reduce((n, u) => n + u.blob.size, 0) > maxOrder) throw new Error(t('uOrderTooBig', { mb: maxMb }))
 
       const args = { p_slug: slug, p_customer_name: name, p_note: note, p_files: uploads.map((u) => u.payload) }
       // No CAPTCHA on orders (owner's choice, 2026-11-18). v7 IP + per-shop rate limits still apply.
@@ -397,9 +452,11 @@ export default function Upload() {
     }
   }
 
+  // Plus shops: their own logo/name instead of the PrintQR wordmark, and their colour.
+  const own = shop?.is_plus ? brandStyle(shop.brand_color) : undefined
   const shell = (body: ReactElement, extraClass = '') => (
-    <div className={`app-page ${extraClass}`}>
-      <TopBar to={null} />
+    <div className={`app-page ${extraClass}${own ? ' branded' : ''}`} style={own}>
+      <TopBar to={null} brand={shop?.is_plus ? <ShopBrand name={shop.name} logo={shop.logo_url} /> : undefined} />
       <main className="page narrow">{body}</main>
     </div>
   )
@@ -422,6 +479,8 @@ export default function Upload() {
     )
   }
 
+  const opening = !shop.is_open ? nextOpening(shop.hours ? normHours(shop.hours) : null) : null
+  const dayName = (d: number) => new Date(2024, 0, 7 + d).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { weekday: 'long' })
   const hasItems = items.length > 0 || passport !== null
   const roomLeft = MAX_FILES - items.length - (passport ? 1 : 0)
   const flowAt = !hasItems ? 0 : busy ? 2 : 1
@@ -433,7 +492,9 @@ export default function Upload() {
     <>
       <header className="shop-head card">
         <div className="shop-head-row">
-          <div className="shop-avatar" aria-hidden="true">{shop.name.trim().charAt(0).toUpperCase() || 'P'}</div>
+          {shop.is_plus && shop.logo_url
+            ? <img className="shop-avatar" src={shop.logo_url} alt="" aria-hidden="true" width={52} height={52} />
+            : <div className="shop-avatar" aria-hidden="true">{shop.name.trim().charAt(0).toUpperCase() || 'P'}</div>}
           <div className="shop-head-text">
             <h1>{shop.name}</h1>
             {shop.address && <p className="shop-addr"><Icon name="pin" size={15} /> {shop.address}</p>}
@@ -456,6 +517,11 @@ export default function Upload() {
           <span className="state-icon" aria-hidden="true"><Icon name="lock" size={28} /></span>
           <h2>{t('uClosedTitle')}</h2>
           <p className="muted">{t('uClosedBody')}</p>
+          {opening && (
+            <p className="opens-line"><Icon name="clock" size={16} /> {opening.today
+              ? t('uOpensToday', { time: timeLabel(opening.time, lang) })
+              : t('uOpensOn', { day: dayName(opening.dow), time: timeLabel(opening.time, lang) })}</p>
+          )}
         </div>
       ) : (
         <>
@@ -545,6 +611,7 @@ export default function Upload() {
                 <CopiesField o={combo} onChange={(p) => setCombo((c) => ({ ...c, ...p }))} disabled={busy} />
               </div>
               <SideColor o={combo} onChange={(p) => setCombo((c) => ({ ...c, ...p }))} />
+              <Extras o={combo} rates={shop.rates} onChange={(p) => setCombo((c) => ({ ...c, ...p }))} />
               <div className="file-price">
                 <span className="small muted">{t('calcLine', { p: images.length, c: combo.copies })}</span>
                 <strong>{rupees(comboPrice)}</strong>
@@ -588,6 +655,7 @@ export default function Upload() {
               </div>
 
               <SideColor o={it} onChange={(p) => update(it.key, p)} />
+              <Extras o={it} rates={shop.rates} onChange={(p) => update(it.key, p)} />
 
               <div className="file-price">
                 <span className={pages ? 'small muted' : 'small err-text'}>
@@ -655,7 +723,9 @@ export default function Upload() {
                 <span>{t('uNote')} <em className="opt">({t('optional')})</em></span>
                 <input value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} placeholder={t('uNotePh')} />
               </label>
-              <p className="privacy-line"><Icon name="shield" size={18} /> <span>{t('uAutoDelete')}</span></p>
+              <p className="privacy-line"><Icon name="shield" size={18} /> <span>{shop.file_hours
+                ? t('uAutoDeleteH', { time: shop.file_hours % 24 === 0 && shop.file_hours >= 48 ? tn('durD_one', 'durD_other', shop.file_hours / 24) : tn('durH_one', 'durH_other', shop.file_hours) })
+                : t('uAutoDelete')}</span></p>
             </div>
           )}
 

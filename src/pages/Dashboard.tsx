@@ -1,9 +1,12 @@
 import { nativeBridge } from '../lib/app'
 import { AppDownloadBanner } from '../components/AppDownload'
-import { FormEvent, lazy, ReactNode, Suspense, PointerEvent as RPointerEvent, TouchEvent as RTouchEvent, WheelEvent as RWheelEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, PointerEvent as RPointerEvent, TouchEvent as RTouchEvent, WheelEvent as RWheelEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
-import { Counter, DEFAULT_PASSPORT_RATE, Order, OrderFile, OrderStatus, plansReady, PRO_COUNTER_LIMIT, QrLink, qrCodeUrl, Rates, Shop, shopIsPlus, shopIsPro, shopUrl, supabase } from '../lib/supabase'
+import { Counter, DEFAULT_PASSPORT_RATE, Order, OrderFile, OrderStatus, plansReady, PRO_COUNTER_LIMIT, QrDesign, QrLink, qrCodeUrl, Rates, Shop, shopIsPlus, shopIsPro, shopUrl, supabase } from '../lib/supabase'
+import { autoPrintOn, fileHours, FILE_HOURS, HISTORY_DAYS, PlanTier, setAutoPrint, shopTier, tierFor } from '../lib/plans'
+import { BRAND_SWATCHES, inkOn, validHex } from '../lib/brand'
+import { DAY_ORDER, normHours, ShopHours } from '../lib/hours'
 import AdSlot from '../components/AdSlot'
 import { useSession } from '../lib/useSession'
 import { rupees } from '../lib/pricing'
@@ -368,7 +371,7 @@ function LangMenu() {
 
 /** Shop photo in the top-right corner; its menu holds open/closed, language, settings and log out. */
 function ProfileMenu({ shop, planChip, onSettings, onLogout }: {
-  shop: Shop; planChip: ReactNode; onSettings: () => void; onLogout: () => void
+  shop: Shop; planChip: ReactNode; onSettings?: () => void; onLogout: () => void
 }) {
   const { t } = useI18n()
   const p = usePopover()
@@ -383,7 +386,7 @@ function ProfileMenu({ shop, planChip, onSettings, onLogout }: {
             <ShopAvatar shop={shop} size={40} />
             <div><strong>{shop.name}</strong>{planChip}</div>
           </div>
-          <button type="button" onClick={() => { p.setOpen(false); onSettings() }}><Icon name="settings" size={16} /> <span>{t('tabSettings')}</span></button>
+          {onSettings && <button type="button" onClick={() => { p.setOpen(false); onSettings() }}><Icon name="settings" size={16} /> <span>{t('tabSettings')}</span></button>}
           <button type="button" className="danger-item" onClick={onLogout}><Icon name="logout" size={16} /> <span>{t('logout')}</span></button>
         </div>
       )}
@@ -453,7 +456,7 @@ export default function Dashboard() {
   }, [menu])
   const nav = useNavigate()
   const [params, setParams] = useSearchParams()
-  const tab = (params.get('tab') as Tab) || 'orders'
+  const tabParam = (params.get('tab') as Tab) || 'orders'
   const [shop, setShop] = useState<Shop | null>(null)
   // Android app: new-order push notifications for this phone
   useEffect(() => { if (shop?.id) setupPush() }, [shop?.id])
@@ -494,8 +497,14 @@ export default function Dashboard() {
       setLoadErr(true)
       return
     }
-    if (!data) nav('/setup', { replace: true })
-    else {
+    if (!data) {
+      // No shop of its own: maybe this login is staff at a Plus shop (v17).
+      const st = await supabase.rpc('my_staff_shop').then((r) => r, () => ({ data: null, error: true }))
+      if (!st.error && st.data && typeof st.data === 'object') {
+        setShop(st.data as Shop)
+        if ((st.data as Shop).staff_active) void loadCounters((st.data as Shop).id)
+      } else nav('/setup', { replace: true })
+    } else {
       setShop(data as Shop)
       void loadCounters((data as Shop).id)
     }
@@ -568,6 +577,24 @@ export default function Dashboard() {
     )
   }
 
+  // Staff login (Plus, v17): Orders only. No billing, settings, rates, QR or admin.
+  const staff = !!shop.staff
+  const tab: Tab = staff ? 'orders' : tabParam
+  if (staff && !shop.staff_active) {
+    return (
+      <div className="app-page">
+        <TopBar to={null} wide />
+        <div className="page">
+          <div className="card empty" role="alert">
+            <span className="state-icon" aria-hidden="true"><Icon name="lock" size={28} /></span>
+            <strong>{t('staffPausedTitle', { name: shop.name })}</strong>
+            <p className="muted small">{t('staffPausedSub')}</p>
+            <button type="button" className="btn danger lg" onClick={logout}><Icon name="logout" size={18} /> {t('logout')}</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
   // Before the v3 database update there are no plans: no ads, no locks (old behaviour).
   const ready = plansReady(shop)
   const pro = shopIsPro(shop)
@@ -581,6 +608,7 @@ export default function Dashboard() {
   const goPlan = () => setParams({ tab: 'plan' })
 
   const current = TABS.find((x) => x.id === tab) || TABS[0]
+  const nav_ = staff ? [{ group: 'navShop' as Key, items: ['orders' as Tab] }] : NAV
   const go = (id: Tab) => {
     setMenu(false)
     ;(document.activeElement as HTMLElement | null)?.blur?.()
@@ -610,11 +638,11 @@ export default function Dashboard() {
             <h1>{t(current.label)}</h1>
           </div>
           <div className="bar-actions d-only">
-            {openToggle}
+            {!staff && openToggle}
             <LangMenu />
             <ThemeMenu />
-            <ProfileMenu shop={shop} onSettings={() => go('settings')} onLogout={logout}
-              planChip={ready ? <span className={`plan-chip${pro ? ' is-pro' : ''}`}>{planLabel}</span> : null} />
+            <ProfileMenu shop={shop} onSettings={staff ? undefined : () => go('settings')} onLogout={logout}
+              planChip={staff ? <span className="plan-chip">{t('staffChip')}</span> : ready ? <span className={`plan-chip${pro ? ' is-pro' : ''}`}>{planLabel}</span> : null} />
           </div>
         </div>
       </header>
@@ -626,14 +654,14 @@ export default function Dashboard() {
           <ShopAvatar shop={shop} size={44} />
           <div className="drawer-title">
             <strong>{shop.name}</strong>
-            {ready && <span className={`plan-chip${pro ? ' is-pro' : ''}`}>{planLabel}</span>}
+            {staff ? <span className="plan-chip">{t('staffChip')}</span> : ready && <span className={`plan-chip${pro ? ' is-pro' : ''}`}>{planLabel}</span>}
           </div>
           <button type="button" className="drawer-close" onClick={() => setMenu(false)} aria-label={t('close')}>
             <Icon name="x" size={24} />
           </button>
         </div>
         <nav className="drawer-nav">
-          {NAV.map((g) => (
+          {nav_.map((g) => (
             <div className="drawer-group" key={g.group}>
               <div className="drawer-label">{t(g.group)}</div>
               {g.items.map((id) => {
@@ -649,7 +677,15 @@ export default function Dashboard() {
               })}
             </div>
           ))}
-          {isAdmin && (
+          {staff && (
+            <div className="drawer-group">
+              <button type="button" className="drawer-item" onClick={logout}>
+                <Icon name="logout" size={22} />
+                <span>{t('logout')}</span>
+              </button>
+            </div>
+          )}
+          {isAdmin && !staff && (
             <div className="drawer-group">
               <div className="drawer-label">{t('admTitle')}</div>
               <button type="button" className="drawer-item" onClick={() => { setMenu(false); nav('/admin') }}>
@@ -662,7 +698,7 @@ export default function Dashboard() {
         {/* Phone/tablet only (hidden at >=1024px): the original drawer footer */}
         <div className="drawer-foot m-only">
           <div className="drawer-foot-row">
-            {openToggle}
+            {!staff && openToggle}
             <LangToggle />
           </div>
           <ThemeToggle />
@@ -691,11 +727,11 @@ export default function Dashboard() {
             <strong>{t('blockedTitle')}</strong> {t('blockedBody')}{shop.blocked_reason ? ` ${t('blockedReason', { r: shop.blocked_reason })}` : ''}
           </div>
         )}
-        {tab === 'orders' && <Orders shop={shop} counters={counters} onCount={setActiveCount} />}
-        {ready && !plus && tab === 'orders' && <AdSlot className="dash-ad" />}
+        {tab === 'orders' && <Orders shop={shop} counters={counters} onCount={setActiveCount} autoPrintAllowed={!ready || pro} onUpgrade={staff ? undefined : goPlan} />}
+        {ready && !plus && !staff && tab === 'orders' && <AdSlot className="dash-ad" />}
         {tab === 'rates' && <RatesTab shop={shop} v2={v2} passportLocked={free} onUpgrade={goPlan} onSaved={setShop} />}
         {tab === 'qr' && (
-          <QrTab shop={shop} counters={usable} counterId={params.get('c') || ''} pro={pro} free={free} onUpgrade={goPlan}
+          <QrTab shop={shop} counters={usable} counterId={params.get('c') || ''} pro={pro} free={free} plus={!ready || plus} onUpgrade={goPlan} onSaved={setShop}
             onCounter={(c) => setParams(c ? { tab: 'qr', c } : { tab: 'qr' }, { replace: true })} />
         )}
         {tab === 'edit' && (
@@ -703,10 +739,13 @@ export default function Dashboard() {
             <Editor />
           </Suspense>
         )}
-        {tab === 'report' && <Report shop={shop} />}
+        {tab === 'report' && <Report shop={shop} onUpgrade={goPlan} />}
         {tab === 'settings' && (
           <>
-            <Settings shop={shop} onSaved={setShop} />
+            <Settings shop={shop} onSaved={setShop} onUpgrade={goPlan} />
+            <HoursCard shop={shop} onSaved={setShop} />
+            <BrandCard shop={shop} plus={!ready || plus} onSaved={setShop} onUpgrade={goPlan} />
+            <StaffCard shop={shop} plus={!ready || plus} onUpgrade={goPlan} />
             <CountersCard shop={shop} counters={counters} usable={usable.length} locked={free} limit={counterLimit} needPlus={pro} v2={v2}
               onChanged={() => loadCounters(shop.id)} onUpgrade={goPlan}
               onShowQr={(c) => setParams({ tab: 'qr', c })} />
@@ -749,8 +788,13 @@ function matchesCounter(o: Order, filter: string) {
   return o.counter_id === filter
 }
 
-function Orders({ shop, counters, onCount, canPrint = true }: { shop: Shop; counters: Counter[]; onCount?: (n: number) => void; canPrint?: boolean }) {
-  const { t, te } = useI18n()
+function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = false, onUpgrade }: {
+  shop: Shop; counters: Counter[]; onCount?: (n: number) => void; canPrint?: boolean
+  /** Auto-print new orders (Windows app) is Pro / Plus; manual direct print is free. */
+  autoPrintAllowed?: boolean
+  onUpgrade?: () => void
+}) {
+  const { t, te, lang } = useI18n()
   const [orders, setOrders] = useState<Order[]>([])
   const [loaded, setLoaded] = useState(false)
   const [filter, setFilterState] = useState<string>(() => localStorage.getItem(FILTER_KEY) || 'all')
@@ -769,9 +813,17 @@ function Orders({ shop, counters, onCount, canPrint = true }: { shop: Shop; coun
   const [showDone, setShowDone] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
-  // Windows app: print straight to a printer
-  // Direct print from the Windows app is a paid (Pro/Plus) feature.
+  // Windows app: print straight to a printer (free on every plan).
   const desk = canPrint ? desktopApi() : null
+  // Auto-print (Pro / Plus): new orders go to the printer by themselves. Saved per computer.
+  const [auto, setAutoState] = useState(autoPrintOn)
+  const autoRef = useRef(false)
+  autoRef.current = !!desk && auto && autoPrintAllowed
+  const autoQueue = useRef<Order[]>([])
+  const autoBusy = useRef(false)
+  const autoDone = useRef<Set<string>>(new Set())
+  // load() is created once per shop; it calls the newest runAuto (current printer) through this ref.
+  const runAutoRef = useRef<() => void>(() => {})
   const [printers, setPrinters] = useState<DesktopPrinter[]>([])
   const [printer, setPrinterState] = useState(savedPrinter)
   const [printingId, setPrintingId] = useState<string | null>(null)
@@ -805,6 +857,15 @@ function Orders({ shop, counters, onCount, canPrint = true }: { shop: Shop; coun
       // Ring only for orders this screen shows (counter filter, saved per device)
       const f = filterRef.current
       const fresh = list.filter((o) => o.status === 'received' && !known.current!.has(o.id) && matchesCounter(o, f))
+      if (fresh.length && autoRef.current) {
+        // Oldest first, each order once.
+        for (const o of [...fresh].reverse()) {
+          if (autoDone.current.has(o.id)) continue
+          autoDone.current.add(o.id)
+          autoQueue.current.push(o)
+        }
+        runAutoRef.current()
+      }
       if (fresh.length) {
         ding()
         if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
@@ -875,6 +936,41 @@ function Orders({ shop, counters, onCount, canPrint = true }: { shop: Shop; coun
     return r.ok
   }
 
+  async function runAuto() {
+    if (autoBusy.current) return
+    autoBusy.current = true
+    try {
+      while (autoQueue.current.length && autoRef.current) {
+        const o = autoQueue.current.shift()!
+        const files = (o.order_files || []).filter((f) => canDirectPrint(f.file_name))
+        if (!files.length || o.files_deleted) continue
+        setPrintingId(o.id)
+        let ok = true
+        for (const f of files) {
+          if (!(await printOne(o, f))) { ok = false; break }
+        }
+        setPrintingId(null)
+        if (ok) {
+          setInfo(tRef.current('apSent', { token: o.token }))
+          const { error } = await supabase.from('orders').update({ status: 'printing', updated_at: new Date().toISOString() }).eq('id', o.id).eq('status', 'received')
+          if (!error) setOrders((l) => l.map((x) => (x.id === o.id && x.status === 'received' ? { ...x, status: 'printing' } : x)))
+        }
+      }
+    } finally {
+      autoBusy.current = false
+      setPrintingId(null)
+    }
+  }
+
+  runAutoRef.current = () => void runAuto()
+
+  function toggleAuto() {
+    if (!autoPrintAllowed) return onUpgrade?.()
+    const v = !auto
+    setAutoState(v)
+    setAutoPrint(v)
+  }
+
   async function printDirect(o: Order, files: OrderFile[]) {
     if (!desk || printingId) return
     setErr(null)
@@ -910,6 +1006,7 @@ function Orders({ shop, counters, onCount, canPrint = true }: { shop: Shop; coun
     void load()
   }
 
+  const keepHours = fileHours(shop)
   const shown = orders.filter((o) => matchesCounter(o, activeFilter))
   const active = shown.filter((o) => ['received', 'printing', 'ready'].includes(o.status))
   const finished = shown.filter((o) => ['done', 'cancelled'].includes(o.status))
@@ -927,6 +1024,21 @@ function Orders({ shop, counters, onCount, canPrint = true }: { shop: Shop; coun
             <option value="">{t('dpDefaultPrinter')}{(() => { const d = printers.find((p) => p.isDefault); return d ? ` (${d.displayName})` : '' })()}</option>
             {printers.map((p) => <option key={p.name} value={p.name}>{p.displayName}</option>)}
           </select>
+        </div>
+      )}
+      {desk && (
+        <div className={`card auto-print${autoPrintAllowed ? '' : ' is-locked'}`}>
+          <div className="auto-print-text">
+            <strong>{autoPrintAllowed ? '' : '🔒 '}{t('apTitle')} {!autoPrintAllowed && <span className="pro-badge">{t('planPro')}</span>}</strong>
+            <span className="small muted">{autoPrintAllowed ? t('apSub') : t('apLocked')}</span>
+          </div>
+          {autoPrintAllowed ? (
+            <button type="button" role="switch" aria-checked={auto} className={`switch${auto ? ' on' : ''}`} onClick={toggleAuto} aria-label={t('apTitle')}>
+              <span className="switch-knob" />
+            </button>
+          ) : onUpgrade && (
+            <button type="button" className="btn small primary" onClick={onUpgrade}>{t('seePlans')}</button>
+          )}
         </div>
       )}
       {counters.length > 0 && (
@@ -973,7 +1085,7 @@ function Orders({ shop, counters, onCount, canPrint = true }: { shop: Shop; coun
           ) : (
             <div className="orders-grid">
               {active.map((o) => (
-                <OrderCard key={o.id} o={o} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} printingId={printingId} />
+                <OrderCard key={o.id} o={o} keepHours={keepHours} lang={lang} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} printingId={printingId} />
               ))}
             </div>
           )}
@@ -987,7 +1099,7 @@ function Orders({ shop, counters, onCount, canPrint = true }: { shop: Shop; coun
       {showDone && (
         <div className="orders-grid">
           {finished.map((o) => (
-            <OrderCard key={o.id} o={o} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} printingId={printingId} />
+            <OrderCard key={o.id} o={o} keepHours={keepHours} lang={lang} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} printingId={printingId} />
           ))}
         </div>
       )}
@@ -1037,8 +1149,16 @@ function OrderCard(props: {
   onDelete: (o: Order) => void
   onPrint?: (o: Order, files: OrderFile[]) => void
   printingId?: string | null
+  /** Hours files stay (plan + owner setting): shows when they auto-delete. */
+  keepHours?: number
+  lang?: string
 }) {
-  const { o, onStatus, onOpen, onDownload, onDelete, onPrint, printingId } = props
+  const { o, onStatus, onOpen, onDownload, onDelete, onPrint, printingId, keepHours, lang } = props
+  const expiry = keepHours ? new Date(new Date(o.created_at).getTime() + keepHours * 3600 * 1000) : null
+  const expiryText = expiry
+    ? expiry.toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN', expiry.toDateString() === new Date().toDateString()
+      ? { hour: 'numeric', minute: '2-digit' } : { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+    : ''
   const printable = (o.order_files || []).filter((f) => canDirectPrint(f.file_name))
   const busy = !!printingId
   const { t } = useI18n()
@@ -1075,6 +1195,8 @@ function OrderCard(props: {
               <div className="file-meta">
                 <span className={`mchip${f.color ? ' is-color' : ''}`}>{f.color ? t('color') : t('bw')}</span>
                 <span className="mchip">{f.duplex ? t('bothSides') : t('oneSide')}</span>
+                {f.binding && <span className="mchip is-extra">{t('optBinding')}</span>}
+                {f.lamination && <span className="mchip is-extra">{t('optLamination')}</span>}
                 <span>{t('calcLine', { p: f.pages_to_print, c: f.copies })}{f.page_range ? ` (${f.page_range})` : ''}</span>
                 <b>{rupees(Number(f.price))}</b>
               </div>
@@ -1094,6 +1216,7 @@ function OrderCard(props: {
         ))}
       </ul>
       {o.files_deleted && <p className="small muted files-gone"><Icon name="trash" size={15} /> {t('filesDeleted')}</p>}
+      {!o.files_deleted && expiryText && <p className="small muted files-gone"><Icon name="clock" size={15} /> {t('filesExpireAt', { time: expiryText })}</p>}
       <div className="order-actions">
         {onPrint && !o.files_deleted && printable.length > 1 && ['received', 'printing'].includes(o.status) && (
           <button type="button" className="btn soft" disabled={busy} onClick={() => onPrint(o, printable)}>
@@ -1122,7 +1245,7 @@ function RatesTab({ shop, v2, passportLocked, onUpgrade, onSaved }: {
   onSaved: (s: Shop) => void
 }) {
   const { t, te } = useI18n()
-  const [r, setR] = useState<Rates>({ ...shop.rates, passport_sheet: shop.rates.passport_sheet ?? DEFAULT_PASSPORT_RATE })
+  const [r, setR] = useState<Rates>({ ...shop.rates, passport_sheet: shop.rates.passport_sheet ?? DEFAULT_PASSPORT_RATE, binding: shop.rates.binding ?? 0, lamination: shop.rates.lamination ?? 0 })
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
   const fields: { k: keyof Rates; label: Key; hint: Key }[] = [
     { k: 'bw_single', label: 'rate_bw_single', hint: 'perPage' },
@@ -1140,7 +1263,9 @@ function RatesTab({ shop, v2, passportLocked, onUpgrade, onSaved }: {
       bw_single: Math.max(0, Number(r.bw_single) || 0),
       bw_double: Math.max(0, Number(r.bw_double) || 0),
       color_single: Math.max(0, Number(r.color_single) || 0),
-      color_double: Math.max(0, Number(r.color_double) || 0)
+      color_double: Math.max(0, Number(r.color_double) || 0),
+      binding: Math.max(0, Number(r.binding) || 0),
+      lamination: Math.max(0, Number(r.lamination) || 0)
     }
     if (v2 && !passportLocked) clean.passport_sheet = Math.max(0, Number(r.passport_sheet) || 0)
     const { data, error } = await supabase.from('shops').update({ rates: clean }).eq('id', shop.id).select().single()
@@ -1178,6 +1303,21 @@ function RatesTab({ shop, v2, passportLocked, onUpgrade, onSaved }: {
           </div>
         )}
       </div>
+      <h3 className="sub-title">{t('ratesExtrasTitle')}</h3>
+      <p className="small muted">{t('ratesExtrasSub')}</p>
+      <div className="rates-grid">
+        {([['binding', 'rate_binding', 'perCopy'], ['lamination', 'rate_lamination', 'perLamSheet']] as [keyof Rates, Key, Key][]).map(([k, label, hint]) => (
+          <label className="field" key={k}>
+            <span>{t(label)}</span>
+            <div className="input-affix">
+              <span className="affix">₹</span>
+              <input type="number" step="0.5" min={0} value={r[k] ?? 0} inputMode="decimal"
+                onChange={(e) => setR({ ...r, [k]: e.target.value as unknown as number })} />
+            </div>
+            <small className="hint">{t(hint)}</small>
+          </label>
+        ))}
+      </div>
       {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
       <button className="btn primary block lg">{t('save')}</button>
     </form>
@@ -1186,16 +1326,68 @@ function RatesTab({ shop, v2, passportLocked, onUpgrade, onSaved }: {
 
 /* ------------------------------------------------------------------ */
 
-function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
+type CardPalette = {
+  bg: string; blobs: boolean; ink: string; muted: string; strip: [string, string]
+  tagBg: string; tagInk: string; pillFrom: string; pillTo: string
+  stepBg: string; stepLine: string; stepInk: string; arrow: string; rateBg: string; rateInk: string
+}
+
+/** QR card colours for a template + optional accent colour (Pro / Plus design, v17). */
+function cardPalette(tpl: QrDesign['template'], accent: string | null): CardPalette {
+  if (tpl === 'dark') {
+    const a = accent || '#a6e22e'
+    return { bg: '#0b1210', blobs: false, ink: '#f8fafc', muted: '#94a3b8', strip: [a, a], tagBg: '#1c2a1a', tagInk: a,
+      pillFrom: a, pillTo: a, stepBg: '#141f12', stepLine: a, stepInk: a, arrow: '#64748b', rateBg: a, rateInk: inkOn(a) }
+  }
+  if (tpl === 'minimal') {
+    const a = accent || '#0e1628'
+    return { bg: '#ffffff', blobs: false, ink: '#0f172a', muted: '#64748b', strip: [a, a], tagBg: '#f1f5f9', tagInk: '#334155',
+      pillFrom: a, pillTo: a, stepBg: '#ffffff', stepLine: '#cbd5e1', stepInk: '#0f172a', arrow: '#94a3b8', rateBg: '#f1f5f9', rateInk: '#0f172a' }
+  }
+  if (accent) {
+    return { bg: '#f8fafc', blobs: false, ink: '#0f172a', muted: '#64748b', strip: [accent, accent], tagBg: '#f1f5f9', tagInk: accent,
+      pillFrom: '#0b1210', pillTo: accent, stepBg: '#ffffff', stepLine: accent, stepInk: accent, arrow: '#94a3b8', rateBg: accent, rateInk: inkOn(accent) }
+  }
+  return { bg: '#f8fafc', blobs: true, ink: '#0f172a', muted: '#64748b', strip: ['#a6e22e', '#6fa012'], tagBg: '#ecf8d2', tagInk: '#2b4310',
+    pillFrom: '#0b1210', pillTo: '#2b4310', stepBg: '#f2fbe0', stepLine: '#c9ec8a', stepInk: '#3f6212', arrow: '#94a3b8', rateBg: '#fef3c7', rateInk: '#92400e' }
+}
+
+function QrTab({ shop, counters, counterId, onCounter, pro, free, plus, onUpgrade, onSaved }: {
   shop: Shop
   counters: Counter[]
   counterId: string
   onCounter: (id: string) => void
   pro: boolean
   free: boolean
+  /** Plus: no "Print by Receipto" on the card/poster, the shop photo in the middle of the QR. */
+  plus: boolean
   onUpgrade: () => void
+  onSaved: (s: Shop) => void
 }) {
   const { t, te } = useI18n()
+  // Custom QR card design (Pro / Plus). Free shops keep the standard card.
+  const canDesign = !free
+  const saved = (shop.qr_design || {}) as QrDesign
+  const [design, setDesign] = useState<QrDesign>(saved)
+  const [designMsg, setDesignMsg] = useState<{ text: string; error: boolean } | null>(null)
+  const use = canDesign ? design : {}
+  const tpl = use.template || 'classic'
+  const accent = validHex(use.color) ? use.color : null
+  const pal = cardPalette(tpl, accent)
+  const headline = use.headline?.trim() || t('posterHeadline')
+  const footer = use.footer?.trim() || ''
+  async function saveDesign() {
+    const clean: QrDesign = {
+      template: design.template || 'classic',
+      ...(validHex(design.color) ? { color: design.color } : {}),
+      ...(design.headline?.trim() ? { headline: design.headline.trim().slice(0, 60) } : {}),
+      ...(design.footer?.trim() ? { footer: design.footer.trim().slice(0, 60) } : {})
+    }
+    const { data, error } = await supabase.from('shops').update({ qr_design: clean }).eq('id', shop.id).select().single()
+    if (error) return setDesignMsg({ text: te(error), error: true })
+    onSaved(data as Shop)
+    setDesignMsg({ text: t('saved'), error: false })
+  }
   const counter = counters.find((c) => c.id === counterId) || null
   const counterName = counter?.name || ''
   // Pro: the poster carries a short code (dynamic). Before the v5 update, or on Free, it is the plain shop link.
@@ -1237,11 +1429,18 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
   const [copied, setCopied] = useState(false)
   const [card, setCard] = useState('')
   const [logoEl, setLogoEl] = useState<HTMLImageElement | null>(null)
+  const centerLogo = plus && shop.logo_url ? shop.logo_url : import.meta.env.BASE_URL + 'icon.svg'
   useEffect(() => {
     const im = new Image()
+    im.crossOrigin = 'anonymous'
     im.onload = () => setLogoEl(im)
-    im.src = import.meta.env.BASE_URL + 'icon.svg'
-  }, [])
+    im.onerror = () => {
+      const fb = new Image()
+      fb.onload = () => setLogoEl(fb)
+      fb.src = import.meta.env.BASE_URL + 'icon.svg'
+    }
+    im.src = centerLogo
+  }, [centerLogo])
   useEffect(() => {
     QRCode.toDataURL(url, { width: 900, margin: 1, errorCorrectionLevel: 'M' }).then(setImg)
   }, [url])
@@ -1283,8 +1482,8 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
       }
     }
 
-    // Light background, pastel blobs, thin brand strips
-    g.fillStyle = '#f8fafc'
+    // Background (template), pastel blobs on the classic card, thin brand strips
+    g.fillStyle = pal.bg
     g.fillRect(0, 0, W, H)
     const blob = (x: number, y: number, r: number, col: string) => {
       const rg = g.createRadialGradient(x, y, 0, x, y, r)
@@ -1293,12 +1492,14 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
       g.fillStyle = rg
       g.fillRect(x - r, y - r, r * 2, r * 2)
     }
-    blob(960, 140, 420, 'rgba(217,242,160,0.9)')
-    blob(100, 1380, 460, 'rgba(230,246,198,0.85)')
-    blob(1000, 1200, 260, 'rgba(254,243,199,0.8)')
+    if (pal.blobs) {
+      blob(960, 140, 420, 'rgba(217,242,160,0.9)')
+      blob(100, 1380, 460, 'rgba(230,246,198,0.85)')
+      blob(1000, 1200, 260, 'rgba(254,243,199,0.8)')
+    }
     const strip = g.createLinearGradient(0, 0, W, 0)
-    strip.addColorStop(0, '#a6e22e')
-    strip.addColorStop(1, '#6fa012')
+    strip.addColorStop(0, pal.strip[0])
+    strip.addColorStop(1, pal.strip[1])
     g.fillStyle = strip
     g.fillRect(0, 0, W, 14)
     g.fillRect(0, H - 14, W, 14)
@@ -1307,22 +1508,23 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
     g.textBaseline = 'middle'
 
     // Tag pill
-    const tag = 'Print by Receipto · ' + t('cardTag')
+    // Plus: no PrintQR branding on the card
+    const tag = plus ? t('cardTag') : 'Print by Receipto · ' + t('cardTag')
     g.font = `700 30px ${font}`
     const tw = g.measureText(tag).width + 60
     rr((W - tw) / 2, 60, tw, 60, 30)
-    g.fillStyle = '#ecf8d2'
+    g.fillStyle = pal.tagBg
     g.fill()
-    g.fillStyle = '#2b4310'
+    g.fillStyle = pal.tagInk
     g.fillText(tag, W / 2, 91)
 
     // Shop name + address
     fitText(shop.name, 800, 84, 40, W - 120)
-    g.fillStyle = '#0f172a'
+    g.fillStyle = pal.ink
     g.fillText(shop.name, W / 2, 200)
     if (shop.address) {
       g.font = `500 36px ${font}`
-      g.fillStyle = '#64748b'
+      g.fillStyle = pal.muted
       g.fillText('📍 ' + shop.address, W / 2, 268, W - 140)
     }
 
@@ -1332,12 +1534,12 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
       fitText(label, 800, 40, 26, W - 260)
       const cw = Math.min(g.measureText(label).width + 80, W - 160)
       const grad = g.createLinearGradient((W - cw) / 2, 0, (W + cw) / 2, 0)
-      grad.addColorStop(0, '#0b1210')
-      grad.addColorStop(1, '#2b4310')
+      grad.addColorStop(0, pal.pillFrom)
+      grad.addColorStop(1, pal.pillTo)
       rr((W - cw) / 2, 300, cw, 68, 34)
       g.fillStyle = grad
       g.fill()
-      g.fillStyle = '#ffffff'
+      g.fillStyle = inkOn(pal.pillTo)
       g.fillText(label, W / 2, 335, cw - 50)
     }
 
@@ -1392,7 +1594,11 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
     // Center badge
     const bs = cell * logo, bx = ox + ls * cell, by = oy + ls * cell
     if (logoEl) {
+      g.save()
+      rr(bx + cell * 0.4, by + cell * 0.4, bs - cell * 0.8, bs - cell * 0.8, cell * 1.6)
+      g.clip()
       g.drawImage(logoEl, bx + cell * 0.4, by + cell * 0.4, bs - cell * 0.8, bs - cell * 0.8)
+      g.restore()
     } else {
       rr(bx + cell * 0.4, by + cell * 0.4, bs - cell * 0.8, bs - cell * 0.8, cell * 1.6)
       g.fillStyle = '#0b1210'
@@ -1401,9 +1607,9 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
 
     // Headline
     let y = cy + cardS + 90
-    g.fillStyle = '#0f172a'
-    fitText(t('posterHeadline'), 800, 52, 30, W - 100)
-    g.fillText(t('posterHeadline'), W / 2, y)
+    g.fillStyle = pal.ink
+    fitText(headline, 800, 52, 30, W - 100)
+    g.fillText(headline, W / 2, y)
 
     // Steps row
     y += 100
@@ -1414,15 +1620,15 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
     let x = (W - (widths.reduce((a, b) => a + b, 0) + gap * (steps.length - 1))) / 2
     steps.forEach((s, i) => {
       rr(x, y - 36, widths[i], 72, 36)
-      g.fillStyle = '#f2fbe0'
+      g.fillStyle = pal.stepBg
       g.fill()
-      g.strokeStyle = '#c9ec8a'
+      g.strokeStyle = pal.stepLine
       g.lineWidth = 2
       g.stroke()
-      g.fillStyle = '#3f6212'
+      g.fillStyle = pal.stepInk
       g.fillText(s, x + widths[i] / 2, y + 1)
       if (i < steps.length - 1) {
-        g.fillStyle = '#94a3b8'
+        g.fillStyle = pal.arrow
         g.fillText('›', x + widths[i] + gap / 2, y)
       }
       x += widths[i] + gap
@@ -1434,13 +1640,24 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
     g.font = `700 34px ${font}`
     const rw = Math.min(g.measureText(rates).width + 70, W - 80)
     rr((W - rw) / 2, y - 40, rw, 80, 40)
-    g.fillStyle = '#fef3c7'
+    g.fillStyle = pal.rateBg
     g.fill()
-    g.fillStyle = '#92400e'
+    g.fillStyle = pal.rateInk
     g.fillText(rates, W / 2, y + 1, W - 130)
 
-    setCard(c.toDataURL('image/png'))
-  }, [url, counterName, shop.name, shop.address, shop.rates.bw_single, shop.rates.color_single, t, logoEl])
+    // Own footer line (Pro / Plus), e.g. timings or a phone number
+    if (footer) {
+      g.font = `600 30px ${font}`
+      g.fillStyle = pal.muted
+      g.fillText(footer, W / 2, H - 60, W - 120)
+    }
+
+    try {
+      setCard(c.toDataURL('image/png'))
+    } catch {
+      setCard('') // a logo from another site without CORS taints the canvas
+    }
+  }, [url, counterName, shop.name, shop.address, shop.rates.bw_single, shop.rates.color_single, t, logoEl, plus, headline, footer, tpl, accent]) // eslint-disable-line react-hooks/exhaustive-deps
   function copy() {
     void navigator.clipboard?.writeText(url).then(() => {
       setCopied(true)
@@ -1491,6 +1708,50 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
             <button type="button" className="link small" onClick={onUpgrade}>{t('seePlans')}</button>
           </p>
         )}
+        <div className={`qr-design${canDesign ? '' : ' is-locked'}`}>
+          <div className="dyn-head">
+            <strong>{canDesign ? '' : '🔒 '}{t('qdTitle')} <span className="pro-badge">{t('planPro')}</span></strong>
+          </div>
+          <p className="small muted">{canDesign ? t('qdSub') : t('qdLocked')}</p>
+          <fieldset disabled={!canDesign} className="qd-fields">
+            <div className="field">
+              <span>{t('qdTemplate')}</span>
+              <div className="seg" role="group" aria-label={t('qdTemplate')}>
+                {(['classic', 'dark', 'minimal'] as const).map((x) => (
+                  <button key={x} type="button" className={(design.template || 'classic') === x ? 'on' : ''} aria-pressed={(design.template || 'classic') === x}
+                    onClick={() => setDesign({ ...design, template: x })}>{t(x === 'classic' ? 'qdClassic' : x === 'dark' ? 'qdDark' : 'qdMinimal')}</button>
+                ))}
+              </div>
+            </div>
+            <div className="field">
+              <span>{t('qdColor')}</span>
+              <div className="swatches" role="group" aria-label={t('qdColor')}>
+                <button type="button" className={`swatch-btn sw-default${!design.color ? ' on' : ''}`} aria-pressed={!design.color} title={t('qdDefault')}
+                  onClick={() => setDesign({ ...design, color: undefined })}>A</button>
+                {BRAND_SWATCHES.map((c) => (
+                  <button key={c} type="button" className={`swatch-btn${design.color === c ? ' on' : ''}`} style={{ background: c }} aria-pressed={design.color === c}
+                    aria-label={c} onClick={() => setDesign({ ...design, color: c })} />
+                ))}
+              </div>
+            </div>
+            <div className="grid2">
+              <label className="field"><span>{t('qdHeadline')}</span>
+                <input value={design.headline || ''} maxLength={60} placeholder={t('posterHeadline')} onChange={(e) => setDesign({ ...design, headline: e.target.value })} /></label>
+              <label className="field"><span>{t('qdFooter')}</span>
+                <input value={design.footer || ''} maxLength={60} placeholder={t('qdFooterPh')} onChange={(e) => setDesign({ ...design, footer: e.target.value })} /></label>
+            </div>
+          </fieldset>
+          {canDesign ? (
+            <button type="button" className="btn primary small" onClick={() => void saveDesign()}>{t('save')}</button>
+          ) : (
+            <div className="upgrade-prompt">
+              <span>🔒 {t('qdLocked')} <span className="pro-badge">{t('planPro')}</span></span>
+              <button type="button" className="btn primary small" onClick={onUpgrade}>{t('seePlans')}</button>
+            </div>
+          )}
+          {designMsg && <p className={`notice${designMsg.error ? ' error' : ' success'}`}>{designMsg.text}</p>}
+          {canDesign && card && <img className="qr-card-preview" src={card} alt={t('downloadQr')} />}
+        </div>
         <div className="btn-row">
           <button type="button" className="btn primary" onClick={() => window.print()}><Icon name="printer" size={18} /> {t('printPoster')}</button>
           {card && (
@@ -1502,11 +1763,13 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
           <button type="button" className="btn" onClick={copy}><Icon name={copied ? 'check' : 'copy'} size={18} /> {copied ? t('linkCopied') : t('copyLink')}</button>
         </div>
       </div>
-      <div className="poster">
-        <div className="poster-brand"><Wordmark height={34} light /></div>
+      <div className={`poster poster-${tpl}`} style={accent ? ({ '--poster-accent': accent, '--poster-accent-ink': inkOn(accent) } as CSSProperties) : undefined}>
+        <div className="poster-brand">{plus ? <ShopAvatar shop={shop} size={44} /> : tpl === 'dark'
+          ? <img src={import.meta.env.BASE_URL + 'logo-dark.svg'} height={34} width={85} alt="Print by Receipto" style={{ display: 'block' }} />
+          : <Wordmark height={34} light />}</div>
         <div className="poster-top">{shop.name}</div>
         {counterName && <div className="poster-counter">🧾 {counterName}</div>}
-        <h2>{t('posterHeadline')}</h2>
+        <h2>{headline}</h2>
         <div className="poster-qr">{img && dynReady ? <img src={img} alt="Shop QR code" /> : <div className="skel skel-qr" aria-busy="true" />}</div>
         <div className="poster-rates">
           <div><span>{t('bw')}</span><strong>{rupees(shop.rates.bw_single)}</strong><em>{t('perPageShort')}</em></div>
@@ -1518,6 +1781,7 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
           <li><b>3</b><span>{t('posterStep3')}</span></li>
         </ol>
         {shop.phone && <div className="poster-phone">📞 {shop.phone}</div>}
+        {footer && <div className="poster-footer">{footer}</div>}
         <div className="poster-url">{url}</div>
       </div>
     </section>
@@ -1526,8 +1790,19 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, onUpgrade }: {
 
 /* ------------------------------------------------------------------ */
 
-function Report({ shop }: { shop: Shop }) {
-  const { t, tn } = useI18n()
+type HistRow = { id: string; token: number; customer_name: string | null; status: OrderStatus; total: number; created_at: string; counter_name?: string | null }
+const HIST_RANGES: { days: number; label: Key }[] = [
+  { days: 7, label: 'h7d' },
+  { days: 30, label: 'h30d' },
+  { days: 183, label: 'h6m' },
+  { days: 365, label: 'h1y' }
+]
+const HIST_PAGE = 50
+
+function Report({ shop, onUpgrade }: { shop: Shop; onUpgrade: () => void }) {
+  const { t, tn, te, lang } = useI18n()
+  const tier = shopTier(shop)
+  const maxDays = HISTORY_DAYS[tier]
   const [rows, setRows] = useState<{ status: OrderStatus; total: number; created_at: string }[] | null>(null)
   useEffect(() => {
     const since = new Date(Date.now() - 30 * 86400 * 1000).toISOString()
@@ -1540,6 +1815,31 @@ function Report({ shop }: { shop: Shop }) {
       .then(({ data }) => setRows((data || []) as NonNullable<typeof rows>))
   }, [shop.id])
 
+  // Order history: as far back as the plan allows (7 days / 6 months / 1 year; the database hides older rows).
+  const [range, setRange] = useState(7)
+  const [locked, setLocked] = useState<number | null>(null)
+  const [hist, setHist] = useState<HistRow[] | null>(null)
+  const [more, setMore] = useState(false)
+  const [histErr, setHistErr] = useState<string | null>(null)
+  const loadHist = useCallback(async (from: number, days: number) => {
+    const since = new Date(Date.now() - days * 86400 * 1000).toISOString()
+    const { data, error } = await supabase
+      .from('orders')
+      .select('id,token,customer_name,status,total,created_at,counter_name')
+      .eq('shop_id', shop.id)
+      .neq('status', 'uploading')
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .range(from, from + HIST_PAGE - 1)
+    if (error) return setHistErr(te(error))
+    const list = (data || []) as HistRow[]
+    setHist((h) => (from ? [...(h || []), ...list] : list))
+    setMore(list.length === HIST_PAGE)
+    // te only translates errors
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shop.id])
+  useEffect(() => { setHist(null); void loadHist(0, Math.min(range, maxDays)) }, [range, maxDays, loadHist])
+
   const startOfDay = new Date()
   startOfDay.setHours(0, 0, 0, 0)
   const sum = (from: number) => {
@@ -1550,11 +1850,20 @@ function Report({ shop }: { shop: Shop }) {
   const week = sum(startOfDay.getTime() - 6 * 86400 * 1000)
   const month = sum(startOfDay.getTime() - 29 * 86400 * 1000)
 
-  const cards: { label: Key; v: { count: number; total: number }; accent?: boolean }[] = [
+  const cards: { label: Key; v: { count: number; total: number }; accent?: boolean; lock?: boolean }[] = [
     { label: 'today', v: today, accent: true },
     { label: 'last7', v: week },
-    { label: 'last30', v: month }
+    { label: 'last30', v: month, lock: maxDays < 30 }
   ]
+  const loc = lang === 'hi' ? 'hi-IN' : 'en-IN'
+  const groups: { day: string; list: HistRow[] }[] = []
+  for (const r of hist || []) {
+    const day = new Date(r.created_at).toLocaleDateString(loc, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+    const g = groups[groups.length - 1]
+    if (g && g.day === day) g.list.push(r)
+    else groups.push({ day, list: [r] })
+  }
+  const lockedTier = locked ? tierFor(HISTORY_DAYS, locked) : null
 
   return (
     <section>
@@ -1571,7 +1880,13 @@ function Report({ shop }: { shop: Shop }) {
         </div>
       )}
       {rows && <div className="stats">
-        {cards.map((s) => (
+        {cards.map((s) => s.lock ? (
+          <button type="button" className="card stat stat-locked" key={s.label} onClick={onUpgrade}>
+            <div className="small stat-label"><Icon name="lock" size={16} /> {t(s.label)}</div>
+            <div className="big-num stat-lock"><Icon name="lock" size={30} /></div>
+            <div className="small stat-sub"><span className="pro-badge">{t('planPro')}</span> {t('seePlans')}</div>
+          </button>
+        ) : (
           <div className={`card stat${s.accent ? ' accent' : ''}`} key={s.label}>
             <div className="small stat-label"><Icon name={s.accent ? 'rupee' : 'chart'} size={16} /> {t(s.label)}</div>
             <div className="big-num">{rupees(s.v.total)}</div>
@@ -1580,14 +1895,60 @@ function Report({ shop }: { shop: Shop }) {
         ))}
       </div>}
       <p className="small muted">{t('reportNote')}</p>
+
+      <div className="card form-card history-card">
+        <h2 className="card-title">{t('histTitle')}</h2>
+        <p className="small muted">{t('histSub', { n: t(HIST_RANGES.find((r) => r.days === maxDays)?.label || 'h7d') })}</p>
+        <div className="seg" role="group" aria-label={t('histTitle')}>
+          {HIST_RANGES.map((r) => {
+            const lk = r.days > maxDays
+            return (
+              <button key={r.days} type="button" className={!lk && range === r.days ? 'on' : ''} aria-pressed={!lk && range === r.days}
+                onClick={() => (lk ? setLocked(r.days) : (setLocked(null), setRange(r.days)))}>
+                {lk && <Icon name="lock" size={13} />}{t(r.label)}
+              </button>
+            )
+          })}
+        </div>
+        {locked && lockedTier && (
+          <div className="upgrade-prompt">
+            <span>🔒 {t('histLocked', { n: t(HIST_RANGES.find((r) => r.days === locked)!.label) })} <span className="pro-badge">{lockedTier === 'plus' ? t('planPlus') : t('planPro')}</span></span>
+            <button type="button" className="btn primary small" onClick={onUpgrade}>{t('seePlans')}</button>
+          </div>
+        )}
+        {histErr && <p className="notice error">{histErr}</p>}
+        {!hist && !histErr && <div className="skel skel-block" aria-busy="true" />}
+        {hist && !hist.length && <p className="muted small">{t('histEmpty')}</p>}
+        {groups.map((g) => (
+          <div className="hist-day" key={g.day}>
+            <div className="hist-date">{g.day}</div>
+            <ul className="hist-list">
+              {g.list.map((r) => (
+                <li key={r.id}>
+                  <span className="token-chip sm">#{r.token}</span>
+                  <span className="hist-who">{r.customer_name || t('customer')}{r.counter_name ? ` · ${r.counter_name}` : ''}
+                    <span className="small muted"> · {new Date(r.created_at).toLocaleTimeString(loc, { hour: 'numeric', minute: '2-digit' })}</span></span>
+                  <span className={`pill tiny s-${r.status}`}>{t(STATUS_TEXT[r.status])}</span>
+                  <b className="hist-amt">{rupees(Number(r.total))}</b>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+        {more && <button type="button" className="btn ghost block" onClick={() => void loadHist(hist?.length || 0, Math.min(range, maxDays))}>{t('histMore')}</button>}
+      </div>
     </section>
   )
 }
 
 /* ------------------------------------------------------------------ */
 
-function Settings({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void }) {
+const KEEP_OPTIONS = [1, 3, 6, 12, 24, 48, 72, 168]
+
+function Settings({ shop, onSaved, onUpgrade }: { shop: Shop; onSaved: (s: Shop) => void; onUpgrade: () => void }) {
   const { t, tn, te } = useI18n()
+  const tier = shopTier(shop)
+  const cap = FILE_HOURS[tier]
   const [f, setF] = useState({
     name: shop.name,
     address: shop.address || '',
@@ -1596,6 +1957,8 @@ function Settings({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void })
     auto_delete_hours: shop.auto_delete_hours
   })
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
+  const keepText = (h: number) => (h % 24 === 0 && h >= 48 ? tn('keepD_one', 'keepD_other', h / 24) : tn('hours_one', 'hours_other', h))
+  const durText = (h: number) => (h % 24 === 0 && h >= 48 ? tn('durD_one', 'durD_other', h / 24) : tn('durH_one', 'durH_other', h))
   async function save(e: FormEvent) {
     e.preventDefault()
     const { data, error } = await supabase
@@ -1627,8 +1990,20 @@ function Settings({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void })
       <label className="field">
         <span>{t('autoDeleteLabel')}</span>
         <select value={f.auto_delete_hours} onChange={(e) => setF({ ...f, auto_delete_hours: Number(e.target.value) })}>
-          {[1, 3, 6, 12, 24, 48].map((h) => <option key={h} value={h}>{tn('hours_one', 'hours_other', h)}</option>)}
+          {Array.from(new Set([...KEEP_OPTIONS, f.auto_delete_hours])).sort((a, b) => a - b).map((h) => {
+            const need = tierFor(FILE_HOURS, h)
+            return (
+              <option key={h} value={h} disabled={h > cap && h !== f.auto_delete_hours}>
+                {keepText(h)}{h > cap ? ` · 🔒 ${need === 'plus' ? t('planPlus') : t('planPro')}` : ''}
+              </option>
+            )
+          })}
         </select>
+        <small className="hint">
+          {t('keepPlanHint', { time: durText(cap) })}
+          {f.auto_delete_hours > cap && ` ${t('keepCapped', { time: durText(cap) })}`}
+          {tier !== 'plus' && <>{' '}<button type="button" className="link small" onClick={onUpgrade}>{t('seePlans')}</button></>}
+        </small>
       </label>
       {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
       <button className="btn primary block lg">{t('save')}</button>
@@ -1637,6 +2012,178 @@ function Settings({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void })
 }
 
 /* ------------------------------------------------------------------ */
+
+/** Shop timings (all plans): opens / closes by itself at these times, India time (pg_cron, every 5 min). */
+function HoursCard({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void }) {
+  const { t, te, lang } = useI18n()
+  const [h, setH] = useState<ShopHours>(() => normHours(shop.hours))
+  const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
+  const dayName = (d: number) => new Date(2024, 0, 7 + d).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { weekday: 'short' })
+  const setDay = (d: number, patch: Partial<ShopHours['days'][string]>) =>
+    setH((x) => ({ ...x, days: { ...x.days, [String(d)]: { ...x.days[String(d)], ...patch } } }))
+  function copyMon() {
+    const m = h.days['1']
+    setH((x) => {
+      const days = { ...x.days }
+      for (const d of [2, 3, 4, 5, 6]) days[String(d)] = { ...m }
+      return { ...x, days }
+    })
+  }
+  async function save(e: FormEvent) {
+    e.preventDefault()
+    const { data, error } = await supabase.from('shops').update({ hours: h }).eq('id', shop.id).select().single()
+    if (error) return setMsg({ text: te(error), error: true })
+    onSaved(data as Shop)
+    setMsg({ text: h.enabled ? t('hoursSaved') : t('saved'), error: false })
+  }
+  return (
+    <form className="card form-card" onSubmit={save}>
+      <h2 className="card-title">{t('hoursTitle')}</h2>
+      <p className="small muted">{t('hoursSub')}</p>
+      <label className="check-row plain">
+        <input type="checkbox" checked={h.enabled} onChange={(e) => setH({ ...h, enabled: e.target.checked })} />
+        <span><strong>{t('hoursOn')}</strong></span>
+      </label>
+      {h.enabled && (
+        <>
+          <ul className="hours-list">
+            {DAY_ORDER.map((d) => {
+              const v = h.days[String(d)]
+              return (
+                <li key={d} className={v.closed ? 'is-closed' : ''}>
+                  <span className="hours-day">{dayName(d)}</span>
+                  <input type="time" value={v.open} disabled={v.closed} aria-label={`${dayName(d)} ${t('hoursOpen')}`} onChange={(e) => setDay(d, { open: e.target.value })} />
+                  <span className="muted">–</span>
+                  <input type="time" value={v.close} disabled={v.closed} aria-label={`${dayName(d)} ${t('hoursClose')}`} onChange={(e) => setDay(d, { close: e.target.value })} />
+                  <label className="hours-closed small"><input type="checkbox" checked={v.closed} onChange={(e) => setDay(d, { closed: e.target.checked })} /> {t('hoursClosed')}</label>
+                </li>
+              )
+            })}
+          </ul>
+          <button type="button" className="btn small" onClick={copyMon}>{t('hoursCopy')}</button>
+          <p className="small muted">{t('hoursNote')}</p>
+        </>
+      )}
+      {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
+      <button className="btn primary block lg">{t('save')}</button>
+    </form>
+  )
+}
+
+/** Plus: own colour + logo on the customer pages, no PrintQR branding there. */
+function BrandCard({ shop, plus, onSaved, onUpgrade }: { shop: Shop; plus: boolean; onSaved: (s: Shop) => void; onUpgrade: () => void }) {
+  const { t, te } = useI18n()
+  const [color, setColor] = useState<string>(shop.brand_color || '')
+  const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
+  async function save(c: string | null) {
+    setColor(c || '')
+    const { data, error } = await supabase.from('shops').update({ brand_color: c }).eq('id', shop.id).select().single()
+    if (error) return setMsg({ text: te(error), error: true })
+    onSaved(data as Shop)
+    setMsg({ text: t('saved'), error: false })
+  }
+  return (
+    <div className={`card form-card${plus ? '' : ' is-locked'}`}>
+      <h2 className="card-title">{plus ? '' : '🔒 '}{t('brandTitle')} <span className="pro-badge">{t('planPlus')}</span></h2>
+      <p className="small muted">{t('brandSub')}</p>
+      <fieldset disabled={!plus} className="qd-fields">
+        <div className="field">
+          <span>{t('brandColor')}</span>
+          <div className="swatches" role="group" aria-label={t('brandColor')}>
+            <button type="button" className={`swatch-btn sw-default${!color ? ' on' : ''}`} aria-pressed={!color} title={t('qdDefault')} onClick={() => void save(null)}>A</button>
+            {BRAND_SWATCHES.map((c) => (
+              <button key={c} type="button" className={`swatch-btn${color === c ? ' on' : ''}`} style={{ background: c }} aria-pressed={color === c} aria-label={c} onClick={() => void save(c)} />
+            ))}
+            <label className="swatch-custom" title={t('brandCustom')}>
+              <input type="color" value={validHex(color) ? color : '#3f6212'} onChange={(e) => setColor(e.target.value)} onBlur={(e) => void save(e.target.value)} aria-label={t('brandCustom')} />
+            </label>
+          </div>
+        </div>
+        <p className="small muted">{t('brandLogoHint')}</p>
+        {validHex(color) && (
+          <div className="brand-preview" style={{ background: color, color: inkOn(color) }}>
+            <ShopAvatar shop={shop} size={32} /> <strong>{shop.name}</strong>
+          </div>
+        )}
+      </fieldset>
+      {!plus && (
+        <div className="upgrade-prompt">
+          <span>🔒 {t('brandLocked')} <span className="pro-badge">{t('planPlus')}</span></span>
+          <button type="button" className="btn primary small" onClick={onUpgrade}>{t('seePlans')}</button>
+        </div>
+      )}
+      {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
+    </div>
+  )
+}
+
+type StaffRow = { id: string; email: string; user_id: string | null; accepted_at: string | null }
+
+/** Plus: staff logins. Staff sign in with their own email and see only the Orders page of this shop. */
+function StaffCard({ shop, plus, onUpgrade }: { shop: Shop; plus: boolean; onUpgrade: () => void }) {
+  const { t, te } = useI18n()
+  const [list, setList] = useState<StaffRow[] | null>(null)
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
+  const load = useCallback(async () => {
+    const { data, error } = await supabase.from('shop_staff').select('id,email,user_id,accepted_at').eq('shop_id', shop.id).order('created_at')
+    setList(error ? [] : ((data || []) as StaffRow[]))
+  }, [shop.id])
+  useEffect(() => { if (plus) void load() }, [plus, load])
+  async function add(e: FormEvent) {
+    e.preventDefault()
+    const v = email.trim().toLowerCase()
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) return setMsg({ text: t('staffBadEmail'), error: true })
+    setBusy(true)
+    setMsg(null)
+    const { error } = await supabase.from('shop_staff').insert({ shop_id: shop.id, email: v })
+    setBusy(false)
+    if (error) return setMsg({ text: error.code === '23505' ? t('staffDup') : te(error), error: true })
+    setEmail('')
+    setMsg({ text: t('staffAdded', { email: v }), error: false })
+    void load()
+  }
+  async function remove(r: StaffRow) {
+    if (!confirm(t('staffRemoveAsk', { email: r.email }))) return
+    const { error } = await supabase.from('shop_staff').delete().eq('id', r.id)
+    if (error) return setMsg({ text: te(error), error: true })
+    void load()
+  }
+  return (
+    <div className={`card form-card${plus ? '' : ' is-locked'}`}>
+      <h2 className="card-title">{plus ? '' : '🔒 '}{t('staffTitle')} <span className="pro-badge">{t('planPlus')}</span></h2>
+      <p className="small muted">{t('staffSub')}</p>
+      {plus ? (
+        <>
+          {list && list.length > 0 && (
+            <ul className="counter-list">
+              {list.map((r) => (
+                <li key={r.id}>
+                  <span className="staff-email">{r.email} <span className={`pill tiny ${r.user_id ? 's-done' : 's-received'}`}>{r.user_id ? t('staffActive') : t('staffPending')}</span></span>
+                  <div className="counter-actions">
+                    <button type="button" className="btn small danger-outline" onClick={() => void remove(r)}>{t('staffRemove')}</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          <form className="counter-add" onSubmit={add}>
+            <input type="email" value={email} maxLength={200} placeholder={t('staffEmailPh')} aria-label={t('staffEmailPh')} onChange={(e) => setEmail(e.target.value)} />
+            <button className="btn primary" disabled={busy || !email.trim()}>{t('staffAdd')}</button>
+          </form>
+          <p className="small muted">{t('staffHow')}</p>
+        </>
+      ) : (
+        <div className="upgrade-prompt">
+          <span>🔒 {t('staffLocked')} <span className="pro-badge">{t('planPlus')}</span></span>
+          <button type="button" className="btn primary small" onClick={onUpgrade}>{t('seePlans')}</button>
+        </div>
+      )}
+      {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
+    </div>
+  )
+}
 
 const MAX_COUNTERS = 20
 
@@ -1748,6 +2295,60 @@ function CountersCard({ shop, counters, usable, locked, limit, needPlus, v2, onC
 
 /* ------------------------------------------------------------------ */
 
+/** Free / Pro / Plus side by side (v17 feature table). true / false = tick / dash, a Key = text. */
+const COMPARE: { label: Key; v: [boolean | Key, boolean | Key, boolean | Key] }[] = [
+  { label: 'cmpKeep', v: ['cmp1h', 'cmp24h', 'cmp7d'] },
+  { label: 'cmpOrderSize', v: ['cmp50mb', 'cmp100mb', 'cmp200mb'] },
+  { label: 'cmpOrdersDay', v: ['cmpUnlimited', 'cmpUnlimited', 'cmpUnlimited'] },
+  { label: 'cmpHistory', v: ['cmp7days', 'cmp6m', 'cmp1y'] },
+  { label: 'cmpTimings', v: [true, true, true] },
+  { label: 'cmpExtras', v: [true, true, true] },
+  { label: 'cmpReady', v: [true, true, true] },
+  { label: 'cmpDirectPrint', v: [true, true, true] },
+  { label: 'cmpAutoPrint', v: [false, true, true] },
+  { label: 'cmpQrDesign', v: [false, true, true] },
+  { label: 'cmpDynQr', v: [false, true, true] },
+  { label: 'cmpPassport', v: [false, true, true] },
+  { label: 'cmpNoAdsCust', v: [false, true, true] },
+  { label: 'cmpNoAdsYou', v: [false, false, true] },
+  { label: 'cmpNoBranding', v: [false, false, true] },
+  { label: 'cmpOwnBrand', v: [false, false, true] },
+  { label: 'cmpStaff', v: [false, false, true] }
+]
+
+function PlanCompare({ current }: { current: PlanTier }) {
+  const { t } = useI18n()
+  const tiers: PlanTier[] = ['free', 'pro', 'plus']
+  const name = (x: PlanTier) => (x === 'plus' ? t('planPlus') : x === 'pro' ? t('planPro') : t('planFree'))
+  return (
+    <div className="card plan-compare">
+      <h2 className="card-title">{t('cmpTitle')}</h2>
+      <div className="cmp-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col"><span className="sr-only">{t('cmpTitle')}</span></th>
+              {tiers.map((x) => <th key={x} scope="col" className={x === current ? 'is-current' : ''}>{name(x)}{x === current && <span className="cmp-you">{t('cmpYou')}</span>}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {COMPARE.map((r) => (
+              <tr key={r.label}>
+                <th scope="row">{t(r.label)}</th>
+                {r.v.map((v, i) => (
+                  <td key={i} className={tiers[i] === current ? 'is-current' : ''}>
+                    {v === true ? <Icon name="check" size={16} stroke={3} className="cmp-yes" /> : v === false ? <span className="cmp-no" aria-label="—">—</span> : t(v)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 const ENDED = ['cancelled', 'completed', 'expired']
 
 function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onChanged: () => Promise<void> | void }) {
@@ -1818,8 +2419,8 @@ function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onCha
 
   const per = period === 'yearly' ? t('perYear') : t('perMonth')
   const cards: { tier: Tier; feats: Key[] }[] = [
-    { tier: 'pro', feats: ['planFeatDynQr', 'planFeatNoAdsCust', 'planFeatPassport', 'planFeatCounters2'] },
-    { tier: 'plus', feats: ['planFeatAllPro', 'planFeatNoAdsAll', 'planFeatCounters'] }
+    { tier: 'pro', feats: ['planFeatDynQr', 'planFeatNoAdsCust', 'planFeatPassport', 'planFeatCounters2', 'planFeatKeep24h', 'planFeatOrder100', 'planFeatHist6m', 'planFeatQrDesign', 'planFeatAutoPrint'] },
+    { tier: 'plus', feats: ['planFeatAllPro', 'planFeatNoAdsAll', 'planFeatCounters', 'planFeatKeep7d', 'planFeatOrder200', 'planFeatHist1y', 'planFeatNoBranding', 'planFeatOwnBrand', 'planFeatStaff'] }
   ]
   // Free: both plans. Pro: only the upgrade to Plus. Plus: nothing to buy.
   const shown = cards.filter((c) => (!pro ? true : !plus && c.tier === 'plus'))
@@ -1881,6 +2482,7 @@ function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onCha
 
       {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
       {shown.length > 0 && <p className="small muted">{t('planPayNote')}</p>}
+      <PlanCompare current={plus ? 'plus' : pro ? 'pro' : 'free'} />
 
       {pro && !ended && shop.razorpay_subscription_id && (
         <button type="button" className="btn danger-outline" disabled={busy !== null} onClick={() => void cancel()}>

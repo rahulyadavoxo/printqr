@@ -30,7 +30,13 @@ export default function Setup() {
     supabase.from('shops').select('id').eq('owner_id', session.user.id).maybeSingle().then(({ data, error }) => {
       // On a network/server error we don't know if a shop exists: let the dashboard show its retry screen.
       if (data || error) nav('/dashboard', { replace: true })
-      else setChecking(false)
+      else {
+        // Staff login (v17, Plus shops): no shop to set up, go to the shop's orders.
+        void Promise.resolve(supabase.rpc('my_staff_shop')).then(({ data: st, error: e2 }) => {
+          if (!e2 && st) nav('/dashboard', { replace: true })
+          else setChecking(false)
+        }, () => setChecking(false))
+      }
     }, () => nav('/dashboard', { replace: true }))
   }, [session, loading, nav])
 

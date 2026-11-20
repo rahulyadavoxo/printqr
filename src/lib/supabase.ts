@@ -19,6 +19,9 @@ export type Rates = {
   color_double: number
   /** Passport photo sheet (A4), price per sheet. Present once the v2 database migration has run. */
   passport_sheet?: number
+  /** v17 extras (0 / missing = not offered): binding per copy, lamination per sheet. */
+  binding?: number
+  lamination?: number
 }
 
 export type Counter = {
@@ -50,7 +53,17 @@ export type Shop = {
   plan_expires_at?: string | null
   razorpay_subscription_id?: string | null
   subscription_status?: string | null
+  /** v17: Plus brand colour (#rrggbb), QR card design (Pro/Plus), shop timings */
+  brand_color?: string | null
+  qr_design?: QrDesign | null
+  hours?: unknown
+  /** Set when this login is staff at the shop (my_staff_shop), not the owner. */
+  staff?: boolean
+  staff_active?: boolean
 }
+
+/** Custom QR card (Pro/Plus, shops.qr_design). */
+export type QrDesign = { template?: 'classic' | 'dark' | 'minimal'; color?: string; headline?: string; footer?: string }
 
 /** Plans exist in the database (v3 update ran). Before that the app behaves as before: no ads, no locks. */
 export function plansReady(s: Shop): boolean {
@@ -91,6 +104,8 @@ export type OrderFile = {
   price: number
   item_kind?: 'print' | 'passport'
   photos?: number | null
+  binding?: boolean
+  lamination?: boolean
 }
 
 export type Order = {

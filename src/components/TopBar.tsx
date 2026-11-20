@@ -33,11 +33,21 @@ export function LangToggle() {
   )
 }
 
-export function TopBar({ to = '/', children, wide = false, lang = true }: { to?: string | null; children?: ReactNode; wide?: boolean; lang?: boolean }) {
+/** Plus shops (v17): their own logo + name in place of the PrintQR wordmark on customer pages. */
+export function ShopBrand({ name, logo }: { name: string; logo?: string | null }) {
+  return (
+    <span className="logo own-brand">
+      {logo ? <img src={logo} alt="" width={34} height={34} /> : <span className="own-brand-mark" aria-hidden="true">{name.trim().charAt(0).toUpperCase() || 'P'}</span>}
+      <strong>{name}</strong>
+    </span>
+  )
+}
+
+export function TopBar({ to = '/', children, wide = false, lang = true, brand }: { to?: string | null; children?: ReactNode; wide?: boolean; lang?: boolean; brand?: ReactNode }) {
   return (
     <header className="topbar no-print">
       <div className={`topbar-in${wide ? ' wide' : ''}`}>
-        <Logo to={to} />
+        {brand ?? <Logo to={to} />}
         <div className="topbar-right">
           {children}
           {lang && <LangToggle />}

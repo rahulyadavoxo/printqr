@@ -22,6 +22,14 @@ export function rateFor(rates: Rates, color: boolean, duplex: boolean): number {
   return Number(rates[key] ?? 0)
 }
 
+/** Price of one printed file (same rule as public.file_price, v17): pages x copies x page rate,
+ *  + binding per copy, + lamination per sheet (pages, or pages / 2 rounded up when both sides) per copy. */
+export function filePrice(rates: Rates, pages: number, copies: number, color: boolean, duplex: boolean, binding = false, lamination = false): number {
+  const bind = binding ? copies * Number(rates.binding ?? 0) : 0
+  const lam = lamination ? (duplex ? Math.ceil(pages / 2) : pages) * copies * Number(rates.lamination ?? 0) : 0
+  return pages * copies * rateFor(rates, color, duplex) + bind + lam
+}
+
 export function rupees(n: number): string {
   const v = Math.round(n * 100) / 100
   return '₹' + (Number.isInteger(v) ? v.toString() : v.toFixed(2))

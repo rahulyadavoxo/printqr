@@ -1,15 +1,33 @@
-import { ReactElement, useEffect, useState } from 'react'
+import { ReactElement, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { OrderStatus, supabase } from '../lib/supabase'
 import { rupees } from '../lib/pricing'
 import { Key, useI18n } from '../lib/i18n'
-import { TopBar } from '../components/TopBar'
+import { ShopBrand, TopBar } from '../components/TopBar'
+import { brandStyle } from '../lib/brand'
+import { ding, unlockAudio } from '../lib/sound'
+import { notifyWhenReady, webPushSupported } from '../lib/webpush'
 import Icon from '../components/Icon'
 import hourglass from '../assets/hourglass.svg'
 import readyAnim from '../assets/ready-collect.svg'
 import doneAnim from '../assets/order-done-thank-you.svg'
 
-type Info = { token: number; status: OrderStatus; total: number; created_at: string; shop_name: string; upi_id: string | null; file_count: number }
+type Info = {
+  token: number; status: OrderStatus; total: number; created_at: string; shop_name: string; upi_id: string | null; file_count: number
+  /** v17 */
+  files_deleted?: boolean; files_expire_at?: string | null; is_plus?: boolean; logo_url?: string | null; brand_color?: string | null
+}
+
+const READY_KEY = 'pq-ready-push'
+function pushAsked(id: string): boolean {
+  try { return (JSON.parse(localStorage.getItem(READY_KEY) || '[]') as string[]).includes(id) } catch { return false }
+}
+function markPushAsked(id: string) {
+  try {
+    const l = JSON.parse(localStorage.getItem(READY_KEY) || '[]') as string[]
+    localStorage.setItem(READY_KEY, JSON.stringify([id, ...l.filter((x) => x !== id)].slice(0, 20)))
+  } catch { /* ignore */ }
+}
 
 const LABEL: Record<OrderStatus, Key> = {
   uploading: 'st_uploading',
@@ -27,8 +45,33 @@ const STEPS: { s: OrderStatus; label: Key }[] = [
 
 export default function Status() {
   const { id = '', key = '' } = useParams()
-  const { t, tn, te } = useI18n()
+  const { t, tn, te, lang } = useI18n()
   const [info, setInfo] = useState<Info | null>(null)
+  // "Ready" alert (v17): web push when the page is closed, sound + vibration while it is open.
+  const [push, setPush] = useState<'off' | 'asking' | 'on' | 'denied'>(() => (pushAsked(id) ? 'on' : 'off'))
+  const lastStatus = useRef<OrderStatus | null>(null)
+  useEffect(() => {
+    if (!info) return
+    const prev = lastStatus.current
+    lastStatus.current = info.status
+    if (prev && prev !== 'ready' && info.status === 'ready') {
+      ding()
+      try { navigator.vibrate?.([300, 120, 300, 120, 300]) } catch { /* ignore */ }
+    }
+  }, [info])
+  // Permission already given on an earlier order: register this one quietly.
+  useEffect(() => {
+    if (!info || push !== 'off' || !webPushSupported() || Notification.permission !== 'granted') return
+    if (!['uploading', 'received', 'printing'].includes(info.status)) return
+    void notifyWhenReady(id, key, false).then((ok) => { if (ok) { markPushAsked(id); setPush('on') } })
+  }, [info, push, id, key])
+  async function askPush() {
+    unlockAudio()
+    setPush('asking')
+    const ok = await notifyWhenReady(id, key, true)
+    if (ok) markPushAsked(id)
+    setPush(ok ? 'on' : Notification.permission === 'denied' ? 'denied' : 'off')
+  }
   const [err, setErr] = useState<{ text?: string; notFound?: boolean } | null>(null)
 
   useEffect(() => {
@@ -52,9 +95,10 @@ export default function Status() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, key])
 
+  const own = info?.is_plus ? brandStyle(info.brand_color) : undefined
   const shell = (body: ReactElement) => (
-    <div className="app-page">
-      <TopBar to={null} />
+    <div className={`app-page${own ? ' branded' : ''}`} style={own} onClick={unlockAudio}>
+      <TopBar to={null} brand={info?.is_plus ? <ShopBrand name={info.shop_name} logo={info.logo_url} /> : undefined} />
       <main className="page narrow">{body}</main>
     </div>
   )
@@ -81,6 +125,14 @@ export default function Status() {
   const upiLink = info.upi_id
     ? `upi://pay?pa=${encodeURIComponent(info.upi_id)}&pn=${encodeURIComponent(info.shop_name)}&am=${Number(info.total).toFixed(2)}&cu=INR&tn=${encodeURIComponent('Print token ' + info.token)}`
     : null
+
+  const waiting = ['uploading', 'received', 'printing'].includes(info.status)
+  const canPush = waiting && webPushSupported()
+  const expires = info.files_expire_at ? new Date(info.files_expire_at) : null
+  const sameDay = expires && expires.toDateString() === new Date().toDateString()
+  const expText = expires
+    ? expires.toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN', sameDay ? { hour: 'numeric', minute: '2-digit' } : { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+    : ''
 
   return shell(
     <>
@@ -114,7 +166,16 @@ export default function Status() {
           <a className="btn primary block lg pay-btn" href={upiLink}><Icon name="rupee" size={20} /> {t('sPay', { amount: rupees(Number(info.total)) })}</a>
         )}
       </div>
+      {canPush && push !== 'on' && (
+        <button type="button" className="btn block notify-btn" disabled={push === 'asking' || push === 'denied'} onClick={() => void askPush()}>
+          <Icon name="bell" size={18} /> {push === 'denied' ? t('sNotifyBlocked') : push === 'asking' ? t('pleaseWait') : t('sNotifyMe')}
+        </button>
+      )}
+      {waiting && push === 'on' && <p className="hint-line"><Icon name="bell" size={18} /> <span>{t('sNotifyOn')}</span></p>}
       <p className="hint-line"><Icon name="clock" size={18} /> <span>{t('sHint')}</span></p>
+      {info.files_deleted
+        ? <p className="hint-line"><Icon name="shield" size={18} /> <span>{t('sFilesDeleted')}</span></p>
+        : expText && <p className="hint-line"><Icon name="shield" size={18} /> <span>{t('sFilesExpire', { time: expText })}</span></p>}
     </>
   )
 }

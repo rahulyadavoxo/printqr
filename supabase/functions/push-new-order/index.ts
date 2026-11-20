@@ -58,6 +58,53 @@ async function googleToken(sa: ServiceAccount): Promise<string> {
   return cached.token
 }
 
+async function fcmSend(sa: ServiceAccount, access: string, message: Record<string, unknown>): Promise<{ ok: boolean; dead: boolean; err: string }> {
+  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message })
+  })
+  if (res.ok) return { ok: true, dead: false, err: '' }
+  const text = await res.text()
+  const dead = res.status === 404 || /UNREGISTERED|registration-token-not-registered/.test(text)
+  return { ok: false, dead, err: dead ? '' : `fcm ${res.status}: ${text.slice(0, 300)}` }
+}
+
+/** Customer's browsers that asked "tell me when it's ready" on the status page (public.order_push). */
+async function sendReady(sa: ServiceAccount, orderId: string): Promise<Record<string, unknown>> {
+  const rows = (await call(`/rest/v1/orders?id=eq.${orderId}&select=id,token,status,access_key,shop_id`)) as
+    { id: string; token: number; status: string; access_key: string; shop_id: string }[]
+  const o = rows[0]
+  if (!o || o.status !== 'ready') return { skipped: 'not_ready' }
+  const tokens = (await call(`/rest/v1/order_push?order_id=eq.${o.id}&select=token`)) as { token: string }[]
+  if (!tokens.length) return { sent: 0 }
+  const shops = (await call(`/rest/v1/shops?id=eq.${o.shop_id}&select=name`)) as { name: string }[]
+  const shop = shops[0]?.name || 'PrintQR'
+  const title = `Order #${o.token} is ready · ऑर्डर तैयार है`
+  const body = `${shop}: please collect your prints · अपने प्रिंट ले लें`
+  const link = `https://print.receipto.in/#/o/${o.id}/${o.access_key}`
+  const access = await googleToken(sa)
+  let sent = 0
+  let lastErr = ''
+  for (const { token } of tokens) {
+    const r = await fcmSend(sa, access, {
+      token,
+      notification: { title, body },
+      data: { kind: 'ready', order_id: o.id, token: String(o.token), link },
+      webpush: {
+        headers: { Urgency: 'high', TTL: '3600' },
+        notification: { title, body, icon: 'https://print.receipto.in/icon-192.png', tag: `ready-${o.id}`, vibrate: [200, 100, 200] },
+        fcm_options: { link }
+      }
+    })
+    if (r.ok) sent++
+    else if (r.err) lastErr = r.err
+  }
+  // One notification per order: forget the customer's browsers now.
+  await call(`/rest/v1/order_push?order_id=eq.${o.id}`, { method: 'DELETE' }).catch(() => {})
+  return { sent, ...(lastErr ? { error: lastErr } : {}) }
+}
+
 type OrderRow = { id: string; token: number; total: number; customer_name: string | null; shop_id: string; counter_id: string | null; status: string }
 
 Deno.serve(async (req) => {
@@ -84,18 +131,39 @@ Deno.serve(async (req) => {
   }
 
   let orderId = ''
+  let kind = 'new'
   try {
-    orderId = String((await req.json()).order_id || '')
+    const j = await req.json()
+    orderId = String(j.order_id || '')
+    if (j.kind === 'ready') kind = 'ready'
   } catch { /* empty body */ }
   if (!/^[0-9a-f-]{36}$/i.test(orderId)) return reply(400, { error: 'bad_order' })
+
+  // v17: "your order is ready" for the customer (web push from the status page), all plans.
+  if (kind === 'ready') {
+    try {
+      return reply(200, await sendReady(sa, orderId))
+    } catch (e) {
+      console.error(e)
+      return reply(500, { error: 'push_failed', detail: String((e as Error)?.message || e).slice(0, 400) })
+    }
+  }
 
   try {
     const orders = (await call(`/rest/v1/orders?id=eq.${orderId}&select=id,token,total,customer_name,shop_id,counter_id,status`)) as OrderRow[]
     const o = orders[0]
     if (!o || o.status !== 'received') return reply(200, { skipped: 'not_received' })
-    const shops = (await call(`/rest/v1/shops?id=eq.${o.shop_id}&select=owner_id`)) as { owner_id: string }[]
+    const shops = (await call(`/rest/v1/shops?id=eq.${o.shop_id}&select=owner_id,plan,plan_expires_at`)) as
+      { owner_id: string; plan: string; plan_expires_at: string | null }[]
     if (!shops[0]) return reply(200, { skipped: 'no_shop' })
-    const tokens = (await call(`/rest/v1/push_tokens?owner_id=eq.${shops[0].owner_id}&select=token`)) as { token: string }[]
+    // Owner's phones, plus staff phones while the shop is on Plus (v17).
+    const users = [shops[0].owner_id]
+    const plus = shops[0].plan === 'plus' && !!shops[0].plan_expires_at && new Date(shops[0].plan_expires_at).getTime() > Date.now()
+    if (plus) {
+      const staff = (await call(`/rest/v1/shop_staff?shop_id=eq.${o.shop_id}&user_id=not.is.null&select=user_id`).catch(() => [])) as { user_id: string }[]
+      for (const s of staff) if (s.user_id && !users.includes(s.user_id)) users.push(s.user_id)
+    }
+    const tokens = (await call(`/rest/v1/push_tokens?owner_id=in.(${users.join(',')})&select=token`)) as { token: string }[]
     if (!tokens.length) return reply(200, { sent: 0 })
 
     let counter = ''

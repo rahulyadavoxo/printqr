@@ -22,28 +22,47 @@ export function webPushSupported() {
   )
 }
 
+/** FCM web push token for this browser; asks for permission when `ask` (needs a tap first on most browsers). */
+export async function webPushToken(ask = true): Promise<string | null> {
+  if (!webPushSupported()) return null
+  let perm = Notification.permission
+  if (perm === 'default' && ask) perm = await Notification.requestPermission()
+  if (perm !== 'granted') return null
+  const base = import.meta.env.BASE_URL || '/'
+  const reg = await navigator.serviceWorker.register(base + 'firebase-messaging-sw.js', {
+    scope: base + 'firebase-cloud-messaging-push-scope'
+  })
+  const [{ initializeApp, getApps }, { getMessaging, getToken, isSupported }] = await Promise.all([
+    import('firebase/app'),
+    import('firebase/messaging')
+  ])
+  if (!(await isSupported())) return null
+  const app = getApps()[0] || initializeApp(CONFIG)
+  const token = await getToken(getMessaging(app), { vapidKey: VAPID, serviceWorkerRegistration: reg })
+  return token || null
+}
+
 export async function setupWebPush() {
-  if (!webPushSupported()) return
   try {
-    let perm = Notification.permission
-    if (perm === 'default') perm = await Notification.requestPermission()
-    if (perm !== 'granted') return
-    const base = import.meta.env.BASE_URL || '/'
-    const reg = await navigator.serviceWorker.register(base + 'firebase-messaging-sw.js', {
-      scope: base + 'firebase-cloud-messaging-push-scope'
-    })
-    const [{ initializeApp, getApps }, { getMessaging, getToken, isSupported }] = await Promise.all([
-      import('firebase/app'),
-      import('firebase/messaging')
-    ])
-    if (!(await isSupported())) return
-    const app = getApps()[0] || initializeApp(CONFIG)
-    const token = await getToken(getMessaging(app), { vapidKey: VAPID, serviceWorkerRegistration: reg })
+    const token = await webPushToken(true)
     if (!token) return
     const { error } = await supabase.rpc('register_push_token', { p_token: token, p_platform: 'web' })
     if (!error) localStorage.setItem(KEY, token)
   } catch (e) {
     console.warn('web push', e)
+  }
+}
+
+/** Customer status page (v17): tell this browser when the order is ready. */
+export async function notifyWhenReady(orderId: string, key: string, ask = true): Promise<boolean> {
+  try {
+    const token = await webPushToken(ask)
+    if (!token) return false
+    const { error } = await supabase.rpc('register_order_push', { p_order_id: orderId, p_key: key, p_token: token })
+    return !error
+  } catch (e) {
+    console.warn('ready push', e)
+    return false
   }
 }
 
