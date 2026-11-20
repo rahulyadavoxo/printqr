@@ -5,12 +5,30 @@
 // opens. An update found while the app is in use shows a banner at once (tap Update), and the full
 // Update screen comes on the next resume, so it never jumps over half-done work. The website gets the
 // same banner when a new deploy is ready (src/lib/pwa.ts). Offline or GitHub unreachable: keeps working.
-import { ReactNode, useEffect, useRef, useState } from 'react'
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { IN_APP, nativeBridge } from '../lib/app'
 import { useI18n } from '../lib/i18n'
 import { applyWebUpdate, onWebUpdate } from '../lib/pwa'
 import Icon from './Icon'
 import { onRelease } from '../lib/releaseSignal'
+import artGlow from '../assets/update-glow.svg'
+import artRocket from '../assets/update-rocket.svg'
+import artCarpenter from '../assets/update-carpenter.svg'
+
+// Update screen art: every new update shows the next animation in turn (same one while that version waits).
+const ARTS = [artGlow, artRocket, artCarpenter]
+const ART_KEY = 'pq_upd_art'
+function artFor(v: string): string {
+  try {
+    const s = JSON.parse(localStorage.getItem(ART_KEY) || 'null') as { v?: string; i?: number } | null
+    if (s && s.v === v && Number.isInteger(s.i)) return ARTS[(s.i as number) % ARTS.length]
+    const i = s && Number.isInteger(s.i) ? ((s.i as number) + 1) % ARTS.length : 0
+    localStorage.setItem(ART_KEY, JSON.stringify({ v, i }))
+    return ARTS[i]
+  } catch {
+    return ARTS[0]
+  }
+}
 
 const CHECK_EVERY_MS = 60 * 1000
 const POLL_WHILE_OPEN_MS = 60 * 1000
@@ -215,6 +233,7 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [native])
 
+  const art = useMemo(() => (upd ? artFor(upd) : ''), [upd])
   const busy = status === 'downloading'
   const installStuck = status === 'installing' && installs >= INSTALLS_FOR_LATER
   const permStuck = status === 'perm' && permBacks >= 1
@@ -240,7 +259,8 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
       )}
       {upd && (
         <div className="update-gate" role="dialog" aria-modal="true" aria-labelledby="upd-title">
-          <div className="update-icon" aria-hidden="true">↑</div>
+          <img className="update-art" src={art} alt="" aria-hidden="true" draggable={false} />
+          <div className="update-panel">
           <h2 id="upd-title">{t('updTitle')}</h2>
           <p>{t('updBody', { v: upd })}</p>
           {cur && <p className="muted small">{t('updCurrent', { v: cur })}</p>}
@@ -261,6 +281,7 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
               {t('updLater')}
             </button>
           )}
+          </div>
         </div>
       )}
     </>
