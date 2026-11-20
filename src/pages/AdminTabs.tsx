@@ -199,7 +199,7 @@ export function AdminOrders({ onMsg }: { onMsg: Msg }) {
 
 /* ---------------- Payments ---------------- */
 
-type Sub = { shop_id: string; name: string; email: string | null; plan_period: string | null; subscription_status: string | null; plan_expires_at: string | null; sub_id: string; is_pro: boolean }
+type Sub = { shop_id: string; name: string; email: string | null; plan?: string | null; plan_period: string | null; subscription_status: string | null; plan_expires_at: string | null; sub_id: string; is_pro: boolean }
 type Ev = { event: string | null; received_at: string }
 
 export function AdminPayments({ onMsg }: { onMsg: Msg }) {
@@ -247,6 +247,7 @@ export function AdminPayments({ onMsg }: { onMsg: Msg }) {
                   <div className="admin-item-top">
                     <b className="admin-ellipsis">{s.name}</b>
                     <span className="admin-tags">
+                      {s.plan && <span className="admin-tag">{s.plan === 'plus' ? t('admTagPlus') : s.plan === 'pro' ? t('admTagPro') : t('admTagFree')}</span>}
                       <span className={`admin-tag${bad(s.subscription_status) ? ' bad' : s.is_pro ? ' pro' : ''}`}>{s.subscription_status || '—'}</span>
                     </span>
                   </div>

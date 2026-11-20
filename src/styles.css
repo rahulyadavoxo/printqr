@@ -1269,6 +1269,7 @@ html.in-app input, html.in-app textarea, html.in-app select, html.in-app [conten
 .admin-actions { display: grid; gap: 8px; }
 .admin-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .admin-days { width: 90px; }
+.admin-tier { width: auto; min-width: 84px; }
 .admin-reason { flex: 1; min-width: 160px; }
 .admin-log { padding: 6px 16px; }
 .admin-log-row { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(127, 127, 127, .15); }

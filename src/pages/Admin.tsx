@@ -12,6 +12,7 @@ import { AdminOrders, AdminPayments, AdminSettings, AdminSpam, AdminUsers, fmtBy
 type Overview = {
   shops_total: number; shops_today: number; shops_week: number
   pro_active: number; pro_paid: number; pro_monthly: number; pro_yearly: number; blocked: number
+  plus_active?: number; plus_monthly?: number; plus_yearly?: number
   orders_today: number; orders_week: number; orders_total: number
   storage_bytes: number; files_waiting: number
   pay_failed?: number; orders_stuck?: number; reports_open?: number; users_total?: number
@@ -27,9 +28,17 @@ type ShopRow = {
 
 type LogRow = { created_at: string; action: string; shop_id: string | null; shop_name: string | null; detail: Record<string, unknown> | null }
 
-// Pro prices (₹) used only for the monthly income estimate.
+// Plan prices (₹) used only for the monthly income estimate.
 const PRICE_MONTHLY = 49
 const PRICE_YEARLY = 539
+const PLUS_MONTHLY = 99
+const PLUS_YEARLY = 999
+
+type Tier = 'pro' | 'plus'
+/** The paid plan a shop is on right now (null = Free). */
+function paidTier(s: { is_pro: boolean; plan?: string | null }): Tier | null {
+  return s.is_pro ? (s.plan === 'plus' ? 'plus' : 'pro') : null
+}
 
 const PAGE = 50
 
@@ -61,6 +70,7 @@ export default function Admin() {
   const [msg, setMsg] = useState<{ text: string; error?: boolean } | null>(null)
   const [log, setLog] = useState<LogRow[] | null>(null)
   const [days, setDays] = useState<Record<string, string>>({})
+  const [tierPick, setTierPick] = useState<Record<string, Tier>>({})
   const [reason, setReason] = useState<Record<string, string>>({})
   const [names, setNames] = useState<Record<string, string>>({})
   const [tab, setTab] = useState<Tab>('overview')
@@ -110,10 +120,15 @@ export default function Admin() {
     if (d === 0 && !window.confirm(s.paid ? t('admRemoveProPaid', { name: s.name }) : t('admRemoveProAsk', { name: s.name }))) return
     setBusy(s.id)
     setMsg(null)
-    const { data, error } = await supabase.rpc('admin_set_pro', { p_shop: s.id, p_days: d })
+    // No pick: the server keeps the shop's current plan (Plus stays Plus). p_tier only when the admin chose one.
+    const pick = tierPick[s.id]
+    const args: Record<string, unknown> = { p_shop: s.id, p_days: d }
+    if (d > 0 && pick) args.p_tier = pick
+    const { data, error } = await supabase.rpc('admin_set_pro', args)
     setBusy(null)
     if (error) { setMsg({ text: te(error), error: true }); return }
-    setMsg({ text: d === 0 ? t('admProRemoved', { name: s.name }) : t('admProGiven', { name: s.name, date: fmtDate(data as string, lang) }) })
+    const tier = d > 0 ? (pick || paidTier(s) || 'pro') : 'pro'
+    setMsg({ text: d === 0 ? t('admProRemoved', { name: s.name }) : t('admProGiven', { name: s.name, date: fmtDate(data as string, lang), plan: tier === 'plus' ? 'Plus' : 'Pro' }) })
     refreshAll()
   }
 
@@ -166,7 +181,9 @@ export default function Admin() {
   if (allowed === null) return shell(<p className="muted">{t('loading')}</p>)
   if (!allowed) return shell(<div className="card"><h2>{t('admNoAccess')}</h2><p className="muted">{t('admNoAccessHint')}</p></div>)
 
-  const mrr = ov ? Math.round(ov.pro_monthly * PRICE_MONTHLY + (ov.pro_yearly * PRICE_YEARLY) / 12) : 0
+  // Before v19 SQL the pro_* counts include Plus and plus_* are missing (then all is priced as Pro).
+  const mrr = ov ? Math.round(ov.pro_monthly * PRICE_MONTHLY + (ov.pro_yearly * PRICE_YEARLY) / 12
+    + (ov.plus_monthly ?? 0) * PLUS_MONTHLY + ((ov.plus_yearly ?? 0) * PLUS_YEARLY) / 12) : 0
 
   const actionLabel = (a: string) => (LOG_KEYS[a] ? t(LOG_KEYS[a]) : a)
 
@@ -192,7 +209,7 @@ export default function Admin() {
           <div className="card stat accent">
             <div className="small stat-label">{t('admMrr')}</div>
             <div className="big-num">₹{mrr.toLocaleString('en-IN')}</div>
-            <div className="small stat-sub">{t('admPaidLine', { m: ov.pro_monthly, y: ov.pro_yearly })}</div>
+            <div className="small stat-sub">{t('admPaidLine', { m: ov.pro_monthly + (ov.plus_monthly ?? 0), y: ov.pro_yearly + (ov.plus_yearly ?? 0) })}</div>
           </div>
           <div className="card stat">
             <div className="small stat-label">{t('admShops')}</div>
@@ -253,7 +270,9 @@ export default function Admin() {
                 <span className="admin-shop-name">{s.name}</span>
                 <span className="admin-tags">
                   {s.blocked && <span className="admin-tag bad">{t('admTagBlocked')}</span>}
-                  {s.is_pro ? <span className="admin-tag pro">{s.paid ? t('admTagPaid') : t('admTagFreePro')}</span> : <span className="admin-tag">{t('admTagFree')}</span>}
+                  {s.is_pro
+                    ? <span className="admin-tag pro">{paidTier(s) === 'plus' ? (s.paid ? t('admTagPlusPaid') : t('admTagPlusGiven')) : (s.paid ? t('admTagPaid') : t('admTagFreePro'))}</span>
+                    : <span className="admin-tag">{t('admTagFree')}</span>}
                 </span>
                 <span className="small muted admin-shop-sub">{s.owner_email || '—'} · {t('admOrdersWeek', { n: s.orders_week })}</span>
               </button>
@@ -263,7 +282,7 @@ export default function Admin() {
                     <dt>{t('admLink')}</dt><dd><a href={`#/s/${s.slug}`} target="_blank" rel="noreferrer">/s/{s.slug}</a></dd>
                     <dt>{t('admPhone')}</dt><dd>{s.phone || '—'}</dd>
                     <dt>{t('admJoined')}</dt><dd>{fmtDate(s.created_at, lang)}</dd>
-                    <dt>{t('admPlan')}</dt><dd>{s.is_pro ? `${t('admTagPro')} · ${t('admUntil', { date: fmtDate(s.plan_expires_at, lang) })}` : t('admTagFree')}{s.paid && s.plan_period ? ` · ${s.plan_period}` : ''}{s.subscription_status ? ` · ${s.subscription_status}` : ''}</dd>
+                    <dt>{t('admPlan')}</dt><dd>{s.is_pro ? `${paidTier(s) === 'plus' ? t('admTagPlus') : t('admTagPro')} · ${t('admUntil', { date: fmtDate(s.plan_expires_at, lang) })}` : t('admTagFree')}{s.paid && s.plan_period ? ` · ${s.plan_period}` : ''}{s.subscription_status ? ` · ${s.subscription_status}` : ''}</dd>
                     <dt>{t('admOrders')}</dt><dd>{t('admOrdersShop', { a: s.orders_total, w: s.orders_week })}</dd>
                     <dt>{t('admLastOrder')}</dt><dd>{fmtDate(s.last_order_at, lang)}</dd>
                     <dt>{t('admCounters')}</dt><dd>{s.counters}</dd>
@@ -275,6 +294,11 @@ export default function Admin() {
                   <div className="admin-actions">
                     <div className="small muted">{t('admGivePro')}</div>
                     <div className="admin-row">
+                      <select className="admin-tier" value={tierPick[s.id] || paidTier(s) || 'pro'} disabled={busy === s.id}
+                        onChange={(e) => setTierPick((m) => ({ ...m, [s.id]: e.target.value as Tier }))} aria-label={t('admPlan')}>
+                        <option value="pro">{t('admTagPro')}</option>
+                        <option value="plus">{t('admTagPlus')}</option>
+                      </select>
                       {[7, 30, 365].map((d) => (
                         <button type="button" key={d} className="btn small soft" disabled={busy === s.id} onClick={() => setPro(s, d)}>+{d} {t('admDays')}</button>
                       ))}

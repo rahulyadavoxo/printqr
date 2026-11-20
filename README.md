@@ -87,6 +87,7 @@ Limits server pe bhi lagte hain (counter trigger, `create_order`, `get_shop_publ
 | v16-plus | Plus plan | v3 |
 | v17-plan-features | Plan limits, staff, shop timings, binding/lamination, ready push | v16 |
 | v18-order-lang | Notification sirf customer/owner ki bhasha mein | v17 |
+| v19-admin-plus | Admin panel mein Plus plan (Plus ko din dene par Plus hi rahe, MRR, Plus tag) | v16 |
 
 Function SQL se pehle deploy ho jaaye to zyada tar functions purane tarike se chalte rehte hain, lekin naye features SQL chalne ke baad hi on hote hain.
 
