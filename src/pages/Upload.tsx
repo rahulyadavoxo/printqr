@@ -10,6 +10,7 @@ import AdSlot from '../components/AdSlot'
 import Icon from '../components/Icon'
 import PagePicker from '../components/PagePicker'
 import ReportShop from '../components/ReportShop'
+import standeeUrl from '../assets/qr-standee.svg'
 
 type ShopPublic = {
   id: string
@@ -442,9 +443,12 @@ export default function Upload() {
           </span>
         </div>
         {counterName && <p className="counter-tag">🧾 {t('uCounter', { name: counterName })}</p>}
-        <p className="rates-pill">
-          {t('ratesLine', { bw: rupees(shop.rates.bw_single), color: rupees(shop.rates.color_single) })}
-        </p>
+        <div className="shop-head-foot">
+          <p className="rates-pill">
+            {t('ratesLine', { bw: rupees(shop.rates.bw_single), color: rupees(shop.rates.color_single) })}
+          </p>
+          {shop.is_open && <img className="shop-standee" src={standeeUrl} alt="" aria-hidden="true" width={160} height={132} />}
+        </div>
       </header>
 
       {!shop.is_open ? (

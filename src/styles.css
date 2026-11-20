@@ -285,6 +285,9 @@ input:focus, select:focus { outline: none; border-color: var(--c-brand); box-sha
 .open-chip.is-closed { background: var(--c-red-bg); color: var(--c-red-ink); }
 .open-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .open-chip.is-open .open-dot { animation: pulse 2s ease-out infinite; }
+.shop-head-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.shop-standee { flex: 0 1 104px; min-width: 76px; height: auto; margin: 0 -8px -34px 0; }
+@media (max-width: 340px) { .shop-standee { display: none; } }
 .rates-pill { display: inline-flex; margin: 14px 0 0; background: var(--c-accent-50); color: var(--c-accent-ink); border: 1px solid #f6d58b; padding: 7px 14px; border-radius: var(--r-pill); font-weight: 700; font-size: var(--fs-sm); }
 .counter-tag { display: inline-flex; margin: 12px 8px 0 0; background: var(--c-purple-bg); color: var(--c-purple-ink); font-weight: 700; font-size: 13.5px; padding: 5px 14px; border-radius: var(--r-pill); }
 .closed-card h2 { margin-top: 4px; }
