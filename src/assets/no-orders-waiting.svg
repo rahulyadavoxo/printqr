@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="132" viewBox="0 0 160 132" role="img" aria-label="Waiting for new orders">
+  <style>
+    :root { --ink:#0e1628; --lime:#a6e22e; --brand:#3f6212; --brand200:#c9ec8a; --counter:#c9ec8a; --counter2:#a6cf5a; --face:#ffffff; --steam:#8a93a3; --amber:#ffb020; --amber2:#ffcf66; --tea:#c2703d; --glass:#ffffff; }
+    @media (prefers-color-scheme: dark) { :root { --counter:#2c3d22; --counter2:#22301b; --face:#17221b; --steam:#b7c2a8; --glass:#e9efe3; } }
+
+    .counter  { fill:var(--counter); }
+    .counter2 { fill:var(--counter2); }
+
+    /* chai glass */
+    .glass    { fill:var(--glass); stroke:var(--brand); stroke-width:1.6; opacity:.95; }
+    .tea      { fill:var(--tea); }
+    .saucer   { fill:var(--brand); }
+    .steam    { fill:none; stroke:var(--steam); stroke-width:2.4; stroke-linecap:round; opacity:0; animation:steam 3.6s ease-in-out infinite; }
+    .steam.b  { animation-delay:1.2s; }
+    .steam.c  { animation-delay:2.4s; }
+
+    /* sleepy service bell */
+    .bell     { transform-box:view-box; transform-origin:80px 98px; animation:breathe 4s ease-in-out infinite; }
+    .dome     { fill:var(--amber); }
+    .shine    { fill:var(--amber2); }
+    .base     { fill:var(--ink); }
+    .knob     { fill:var(--ink); }
+    .eye      { fill:none; stroke:var(--ink); stroke-width:2; stroke-linecap:round; }
+    .mouth    { fill:none; stroke:var(--ink); stroke-width:1.8; stroke-linecap:round; }
+    .cheek    { fill:#ff8a5c; opacity:.45; }
+    .z        { fill:var(--brand); font:700 12px system-ui,sans-serif; opacity:0; transform-box:fill-box; transform-origin:center; animation:zz 4s ease-in-out infinite; }
+    .z.b      { animation-delay:1.3s; font-size:9px; }
+    .z.c      { animation-delay:2.6s; font-size:7px; }
+
+    /* wall clock */
+    .rim      { fill:var(--face); stroke:var(--ink); stroke-width:2.4; }
+    .tick     { stroke:var(--ink); stroke-width:1.6; stroke-linecap:round; }
+    .hand     { stroke:var(--ink); stroke-width:2.2; stroke-linecap:round; transform-box:view-box; transform-origin:128px 38px; }
+    .hand.m   { animation:spin 24s linear infinite; }
+    .hand.s   { stroke:var(--amber); stroke-width:1.4; animation:spin 6s steps(6) infinite; }
+    .pin      { fill:var(--ink); }
+
+    @keyframes steam {
+      0%   { opacity:0; transform:translateY(6px); }
+      30%  { opacity:.8; }
+      100% { opacity:0; transform:translateY(-12px); }
+    }
+    @keyframes breathe { 0%,100%{ transform:scale(1,1); } 50%{ transform:scale(1.03,.97); } }
+    @keyframes zz {
+      0%   { opacity:0; transform:translate(0,6px) rotate(-8deg); }
+      25%  { opacity:1; }
+      100% { opacity:0; transform:translate(10px,-18px) rotate(10deg); }
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    @media (prefers-reduced-motion: reduce) { * { animation:none !important; } .steam,.z { opacity:.6; } }
+  </style>
+
+  <!-- counter -->
+  <rect class="counter"  x="10" y="100" width="140" height="12" rx="6"/>
+  <rect class="counter2" x="10" y="108" width="140" height="4" rx="2"/>
+
+  <!-- wall clock -->
+  <circle class="rim" cx="128" cy="38" r="17"/>
+  <line class="tick" x1="128" y1="24.500" x2="128" y2="27"/>
+  <line class="tick" x1="141.500" y1="38" x2="139" y2="38"/>
+  <line class="tick" x1="128" y1="51.500" x2="128" y2="49"/>
+  <line class="tick" x1="114.500" y1="38" x2="117" y2="38"/>
+  <line class="hand m" x1="128" y1="38" x2="128" y2="27"/>
+  <line class="hand s" x1="128" y1="40" x2="128" y2="25"/>
+  <circle class="pin" cx="128" cy="38" r="2"/>
+
+  <!-- chai glass -->
+  <path class="steam"   d="M30 84q-4-6 0-12t0-12"/>
+  <path class="steam b" d="M37 84q-4-6 0-12t0-12"/>
+  <path class="steam c" d="M44 84q-4-6 0-12t0-12"/>
+  <path class="glass" d="M26 88h22l-3 14H29z"/>
+  <path class="tea"   d="M27.500 94h19l-1.500 8H29z"/>
+  <rect class="saucer" x="22" y="100" width="30" height="3.500" rx="1.750"/>
+
+  <!-- sleepy service bell -->
+  <g class="bell">
+    <rect class="base" x="56" y="95" width="48" height="6" rx="3"/>
+    <path class="dome" d="M60 95a20 20 0 0 1 40 0z"/>
+    <path class="shine" d="M65 90a15 15 0 0 1 9-11 15 15 0 0 0-6 12z"/>
+    <rect class="knob" x="77" y="71" width="6" height="5" rx="2"/>
+    <circle class="knob" cx="80" cy="70" r="3.500"/>
+    <path class="eye" d="M70 88q3 3 6 0"/>
+    <path class="eye" d="M84 88q3 3 6 0"/>
+    <path class="mouth" d="M77 92q3 2 6 0"/>
+    <circle class="cheek" cx="68" cy="92" r="2.500"/>
+    <circle class="cheek" cx="92" cy="92" r="2.500"/>
+  </g>
+  <text class="z"   x="96"  y="68">Z</text>
+  <text class="z b" x="104" y="60">z</text>
+  <text class="z c" x="110" y="54">z</text></svg>

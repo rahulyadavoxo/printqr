@@ -216,6 +216,13 @@ function refreshTrayMenu() {
     Menu.buildFromTemplate([
       { label: 'Open PrintQR', click: showWindow },
       ...(updateReady ? [{ label: 'Restart to update', click: () => { quitting = true; autoUpdater.quitAndInstall() } }] : []),
+      {
+        label: 'Start with Windows',
+        type: 'checkbox',
+        enabled: app.isPackaged,
+        checked: app.getLoginItemSettings({ args: ['--hidden'] }).openAtLogin,
+        click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked, args: ['--hidden'] })
+      },
       { type: 'separator' },
       { label: 'Quit', click: () => { quitting = true; app.quit() } }
     ])
@@ -239,7 +246,12 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     if (process.platform === 'win32') {
       app.setAppUserModelId('in.receipto.print')
-      if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] })
+      // Start with Windows: turned on once on first run; after that the tray checkbox decides.
+      const flag = path.join(app.getPath('userData'), 'autostart-set')
+      if (app.isPackaged && !fs.existsSync(flag)) {
+        app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] })
+        try { fs.writeFileSync(flag, '1') } catch { /* ignore */ }
+      }
     }
     setupPrinting()
     createWindow()

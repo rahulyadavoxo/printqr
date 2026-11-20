@@ -12,3 +12,5 @@ desktop/dist/
 # web app bundled into the Android APK at build time
 android/app/src/main/assets/www/
 android/app/google-services.json
+tsconfig.tsbuildinfo
+*.tsbuildinfo

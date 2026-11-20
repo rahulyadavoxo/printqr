@@ -10,6 +10,7 @@ import { ding, unlockAudio } from '../lib/sound'
 import { Key, useI18n } from '../lib/i18n'
 import { useAppSettings } from '../lib/appSettings'
 import { canDirectPrint, DesktopPrinter, desktopApi, savedPrinter, savePrinter } from '../lib/desktop'
+import noOrdersArt from '../assets/no-orders-waiting.svg'
 import { pushStatus, removePush, setupPush } from '../lib/push'
 import { LangToggle, LogoMark, TopBar, Wordmark } from '../components/TopBar'
 import { ThemePref, useTheme } from '../lib/theme'
@@ -958,7 +959,7 @@ function Orders({ shop, counters, onCount }: { shop: Shop; counters: Counter[]; 
           )}
           {!active.length ? (
             <>
-              <WindowWatcher />
+              <img className="no-orders-art" src={noOrdersArt} width={160} height={132} alt="" aria-hidden="true" />
               <strong>{t('noOrders')}</strong>
               <p className="muted small">{t('noOrdersSub')}</p>
             </>
@@ -1020,30 +1021,6 @@ function FoldCorner({ n, corner, size }: { n: number; corner: 'tl' | 'tr'; size:
   )
 }
 
-// Empty orders: a little shopkeeper peeks out of a window and looks down for customers (CSS-animated SVG)
-function WindowWatcher() {
-  return (
-    <svg className="watcher" width="132" height="112" viewBox="0 0 132 112" aria-hidden="true">
-      <rect x="10" y="4" width="112" height="100" rx="12" className="w-wall" />
-      <rect x="30" y="16" width="72" height="62" rx="6" className="w-hole" />
-      <defs><clipPath id="w-clip"><rect x="30" y="16" width="72" height="66" rx="6" /></clipPath></defs>
-      <g clipPath="url(#w-clip)"><g className="w-man">
-        <rect x="46" y="62" width="40" height="34" rx="14" className="w-shirt" />
-        <circle cx="66" cy="50" r="15" className="w-skin" />
-        <path d="M51 46c1-11 9-16 15-16s14 5 15 16c-5-5-10-6-15-6s-10 1-15 6z" className="w-hair" />
-        <g className="w-eyes">
-          <circle cx="60" cy="52" r="2.2" /><circle cx="72" cy="52" r="2.2" />
-        </g>
-        <path d="M61 59q5 3 10 0" className="w-mouth" />
-        <g className="w-hand"><circle cx="45" cy="78" r="5.5" className="w-skin" /><circle cx="87" cy="78" r="5.5" className="w-skin" /></g>
-      </g></g>
-      <path d="M30 16h20v62H30z" className="w-curtain l" />
-      <path d="M82 16h20v62H82z" className="w-curtain r" />
-      <rect x="22" y="76" width="88" height="9" rx="4" className="w-sill" />
-      <g className="w-pot"><rect x="94" y="66" width="12" height="10" rx="2" /><circle cx="97" cy="63" r="4" /><circle cx="103" cy="62" r="4" /></g>
-    </svg>
-  )
-}
 
 function OrderCard(props: {
   o: Order
