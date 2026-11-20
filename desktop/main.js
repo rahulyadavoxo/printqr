@@ -59,17 +59,6 @@ function createWindow() {
     }
   })
 
-  // Pop-ups (Razorpay bank pages) get the same rules.
-  app.on('web-contents-created', (_e, contents) => {
-    contents.on('will-navigate', (ev, url) => {
-      if (!allowedInside(url)) {
-        ev.preventDefault()
-        openOutside(url)
-      }
-    })
-    contents.on('will-attach-webview', (ev) => ev.preventDefault())
-  })
-
   // Closing the window keeps PrintQR running in the tray, so new-order alerts still come.
   win.on('close', (e) => {
     if (!quitting) {
@@ -293,6 +282,18 @@ function setupTray() {
   refreshTrayMenu()
   tray.on('click', showWindow)
 }
+
+// Pop-ups (Razorpay bank pages) get the same rules. Registered once at app level:
+// inside createWindow() it was added again every time the tray reopened the window.
+app.on('web-contents-created', (_e, contents) => {
+  contents.on('will-navigate', (ev, url) => {
+    if (!allowedInside(url)) {
+      ev.preventDefault()
+      openOutside(url)
+    }
+  })
+  contents.on('will-attach-webview', (ev) => ev.preventDefault())
+})
 
 if (!app.requestSingleInstanceLock()) {
   app.quit()

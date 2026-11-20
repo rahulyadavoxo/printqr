@@ -55,8 +55,11 @@ Agar `schema.sql` pehle chala chuke ho, to **SQL Editor** mein `supabase/migrati
 
 | Plan | Price | Features |
 |---|---|---|
-| Free | ₹0 | Ads, sirf main QR queue, passport sheet nahi |
-| Pro | ₹49/month ya ₹539/year (1 month free) | No ads, unlimited counters, passport photo sheet, dynamic QR |
+| Free | ₹0 | Owner dashboard pe ads, sirf main QR queue, passport sheet nahi, files 1 ghanta, order 50 MB, history 7 din |
+| Pro | ₹49/month ya ₹539/year (1 month free) | Customers ke liye no ads, 2 naye counters, passport photo sheet, dynamic QR, QR card design, auto-print, files 24 ghante, order 100 MB, history 6 mahine |
+| Plus | ₹99/month ya ₹999/year | Pro ka sab kuch + kahin bhi ads nahi, unlimited counters, apna colour/logo (branding), staff logins, files 7 din, order 200 MB, history 1 saal |
+
+Plus ke liye Razorpay mein alag plan banane ki zaroorat nahi, functions khud banate hain (v16 SQL ke baad). Pro se Plus upgrade purani subscription cancel kar deta hai.
 
 ### 1d. Auto-delete Supabase se (v4: har 15 minute)
 1. Workflow **"Deploy Supabase Edge Functions"** `cleanup-files` function bhi deploy karta hai (push pe apne aap).
@@ -67,6 +70,25 @@ Agar `schema.sql` pehle chala chuke ho, to **SQL Editor** mein `supabase/migrati
 SQL Editor mein `supabase/migrations/2026-11-18-v5-dynamic-qr.sql` paste karke **Run** karo. Iske baad Pro shop ka QR short code wala banega (`#/q/CODE`). Owner QR tab se badal sakta hai ki QR kaunsi queue khole, use pause kar sakta hai aur scans dekh sakta hai, bina poster dobara print kiye. Pro khatam hone par bhi printed code chalta rahega. Free shops ka QR static rahega.
 
 Limits server pe bhi lagte hain (counter trigger, `create_order`, `get_shop_public.is_pro`). Owner plan columns khud update nahi kar sakta.
+
+### 1f. Baaki database updates (v6 se v18)
+`supabase/migrations/` ki files **version number ke order mein** (v6, v7, … v18) SQL Editor mein paste karke **Run** karo. Sab file kitni bhi baar chala sakte ho.
+
+| File | Kya karti hai | Pehle chahiye |
+|---|---|---|
+| v6-shop-photo | Shop profile photo (`shop-logos` bucket) | |
+| v7-upload-security | Upload rate limits, file-type allowlist, size checks | |
+| v8-privacy-rates | Files delete hone par customer naam/note saaf, rate checks | |
+| v9-turnstile | Cloudflare Turnstile bot check | Edge Function secret `TURNSTILE_SECRET` |
+| v10-no-order-captcha | Orders pe CAPTCHA wapas band (v7 limits chalu) | |
+| v11-server-page-count | Server PDF pages ginta hai, price fix (`finalize-order`) | |
+| v12-admin, v13-admin-full | Admin panel `#/admin` (apna user `public.admins` mein daalo) | |
+| v14-push, v15-push-grant | Naye order pe push (FCM, `push-new-order`) | v4, secret `FCM_SERVICE_ACCOUNT` |
+| v16-plus | Plus plan | v3 |
+| v17-plan-features | Plan limits, staff, shop timings, binding/lamination, ready push | v16 |
+| v18-order-lang | Notification sirf customer/owner ki bhasha mein | v17 |
+
+Function SQL se pehle deploy ho jaaye to zyada tar functions purane tarike se chalte rehte hain, lekin naye features SQL chalne ke baad hi on hote hain.
 
 ### 2. GitHub secrets
 Repo → **Settings → Secrets and variables → Actions → New repository secret**:
