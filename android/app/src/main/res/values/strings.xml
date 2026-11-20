@@ -3,6 +3,8 @@
     <string name="app_name">PrintQR</string>
     <string name="notif_channel">New orders / नए ऑर्डर</string>
     <string name="notif_channel_desc">A new print order arrived at your shop</string>
+    <string name="notif_channel_ready">Order ready / ऑर्डर तैयार</string>
+    <string name="notif_channel_ready_desc">Your print order is ready to collect</string>
     <string name="launch_url">https://print.receipto.in/</string>
     <string name="asset_statements" translatable="false">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://print.receipto.in\"}}]</string>
 </resources>

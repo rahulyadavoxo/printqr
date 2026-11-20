@@ -7,6 +7,7 @@ import { ShopBrand, TopBar } from '../components/TopBar'
 import { brandStyle } from '../lib/brand'
 import { ding, unlockAudio } from '../lib/sound'
 import { notifyWhenReady, webPushSupported } from '../lib/webpush'
+import { appNotifyAllowed, appNotifyWhenReady, appPushSupported, appReadyOptedIn } from '../lib/push'
 import Icon from '../components/Icon'
 import hourglass from '../assets/hourglass.svg'
 import readyAnim from '../assets/ready-collect.svg'
@@ -60,14 +61,28 @@ export default function Status() {
     }
   }, [info])
   // Permission already given on an earlier order: register this one quietly.
+  // Inside the Android app (v18) the alert is a native FCM notification instead of web push.
+  const inApp = appPushSupported()
   useEffect(() => {
-    if (!info || push !== 'off' || !webPushSupported() || Notification.permission !== 'granted') return
+    if (!info || push !== 'off') return
     if (!['uploading', 'received', 'printing'].includes(info.status)) return
+    if (inApp) {
+      if (!appReadyOptedIn() || !appNotifyAllowed()) return
+      void appNotifyWhenReady(id, key, false).then((r) => { if (r === 'on') { markPushAsked(id); setPush('on') } })
+      return
+    }
+    if (!webPushSupported() || Notification.permission !== 'granted') return
     void notifyWhenReady(id, key, false).then((ok) => { if (ok) { markPushAsked(id); setPush('on') } })
-  }, [info, push, id, key])
+  }, [info, push, id, key, inApp])
   async function askPush() {
     unlockAudio()
     setPush('asking')
+    if (inApp) {
+      const r = await appNotifyWhenReady(id, key, true)
+      if (r === 'on') markPushAsked(id)
+      setPush(r)
+      return
+    }
     const ok = await notifyWhenReady(id, key, true)
     if (ok) markPushAsked(id)
     setPush(ok ? 'on' : Notification.permission === 'denied' ? 'denied' : 'off')
@@ -127,7 +142,7 @@ export default function Status() {
     : null
 
   const waiting = ['uploading', 'received', 'printing'].includes(info.status)
-  const canPush = waiting && webPushSupported()
+  const canPush = waiting && (inApp || webPushSupported())
   const expires = info.files_expire_at ? new Date(info.files_expire_at) : null
   const sameDay = expires && expires.toDateString() === new Date().toDateString()
   const expText = expires
@@ -168,7 +183,7 @@ export default function Status() {
       </div>
       {canPush && push !== 'on' && (
         <button type="button" className="btn block notify-btn" disabled={push === 'asking' || push === 'denied'} onClick={() => void askPush()}>
-          <Icon name="bell" size={18} /> {push === 'denied' ? t('sNotifyBlocked') : push === 'asking' ? t('pleaseWait') : t('sNotifyMe')}
+          <Icon name="bell" size={18} /> {push === 'denied' ? t(inApp ? 'sNotifyBlockedApp' : 'sNotifyBlocked') : push === 'asking' ? t('pleaseWait') : t('sNotifyMe')}
         </button>
       )}
       {waiting && push === 'on' && <p className="hint-line"><Icon name="bell" size={18} /> <span>{t('sNotifyOn')}</span></p>}

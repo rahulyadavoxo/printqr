@@ -206,8 +206,44 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
 
         Checkout.preload(getApplicationContext());
 
-        if (savedInstanceState != null) web.restoreState(savedInstanceState);
-        else web.loadUrl(START);
+        String deep = orderLink(getIntent());
+        if (savedInstanceState != null) {
+            web.restoreState(savedInstanceState);
+            if (deep != null) web.loadUrl(deep);
+        } else {
+            web.loadUrl(deep != null ? deep : START);
+        }
+    }
+
+    /** v18: "order ready" notification tapped -> that order's status page (inside the app). */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        String deep = orderLink(intent);
+        if (deep != null && web != null) {
+            closePopup();
+            web.loadUrl(deep);
+        } else if (web != null && intent != null && intent.hasExtra("order_id") && popup == null) {
+            // Owner's new-order notification: open the dashboard, as before singleTop (it used to recreate the screen).
+            intent.removeExtra("order_id");
+            web.loadUrl(START);
+        }
+    }
+
+    /** App URL for the "path" extra of a ready notification (FCM puts data keys in the extras), else null. Used once. */
+    private String orderLink(Intent intent) {
+        if (intent == null) return null;
+        try {
+            String kind = intent.getStringExtra("kind");
+            String path = intent.getStringExtra("path");
+            if (!"ready".equals(kind) || !PushService.validOrderPath(path)) return null;
+            intent.removeExtra("kind");
+            intent.removeExtra("path");
+            return "https://" + APP_HOST + "/#" + path;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /** Serves the bundled web app (assets/www) for https://appassets.androidplatform.net/... */
@@ -586,6 +622,7 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
     private volatile boolean trustedPage = true;
 
     private void trackPage(String url) {
+        PushService.currentUrl = url == null ? "" : url;
         Uri u = url == null ? null : Uri.parse(url);
         trustedPage = u != null && "https".equals(u.getScheme()) && APP_HOST.equals(u.getHost());
     }
@@ -737,13 +774,16 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
             return androidx.core.app.NotificationManagerCompat.from(MainActivity.this).areNotificationsEnabled();
         }
 
-        /** Android 13+: ask once for permission to show new-order notifications. */
+        /** Android 13+: ask once for permission to show notifications. The answer goes to window.__pqNotify(granted). */
         @JavascriptInterface
         public void askNotify() {
-            if (!trustedPage || Build.VERSION.SDK_INT < 33) return;
+            if (!trustedPage) return;
             runOnUiThread(() -> {
-                if (checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                if (Build.VERSION.SDK_INT >= 33
+                        && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
                     requestPermissions(new String[] { "android.permission.POST_NOTIFICATIONS" }, 1002);
+                } else {
+                    notifyAnswer();
                 }
             });
         }
@@ -788,6 +828,17 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
                 toast("Download failed");
             }
         }
+    }
+
+    private void notifyAnswer() {
+        boolean ok = androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled();
+        js("window.__pqNotify&&window.__pqNotify(" + ok + ")");
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int req, String[] perms, int[] results) {
+        super.onRequestPermissionsResult(req, perms, results);
+        if (req == 1002) notifyAnswer();
     }
 
     @Override

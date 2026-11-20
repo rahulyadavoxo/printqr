@@ -70,7 +70,7 @@ async function fcmSend(sa: ServiceAccount, access: string, message: Record<strin
   return { ok: false, dead, err: dead ? '' : `fcm ${res.status}: ${text.slice(0, 300)}` }
 }
 
-/** Customer's browsers that asked "tell me when it's ready" on the status page (public.order_push). */
+/** Customer's browsers (web push) or Android app phones (FCM, v18) that asked "tell me when it's ready" on the status page (public.order_push). */
 async function sendReady(sa: ServiceAccount, orderId: string): Promise<Record<string, unknown>> {
   const rows = (await call(`/rest/v1/orders?id=eq.${orderId}&select=id,token,status,access_key,shop_id`)) as
     { id: string; token: number; status: string; access_key: string; shop_id: string }[]
@@ -90,7 +90,13 @@ async function sendReady(sa: ServiceAccount, orderId: string): Promise<Record<st
     const r = await fcmSend(sa, access, {
       token,
       notification: { title, body },
-      data: { kind: 'ready', order_id: o.id, token: String(o.token), link },
+      // `path` opens the order's status page inside the Android app (MainActivity reads it on tap).
+      data: { kind: 'ready', order_id: o.id, token: String(o.token), link, path: `/o/${o.id}/${o.access_key}` },
+      // v18: the same token may be the PrintQR Android app's (status page opened in the app).
+      android: {
+        priority: 'HIGH',
+        notification: { channel_id: 'ready', sound: 'default', tag: `ready-${o.id}`, icon: 'ic_stat_print' }
+      },
       webpush: {
         headers: { Urgency: 'high', TTL: '3600' },
         notification: { title, body, icon: 'https://print.receipto.in/icon-192.png', tag: `ready-${o.id}`, vibrate: [200, 100, 200] },
