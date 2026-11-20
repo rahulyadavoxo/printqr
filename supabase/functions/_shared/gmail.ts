@@ -16,19 +16,22 @@ let accessExp = 0
 
 async function gmailToken(): Promise<string> {
   if (accessToken && Date.now() < accessExp - 60_000) return accessToken
+  const missing = ['GMAIL_CLIENT_ID', 'GMAIL_CLIENT_SECRET', 'GMAIL_REFRESH_TOKEN'].filter((k) => !(Deno.env.get(k) || '').trim())
+  if (missing.length) throw new Error(`Missing secret(s): ${missing.join(', ')}`)
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'refresh_token',
-      client_id: Deno.env.get('GMAIL_CLIENT_ID') || '',
-      client_secret: Deno.env.get('GMAIL_CLIENT_SECRET') || '',
-      refresh_token: Deno.env.get('GMAIL_REFRESH_TOKEN') || ''
+      client_id: (Deno.env.get('GMAIL_CLIENT_ID') || '').trim(),
+      client_secret: (Deno.env.get('GMAIL_CLIENT_SECRET') || '').trim(),
+      refresh_token: (Deno.env.get('GMAIL_REFRESH_TOKEN') || '').trim()
     })
   })
-  const data = await res.json().catch(() => ({})) as { access_token?: string; expires_in?: number }
+  const data = await res.json().catch(() => ({})) as { access_token?: string; expires_in?: number; error?: string; error_description?: string }
   if (!res.ok || !data.access_token) {
-    throw new Error(`Gmail token request failed (${res.status}). The refresh token may be expired or revoked.`)
+    // Google's error code is safe to log (invalid_grant = token expired/revoked, invalid_client = wrong client id/secret).
+    throw new Error(`Gmail token request failed (${res.status}): ${data.error || ''} ${data.error_description || ''}`.trim())
   }
   accessToken = data.access_token
   accessExp = Date.now() + (Number(data.expires_in) || 3600) * 1000
@@ -36,7 +39,7 @@ async function gmailToken(): Promise<string> {
 }
 
 export async function sendGmail(to: string, subject: string, html: string, text: string): Promise<void> {
-  const sender = Deno.env.get('GMAIL_SENDER') || ''
+  const sender = (Deno.env.get('GMAIL_SENDER') || '').trim()
   if (!sender) throw new Error('GMAIL_SENDER is not set')
   const boundary = `pq_${crypto.randomUUID()}`
   const raw = [
