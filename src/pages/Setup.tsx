@@ -34,7 +34,11 @@ export default function Setup() {
         // Staff login (v17, Plus shops): no shop to set up, go to the shop's orders.
         void Promise.resolve(supabase.rpc('my_staff_shop')).then(({ data: st, error: e2 }) => {
           if (!e2 && st) nav('/dashboard', { replace: true })
-          else setChecking(false)
+          else {
+            setChecking(false)
+            // New owner: one welcome mail from our Gmail (the server sends it only once, only after email is confirmed).
+            void supabase.functions.invoke('send-welcome', { body: {} }).catch(() => undefined)
+          }
         }, () => setChecking(false))
       }
     }, () => nav('/dashboard', { replace: true }))
