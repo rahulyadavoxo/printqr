@@ -110,10 +110,18 @@ export default function Admin() {
     loadShops(query, 0)
   }, [allowed, query, loadShops])
 
-  const refreshAll = () => {
-    loadOverview()
-    loadShops(query, 0)
-    loadLog()
+  const refreshAll = () => Promise.all([loadOverview(), loadShops(query, 0), loadLog()])
+
+  // Refresh button: clear the old notice, reload overview/shops/log, and remount the open tab
+  // (Users, Orders, Payments, Spam) so it fetches fresh data too. Settings is not remounted (unsaved edits).
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const onRefresh = async () => {
+    if (refreshing) return
+    setMsg(null)
+    setRefreshing(true)
+    setRefreshKey((k) => k + 1)
+    try { await refreshAll() } finally { setRefreshing(false) }
   }
 
   const setPro = async (s: ShopRow, d: number) => {
@@ -191,7 +199,7 @@ export default function Admin() {
     <>
       <div className="admin-head">
         <h1>{t('admTitle')}</h1>
-        <button type="button" className="btn small soft" onClick={refreshAll}>{t('admRefresh')}</button>
+        <button type="button" className="btn small soft" onClick={onRefresh} disabled={refreshing} aria-busy={refreshing}>{refreshing ? '…' : t('admRefresh')}</button>
       </div>
 
       {msg && <div className={`notice${msg.error ? ' error' : ''}`} role="status">{msg.text}</div>}
@@ -347,10 +355,10 @@ export default function Admin() {
 
       </>)}
 
-      {tab === 'users' && <AdminUsers onMsg={setMsg} />}
-      {tab === 'orders' && <AdminOrders onMsg={setMsg} />}
-      {tab === 'payments' && <AdminPayments onMsg={setMsg} />}
-      {tab === 'spam' && <AdminSpam onMsg={setMsg} onChanged={loadLog} />}
+      {tab === 'users' && <AdminUsers key={refreshKey} onMsg={setMsg} />}
+      {tab === 'orders' && <AdminOrders key={refreshKey} onMsg={setMsg} />}
+      {tab === 'payments' && <AdminPayments key={refreshKey} onMsg={setMsg} />}
+      {tab === 'spam' && <AdminSpam key={refreshKey} onMsg={setMsg} onChanged={loadLog} />}
       {tab === 'settings' && <AdminSettings onMsg={setMsg} />}
 
       {tab === 'log' && (<>

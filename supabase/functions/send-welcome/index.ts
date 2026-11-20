@@ -1,6 +1,6 @@
 // POST (JWT required): send the logged-in user one welcome mail from your Gmail, once.
 // Only after the email is confirmed. The "sent" flag lives in the user's app_metadata (users can't edit it).
-import { button, esc, layout, sendGmail } from '../_shared/gmail.ts'
+import { button, layout, note, para, sendGmail, steps as stepList } from '../_shared/gmail.ts'
 
 const URL_ = Deno.env.get('SUPABASE_URL') || ''
 const KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
@@ -38,10 +38,14 @@ Deno.serve(async (req) => {
       'Apna QR print karke counter pe lagao. / अपना QR प्रिंट करके काउंटर पर लगाएँ।',
       'Customer QR scan karke file bhejega, order dashboard pe aa jayega. / ग्राहक QR स्कैन करके फ़ाइल भेजेगा, ऑर्डर डैशबोर्ड पर आएगा।'
     ]
-    const html = layout('Welcome to PrintQR 🎉', `<p style="color:#334155;line-height:1.5">Aapka account ban gaya hai. Ab customers bina app ke QR scan karke print ke liye file bhej sakte hain. / आपका अकाउंट बन गया है।</p>
-<ol style="color:#334155;line-height:1.6;padding-left:18px">${steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
-${button(`${SITE}#/dashboard`, 'Open dashboard')}
-<p style="font-size:12px;color:#64748b">Koi sawaal ho to is mail ka reply kar dijiye. / कोई सवाल हो तो इस मेल का जवाब दें।</p>`)
+    const html = layout('Welcome to PrintQR!', [
+      para('Aapka shop account ban gaya hai. Ab customers bina koi app ya WhatsApp ke, sirf QR scan karke print ke liye file bhej sakte hain.'),
+      para('आपका अकाउंट बन गया है। अब ग्राहक सिर्फ़ QR स्कैन करके प्रिंट के लिए फ़ाइल भेज सकते हैं।', true),
+      `<div style="margin:22px 0 4px;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#586274">3 steps mein shuru karein</div>`,
+      stepList(steps),
+      button(`${SITE}#/dashboard`, 'Open dashboard'),
+      note('Koi sawaal ho to bas is mail ka reply kar dijiye, hum madad karenge. / कोई सवाल हो तो इस मेल का जवाब दें।')
+    ].join('\n'), { icon: '🎉', subtitle: 'PrintQR में आपका स्वागत है', preheader: 'Your shop is ready. 3 quick steps to get your first print order.' })
     const text = `Welcome to PrintQR!\n\nAapka account ban gaya hai.\n\n${steps.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\nDashboard: ${SITE}#/dashboard\n\nKoi sawaal ho to is mail ka reply kar dijiye.`
     await sendGmail(user.email, 'Welcome to PrintQR 🎉', html, text)
     return reply({ ok: true })

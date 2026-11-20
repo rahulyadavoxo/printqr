@@ -8,7 +8,7 @@
 // Optional: MAIL_FROM_NAME (default "PrintQR")
 // Deployed with --no-verify-jwt; every request is checked with the Standard Webhooks signature instead.
 
-import { button, esc, layout, sendGmail } from '../_shared/gmail.ts'
+import { button, codeBox, fallbackLink, layout, note, para, sendGmail } from '../_shared/gmail.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
 
@@ -55,13 +55,47 @@ async function verify(req: Request, body: string): Promise<void> {
 
 /* ---------------- Email content ---------------- */
 
-const COPY: Record<string, { subject: string; title: string; line: string; button: string }> = {
-  signup: { subject: 'Your PrintQR signup code', title: 'Confirm your email', line: 'Enter this code in PrintQR to finish creating your account, or tap the button. / अकाउंट बनाने के लिए यह कोड PrintQR में डालें, या बटन दबाएँ।', button: 'Confirm email' },
-  recovery: { subject: 'Reset your PrintQR password', title: 'Reset your password', line: 'Tap the button to set a new password. If you did not ask for this, ignore this email. / नया पासवर्ड बनाने के लिए बटन दबाएँ।', button: 'Set new password' },
-  magiclink: { subject: 'Your PrintQR login link', title: 'Log in to PrintQR', line: 'Tap the button to log in. / लॉग इन करने के लिए बटन दबाएँ।', button: 'Log in' },
-  invite: { subject: 'You are invited to PrintQR', title: 'You are invited', line: 'Tap the button to accept the invite and set your password. / इनवाइट मानने के लिए बटन दबाएँ।', button: 'Accept invite' },
-  email_change: { subject: 'Confirm your new email for PrintQR', title: 'Confirm email change', line: 'Tap the button to confirm this email change. / ईमेल बदलने की पुष्टि के लिए बटन दबाएँ।', button: 'Confirm change' },
-  reauthentication: { subject: 'Your PrintQR confirmation code', title: 'Confirmation code', line: 'Use this code to confirm it is you. / पुष्टि के लिए यह कोड डालें।', button: '' }
+type Copy = { subject: string; icon: string; title: string; subtitle: string; line: string; lineHi: string; button: string; codeLabel: string; preheader: string; safety: string }
+
+const SAFETY = 'Ye aapne nahi maanga tha? To is mail ko ignore kar dein, aapka account safe hai. / If this was not you, ignore this email.'
+
+const COPY: Record<string, Copy> = {
+  signup: {
+    subject: 'Your PrintQR code', icon: '🔐', title: 'Confirm your email', subtitle: 'अपना ईमेल कन्फ़र्म करें',
+    line: 'Bas ek step aur! Ye code PrintQR mein daalein ya neeche button dabayein, aapka shop account ready ho jayega.',
+    lineHi: 'नीचे दिया कोड PrintQR में डालें या बटन दबाएँ।',
+    button: 'Confirm email', codeLabel: 'Your code · आपका कोड', preheader: 'Your PrintQR signup code is inside', safety: SAFETY
+  },
+  recovery: {
+    subject: 'Reset your PrintQR password', icon: '🔑', title: 'Reset your password', subtitle: 'नया पासवर्ड बनाएँ',
+    line: 'Password bhool gaye? Koi baat nahi. Neeche button dabake naya password set kar lijiye.',
+    lineHi: 'नया पासवर्ड बनाने के लिए बटन दबाएँ।',
+    button: 'Set new password', codeLabel: 'Code', preheader: 'Tap to set a new PrintQR password', safety: SAFETY
+  },
+  magiclink: {
+    subject: 'Your PrintQR login link', icon: '✨', title: 'Log in to PrintQR', subtitle: 'PrintQR में लॉग इन करें',
+    line: 'Ek tap mein login karein, password ki zaroorat nahi.',
+    lineHi: 'लॉग इन करने के लिए बटन दबाएँ।',
+    button: 'Log in', codeLabel: 'Code', preheader: 'Your one-tap login link', safety: SAFETY
+  },
+  invite: {
+    subject: 'You are invited to PrintQR', icon: '🎟️', title: 'You are invited', subtitle: 'आपको PrintQR पर बुलाया गया है',
+    line: 'Aapko PrintQR par invite kiya gaya hai. Button dabake invite accept karein aur apna password banayein.',
+    lineHi: 'इनवाइट स्वीकार करने के लिए बटन दबाएँ।',
+    button: 'Accept invite', codeLabel: 'Code', preheader: 'Accept your PrintQR invite', safety: 'Aap is invite ko nahi jaante? To ignore kar dein. / Not expecting this? Ignore it.'
+  },
+  email_change: {
+    subject: 'Confirm your new email for PrintQR', icon: '📧', title: 'Confirm email change', subtitle: 'ईमेल बदलने की पुष्टि करें',
+    line: 'Aapke PrintQR account ka email badla ja raha hai. Pakka karne ke liye button dabayein.',
+    lineHi: 'ईमेल बदलने की पुष्टि के लिए बटन दबाएँ।',
+    button: 'Confirm change', codeLabel: 'Code', preheader: 'Confirm your new PrintQR email', safety: 'Ye badlaav aapne nahi kiya? To turant apna password badlein. / Not you? Change your password now.'
+  },
+  reauthentication: {
+    subject: 'Your PrintQR confirmation code', icon: '🛡️', title: 'Confirmation code', subtitle: 'पुष्टि कोड',
+    line: 'Ye aap hi hain, ye pakka karne ke liye ye code daalein.',
+    lineHi: 'पुष्टि के लिए यह कोड डालें।',
+    button: '', codeLabel: 'Your code · आपका कोड', preheader: 'Your PrintQR confirmation code', safety: SAFETY
+  }
 }
 
 function link(type: string, hash: string, redirect: string): string {
@@ -74,12 +108,16 @@ function link(type: string, hash: string, redirect: string): string {
 
 function render(type: string, url: string | null, code: string | undefined) {
   const c = COPY[type] || COPY.magiclink
-  const otp = code ? `<p style="font-size:14px;color:#334155">${type === 'signup' ? 'Your code / आपका कोड' : 'Code'}:</p>
-<p style="font-size:30px;font-weight:800;letter-spacing:6px;color:#0f172a;margin:6px 0 18px">${esc(code)}</p>` : ''
-  const link = url ? `${button(url, c.button)}
-<p style="font-size:12px;color:#64748b">If the button does not work, open this link:<br><a href="${esc(url)}" style="color:#4d7c0f;word-break:break-all">${esc(url)}</a></p>` : ''
-  const html = layout(c.title, `<p style="color:#334155;line-height:1.5">${esc(c.line)}</p>${otp}${link}`)
-  const text = `${c.title}\n\n${c.line}\n\n${code ? `Code: ${code}\n` : ''}${url ? `${c.button}: ${url}\n` : ''}\nPrintQR · print.receipto.in`
+  const body = [
+    para(c.line),
+    para(c.lineHi, true),
+    code ? codeBox(code, c.codeLabel) : '',
+    url && c.button ? button(url, c.button) : '',
+    url && c.button ? fallbackLink(url) : '',
+    note(c.safety)
+  ].join('\n')
+  const html = layout(c.title, body, { icon: c.icon, subtitle: c.subtitle, preheader: code ? `${c.preheader}: ${code}` : c.preheader })
+  const text = `${c.title}\n\n${c.line}\n${c.lineHi}\n\n${code ? `Code: ${code}\n` : ''}${url && c.button ? `${c.button}: ${url}\n` : ''}\n${c.safety}\n\nPrintQR · print.receipto.in`
   return { subject: c.subject, html, text }
 }
 
