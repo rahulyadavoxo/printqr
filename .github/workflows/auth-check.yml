@@ -1,0 +1,30 @@
+name: Check Supabase Auth email setup
+
+# Manual only. Prints a few NON-secret Auth settings (logs are public): is the Send Email hook on,
+# email rate limit per hour, is custom SMTP set. Never prints secrets or URLs with keys.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: asqgdgzxkdksoikmffmd
+    steps:
+      - name: Read auth config
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/auth.json -w '%{http_code}' \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN")
+          if [ "$code" != "200" ]; then echo "::error::HTTP $code"; exit 1; fi
+          jq '{
+            hook_send_email_enabled,
+            hook_send_email_uri_is_send_email_fn: ((.hook_send_email_uri // "") | endswith("/functions/v1/send-email")),
+            rate_limit_email_sent,
+            custom_smtp_set: ((.smtp_host // "") != ""),
+            mailer_autoconfirm,
+            site_url
+          }' /tmp/auth.json
