@@ -16,9 +16,20 @@ export function onWebUpdate(fn: (v: boolean) => void): () => void {
   fn(ready)
   return () => { subs.delete(fn) }
 }
+let applying = false
+/** Refresh tapped: activate the waiting version and reload at once (fallback reload if the swap is slow). */
 export function applyWebUpdate() {
-  if (apply) void apply(true)
-  else location.reload()
+  if (applying) return
+  applying = true
+  const reload = () => location.reload()
+  if (!apply || !navigator.serviceWorker) return reload()
+  navigator.serviceWorker.addEventListener('controllerchange', reload, { once: true })
+  void navigator.serviceWorker.getRegistration().then((reg) => {
+    if (reg?.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+    else reload()
+  }).catch(reload)
+  void apply(true).catch(() => {})
+  setTimeout(reload, 1500)
 }
 
 export function startPwa() {
