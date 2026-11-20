@@ -17,6 +17,10 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
+  // Signup step 2: the 6-digit code from the email (proves the email is real).
+  const [codeStep, setCodeStep] = useState(false)
+  const [code, setCode] = useState('')
+  const [cooldown, setCooldown] = useState(0)
   const [captcha, setCaptcha] = useState<string | null>(null)
   const [captchaReset, setCaptchaReset] = useState(0)
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(() => {
@@ -26,6 +30,46 @@ export default function Login() {
   const nav = useNavigate()
 
   useEffect(() => clearAuthUrlError(), [])
+
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const id = window.setTimeout(() => setCooldown((s) => s - 1), 1000)
+    return () => window.clearTimeout(id)
+  }, [cooldown])
+
+  async function verifyCode(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setMsg(null)
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.replace(/\s/g, ''), type: 'email' })
+      if (error) throw error
+      if (!data.session) throw new Error(t('codeBad'))
+      void supabase.functions.invoke('send-welcome', { body: {} }).catch(() => undefined)
+      nav('/setup')
+    } catch (e) {
+      setMsg({ text: /expired|invalid|otp|token/i.test(String((e as Error)?.message)) ? t('codeBad') : te(e), error: true })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function resendCode() {
+    if (cooldown > 0) return
+    setBusy(true)
+    setMsg(null)
+    try {
+      const { error } = await supabase.auth.resend({ type: 'signup', email: email.trim(), options: { emailRedirectTo: PUBLIC_BASE, captchaToken: captcha || undefined } })
+      if (error) throw error
+      setMsg({ text: t('codeResent'), error: false })
+      setCooldown(60)
+    } catch (e) {
+      setMsg({ text: isCaptchaError(e) ? t('captchaFail') : te(e), error: true })
+    } finally {
+      setBusy(false)
+      setCaptchaReset((n) => n + 1)
+    }
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -52,8 +96,10 @@ export default function Login() {
         })
         if (error) throw error
         if (!data.session) {
-          setMsg({ text: t('confirmSent'), error: false })
-          setMode('login')
+          // Email confirmation is on: ask for the code we just mailed.
+          setCode('')
+          setCodeStep(true)
+          setCooldown(60)
           return
         }
         nav('/setup')
@@ -75,6 +121,37 @@ export default function Login() {
   const switchTo = (m: 'login' | 'signup' | 'forgot') => {
     setMode(m)
     setMsg(null)
+  }
+
+  if (codeStep) {
+    return (
+      <div className="auth-page">
+        <TopBar />
+        <main className="auth-wrap">
+          <form className="card auth-card" onSubmit={verifyCode}>
+            <div className="auth-logo"><LogoMark size={44} /></div>
+            <h1 className="auth-title">{t('codeTitle')}</h1>
+            <p className="muted center">{t('codeSub', { email: email.trim() })}</p>
+            <label className="field">
+              <span>{t('codeLabel')}</span>
+              <input type="text" inputMode="numeric" autoComplete="one-time-code" required minLength={6} maxLength={10}
+                pattern="[0-9 ]{6,10}" value={code} onChange={(e) => setCode(e.target.value.replace(/[^0-9 ]/g, ''))}
+                placeholder="123456" className="code-input" autoFocus />
+            </label>
+            {msg && <p className={`notice${msg.error ? ' error' : ' success'}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
+            <button className="btn primary block lg" disabled={busy || code.replace(/\s/g, '').length < 6}>{busy ? t('pleaseWait') : t('codeVerify')}</button>
+            <Turnstile key="resend" action="signup" onToken={setCaptcha} resetKey={captchaReset} lang={lang} />
+            <p className="center small switch-line">
+              <button type="button" className="link" disabled={busy || cooldown > 0} onClick={resendCode}>
+                {cooldown > 0 ? t('codeWait', { s: cooldown }) : t('codeResend')}
+              </button>
+              {' · '}
+              <button type="button" className="link" onClick={() => { setCodeStep(false); setMsg(null) }}>{t('codeChangeEmail')}</button>
+            </p>
+          </form>
+        </main>
+      </div>
+    )
   }
 
   if (forgot) {

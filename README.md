@@ -134,5 +134,8 @@ Signup, password reset aur baaki saare Auth mail `supabase/functions/send-email`
 2. Supabase → Authentication → Hooks → **Send Email** → HTTPS mein URL `https://asqgdgzxkdksoikmffmd.supabase.co/functions/v1/send-email` daalo.
 3. **Generate secret** karke copy karo. Use Secrets mein `SEND_EMAIL_HOOK_SECRET` naam se daalo, phir hook ko Enable karke Save karo.
 4. Authentication → Rate Limits mein "emails per hour" badha do.
+5. Authentication → Sign In / Providers → Email mein **Confirm email** ON karo. Iske baad signup karne par 6 digit code mail pe jayega, aur bina code daale account nahi banega.
+
+Welcome mail `supabase/functions/send-welcome` bhejta hai. Email confirm hone ke baad naya owner jab Setup page pe aata hai, tab ek hi baar mail jata hai (flag `app_metadata.welcome_sent` mein rehta hai). Iske liye bhi wahi GMAIL_* secrets use hote hain.
 
 Agar refresh token kabhi badla, to use Render aur Supabase dono jagah update karna hoga.
