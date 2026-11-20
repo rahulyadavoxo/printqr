@@ -1,4 +1,4 @@
--- PrintQR database schema for Supabase (includes migrations up to v19)
+-- PrintQR database schema for Supabase (includes migrations up to v20)
 -- Run this whole file once in Supabase Dashboard -> SQL Editor -> New query -> Run.
 
 create extension if not exists pgcrypto;
@@ -2211,3 +2211,8 @@ revoke all on function public.admin_payments() from public, anon;
 grant execute on function public.admin_payments() to authenticated;
 
 notify pgrst, 'reload schema';
+
+-- ===================== v20: service_role can read admins / write admin_log =====================
+-- Safe to run more than once.
+grant select on public.admins to service_role;
+grant select, insert on public.admin_log to service_role;
