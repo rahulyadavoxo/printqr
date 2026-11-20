@@ -122,7 +122,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: printqr-windows
-          path: desktop/dist/*.exe
+          path: |
+            desktop/dist/*.exe
+            desktop/dist/*.exe.blockmap
+            desktop/dist/latest.yml
           retention-days: 1
 
   # Publish the APK as soon as Android is built (doesn't wait for Windows), then tell open apps.
@@ -175,3 +178,5 @@ jobs:
           # Fixed names so the website can always link releases/latest/download/<name>
           cp files/*.exe PrintQR-Setup.exe
           gh release upload "$GITHUB_REF_NAME" files/*.exe PrintQR-Setup.exe --clobber
+          # Windows auto-update (electron-updater reads latest.yml from releases/latest/download)
+          gh release upload "$GITHUB_REF_NAME" files/latest.yml files/*.blockmap --clobber

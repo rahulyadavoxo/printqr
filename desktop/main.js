@@ -1,6 +1,7 @@
 // PrintQR for Windows: opens https://print.receipto.in in its own window.
 // The app always shows the live site, so website updates reach it without reinstalling.
-const { app, BrowserWindow, shell, ipcMain, Tray, Menu, nativeImage } = require('electron')
+const { app, BrowserWindow, shell, ipcMain, Tray, Menu, nativeImage, Notification } = require('electron')
+const { autoUpdater } = require('electron-updater')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -182,18 +183,51 @@ function showWindow() {
   w.focus()
 }
 
+// ---------------------------------------------------------------------------
+// Auto-update of the Windows app itself (the website inside always updates by itself).
+// Reads latest.yml from the newest GitHub release, downloads in the background, installs on restart/quit.
+let updateReady = false
+
+function setupUpdates() {
+  if (!app.isPackaged) return
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+  autoUpdater.on('error', (e) => console.warn('update', e && e.message))
+  autoUpdater.on('update-downloaded', (info) => {
+    updateReady = true
+    refreshTrayMenu()
+    if (Notification.isSupported()) {
+      const n = new Notification({
+        title: 'PrintQR update ready',
+        body: `Version ${info.version} is downloaded. Click to restart and update.`
+      })
+      n.on('click', () => { quitting = true; autoUpdater.quitAndInstall() })
+      n.show()
+    }
+  })
+  const check = () => autoUpdater.checkForUpdates().catch(() => {})
+  setTimeout(check, 15 * 1000)
+  setInterval(check, 60 * 60 * 1000)
+}
+
+function refreshTrayMenu() {
+  if (!tray) return
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Open PrintQR', click: showWindow },
+      ...(updateReady ? [{ label: 'Restart to update', click: () => { quitting = true; autoUpdater.quitAndInstall() } }] : []),
+      { type: 'separator' },
+      { label: 'Quit', click: () => { quitting = true; app.quit() } }
+    ])
+  )
+}
+
 function setupTray() {
   let icon = nativeImage.createFromPath(path.join(__dirname, 'build', 'icon.png'))
   if (!icon.isEmpty()) icon = icon.resize({ width: 16, height: 16 })
   tray = new Tray(icon)
   tray.setToolTip('PrintQR – new orders will notify you')
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: 'Open PrintQR', click: showWindow },
-      { type: 'separator' },
-      { label: 'Quit', click: () => { quitting = true; app.quit() } }
-    ])
-  )
+  refreshTrayMenu()
   tray.on('click', showWindow)
 }
 
@@ -210,6 +244,7 @@ if (!app.requestSingleInstanceLock()) {
     setupPrinting()
     createWindow()
     setupTray()
+    setupUpdates()
   })
   app.on('window-all-closed', () => { if (quitting) app.quit() })
 }

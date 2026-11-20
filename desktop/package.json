@@ -42,9 +42,16 @@
     },
     "asarUnpack": [
       "node_modules/pdf-to-printer/dist/**"
+    ],
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://github.com/rahulyadavoxo/printqr/releases/latest/download"
+      }
     ]
   },
   "dependencies": {
-    "pdf-to-printer": "^5.6.0"
+    "pdf-to-printer": "^5.6.0",
+    "electron-updater": "^6.6.2"
   }
 }
