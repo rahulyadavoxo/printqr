@@ -1,10 +1,15 @@
 name: Check Supabase Auth email setup
 
-# Manual only. Prints a few NON-secret Auth settings (logs are public): is the Send Email hook on,
+# Manual only. Optionally sets the Auth email rate limit, then prints a few NON-secret Auth settings (logs are public): is the Send Email hook on,
 # email rate limit per hour, is custom SMTP set. Never prints secrets or URLs with keys.
 
 on:
   workflow_dispatch:
+    inputs:
+      email_rate_limit:
+        description: 'Optional: set Auth email limit per hour (e.g. 1000). Leave empty to only check.'
+        required: false
+        default: ''
 
 jobs:
   check:
@@ -13,6 +18,20 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       PROJECT_REF: asqgdgzxkdksoikmffmd
     steps:
+      - name: Set email rate limit
+        if: github.event.inputs.email_rate_limit != ''
+        env:
+          LIMIT: ${{ github.event.inputs.email_rate_limit }}
+        run: |
+          set -euo pipefail
+          case "$LIMIT" in ''|*[!0-9]*) echo "::error::Limit must be a number"; exit 1;; esac
+          code=$(curl -sS -o /tmp/patch.json -w '%{http_code}' -X PATCH \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+            --data "{\"rate_limit_email_sent\": $LIMIT}")
+          if [ "$code" -ge 300 ]; then echo "::error::HTTP $code: $(jq -r '.message // .error // "error"' /tmp/patch.json 2>/dev/null | head -c 300)"; exit 1; fi
+          echo "Email limit set to $LIMIT per hour"
+
       - name: Read auth config
         run: |
           set -euo pipefail

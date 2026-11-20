@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
       const uid = id(body.user_id, 'user_id')
       const user = (await call(`/auth/v1/admin/users/${uid}`)) as { email?: string }
       if (!user.email) throw new HttpError(404, 'no_email', 'This user has no email')
-      // Show the admin why Supabase Auth refused (email limit, SMTP not set up) instead of a plain "Something went wrong".
+      // Show the admin why Supabase Auth refused (email limit, send-email hook / Gmail) instead of a plain "Something went wrong".
       const res = await fetch(`${URL_}/auth/v1/recover?redirect_to=${encodeURIComponent(SITE)}`, {
         method: 'POST',
         headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
@@ -82,10 +82,10 @@ Deno.serve(async (req) => {
         let m = ''
         try { const j = JSON.parse(raw) as { msg?: string; message?: string; error_description?: string }; m = j.msg || j.message || j.error_description || '' } catch { /* not JSON */ }
         if (res.status === 429 || /rate limit/i.test(m)) {
-          throw new HttpError(429, 'email_rate_limit', 'Email limit reached. Supabase sends only a few emails an hour without your own SMTP. Try later or set up SMTP in Supabase (Authentication > Emails > SMTP Settings).')
+          throw new HttpError(429, 'email_rate_limit', 'Too many emails right now. If you just sent one to this user, wait a minute and try again; otherwise the hourly email limit is reached (Supabase > Authentication > Rate Limits).')
         }
         if (/not authorized|smtp|sending/i.test(m)) {
-          throw new HttpError(502, 'email_not_sent', `Email not sent: ${m}. Supabase's built-in email only reaches your team's addresses; set up SMTP in Supabase (Authentication > Emails > SMTP Settings).`)
+          throw new HttpError(502, 'email_not_sent', `Email not sent: ${m}. Check the send-email hook (Supabase > Authentication > Hooks) and the Gmail secrets.`)
         }
         throw new HttpError(502, 'email_not_sent', `Email not sent${m ? `: ${m}` : ''} (code ${res.status})`)
       }
