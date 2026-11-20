@@ -68,7 +68,25 @@ Deno.serve(async (req) => {
       const uid = id(body.user_id, 'user_id')
       const user = (await call(`/auth/v1/admin/users/${uid}`)) as { email?: string }
       if (!user.email) throw new HttpError(404, 'no_email', 'This user has no email')
-      await call(`/auth/v1/recover?redirect_to=${encodeURIComponent(SITE)}`, { method: 'POST', body: JSON.stringify({ email: user.email }) })
+      // Show the admin why Supabase Auth refused (email limit, SMTP not set up) instead of a plain "Something went wrong".
+      const res = await fetch(`${URL_}/auth/v1/recover?redirect_to=${encodeURIComponent(SITE)}`, {
+        method: 'POST',
+        headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email })
+      })
+      if (!res.ok) {
+        const raw = await res.text()
+        console.error('recover failed', res.status, raw)
+        let m = ''
+        try { const j = JSON.parse(raw) as { msg?: string; message?: string; error_description?: string }; m = j.msg || j.message || j.error_description || '' } catch { /* not JSON */ }
+        if (res.status === 429 || /rate limit/i.test(m)) {
+          throw new HttpError(429, 'email_rate_limit', 'Email limit reached. Supabase sends only a few emails an hour without your own SMTP. Try later or set up SMTP in Supabase (Authentication > Emails > SMTP Settings).')
+        }
+        if (/not authorized|smtp|sending/i.test(m)) {
+          throw new HttpError(502, 'email_not_sent', `Email not sent: ${m}. Supabase's built-in email only reaches your team's addresses; set up SMTP in Supabase (Authentication > Emails > SMTP Settings).`)
+        }
+        throw new HttpError(502, 'email_not_sent', `Email not sent${m ? `: ${m}` : ''} (code ${res.status})`)
+      }
       const shop = await db<{ id: string }[]>(`shops?owner_id=eq.${uid}&select=id`)
       await log(admin, 'reset_sent', shop[0]?.id || null, { user_id: uid })
       return json({ ok: true })
