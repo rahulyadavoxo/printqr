@@ -691,7 +691,7 @@ export default function Dashboard() {
             <strong>{t('blockedTitle')}</strong> {t('blockedBody')}{shop.blocked_reason ? ` ${t('blockedReason', { r: shop.blocked_reason })}` : ''}
           </div>
         )}
-        {tab === 'orders' && <Orders shop={shop} counters={counters} onCount={setActiveCount} canPrint={!ready || pro} />}
+        {tab === 'orders' && <Orders shop={shop} counters={counters} onCount={setActiveCount} />}
         {ready && !plus && tab === 'orders' && <AdSlot className="dash-ad" />}
         {tab === 'rates' && <RatesTab shop={shop} v2={v2} passportLocked={free} onUpgrade={goPlan} onSaved={setShop} />}
         {tab === 'qr' && (
@@ -1818,7 +1818,7 @@ function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onCha
 
   const per = period === 'yearly' ? t('perYear') : t('perMonth')
   const cards: { tier: Tier; feats: Key[] }[] = [
-    { tier: 'pro', feats: ['planFeatDynQr', 'planFeatNoAdsCust', 'planFeatPassport', 'planFeatCounters2', 'planFeatDirectPrint'] },
+    { tier: 'pro', feats: ['planFeatDynQr', 'planFeatNoAdsCust', 'planFeatPassport', 'planFeatCounters2'] },
     { tier: 'plus', feats: ['planFeatAllPro', 'planFeatNoAdsAll', 'planFeatCounters'] }
   ]
   // Free: both plans. Pro: only the upgrade to Plus. Plus: nothing to buy.
