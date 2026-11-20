@@ -7,6 +7,7 @@ import { TopBar } from '../components/TopBar'
 import Icon from '../components/Icon'
 import hourglass from '../assets/hourglass.svg'
 import readyAnim from '../assets/ready-collect.svg'
+import doneAnim from '../assets/order-done-thank-you.svg'
 
 type Info = { token: number; status: OrderStatus; total: number; created_at: string; shop_name: string; upi_id: string | null; file_count: number }
 
@@ -93,7 +94,7 @@ export default function Status() {
         <p className="token-label">{t('sYourToken')}</p>
         <div className="token" aria-live="polite">#{info.token}</div>
         <span className={`pill status-pill s-${info.status}`} role="status">{t(LABEL[info.status])}</span>
-        {isReady && <img className="ready-anim" src={readyAnim} alt="" />}
+        {isReady && <img className="ready-anim" src={info.status === 'done' ? doneAnim : readyAnim} alt="" />}
         {stepIdx >= 0 && (
           <ol className="tracker">
             {STEPS.map((x, i) => (
