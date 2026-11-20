@@ -41,7 +41,8 @@ async function googleToken(sa: ServiceAccount): Promise<string> {
     iat: now,
     exp: now + 3600
   }))
-  const pem = sa.private_key.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '')
+  // A key pasted with escaped newlines ("\\n") must still work.
+  const pem = sa.private_key.replace(/\\n/g, '\n').replace(/-----[^-]+-----/g, '').replace(/\s+/g, '')
   const der = Uint8Array.from(atob(pem), (c) => c.charCodeAt(0))
   const key = await crypto.subtle.importKey('pkcs8', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign'])
   const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(`${header}.${claims}`))
@@ -108,6 +109,7 @@ Deno.serve(async (req) => {
 
     const access = await googleToken(sa)
     let sent = 0
+    let lastErr = ''
     const dead: string[] = []
     for (const { token } of tokens) {
       const res = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
@@ -131,14 +133,17 @@ Deno.serve(async (req) => {
       }
       const text = await res.text()
       if (res.status === 404 || /UNREGISTERED|registration-token-not-registered/.test(text)) dead.push(token)
-      else console.error('fcm', res.status, text)
+      else {
+        console.error('fcm', res.status, text)
+        lastErr = `fcm ${res.status}: ${text.slice(0, 300)}`
+      }
     }
     for (const t of dead) {
       await call(`/rest/v1/push_tokens?token=eq.${encodeURIComponent(t)}`, { method: 'DELETE' }).catch(() => {})
     }
-    return reply(200, { sent, removed: dead.length })
+    return reply(200, { sent, removed: dead.length, project: sa.project_id, ...(lastErr ? { error: lastErr } : {}) })
   } catch (e) {
     console.error(e)
-    return reply(500, { error: 'push_failed' })
+    return reply(500, { error: 'push_failed', detail: String((e as Error)?.message || e).slice(0, 400), project: sa.project_id })
   }
 })
