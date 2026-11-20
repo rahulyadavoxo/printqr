@@ -45,10 +45,12 @@ async function log(admin: string, action: string, shop: string | null, detail: R
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  let isAdmin = false
   try {
     if (req.method !== 'POST') throw new HttpError(405, 'method_not_allowed')
     if (!URL_ || !KEY) throw new HttpError(500, 'missing_env')
     const admin = await adminId(req)
+    isAdmin = true
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
     const action = String(body.action || '')
 
@@ -128,6 +130,12 @@ Deno.serve(async (req) => {
 
     throw new HttpError(400, 'bad_action', 'Unknown action')
   } catch (e) {
+    // Only admins reach this function's actions, so show them the real reason instead of "Something went wrong".
+    if (isAdmin && !(e instanceof HttpError)) {
+      console.error('admin-action', e)
+      const m = (e instanceof Error ? e.message : String(e)).slice(0, 400)
+      return json({ error: 'server_error', message: `Server error: ${m}` }, 500)
+    }
     return fail(e)
   }
 })
