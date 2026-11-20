@@ -123,6 +123,11 @@ Deno.serve(async (req) => {
             android: {
               priority: 'HIGH',
               notification: { channel_id: 'orders', sound: 'default', tag: `order-${o.id}`, icon: 'ic_stat_print' }
+            },
+            webpush: {
+              headers: { Urgency: 'high', TTL: '3600' },
+              notification: { title, body, icon: 'https://print.receipto.in/icon-192.png', tag: `order-${o.id}` },
+              fcm_options: { link: 'https://print.receipto.in/#/dashboard' }
             }
           }
         })

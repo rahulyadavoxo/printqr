@@ -1,6 +1,6 @@
 // PrintQR for Windows: opens https://print.receipto.in in its own window.
 // The app always shows the live site, so website updates reach it without reinstalling.
-const { app, BrowserWindow, shell, ipcMain } = require('electron')
+const { app, BrowserWindow, shell, ipcMain, Tray, Menu, nativeImage } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -39,7 +39,8 @@ function createWindow() {
     title: 'PrintQR',
     backgroundColor: '#ffffff',
     autoHideMenuBar: true,
-    webPreferences: { contextIsolation: true, sandbox: true, plugins: true, spellcheck: false, preload: path.join(__dirname, 'preload.js') }
+    show: !process.argv.includes('--hidden'),
+    webPreferences: { backgroundThrottling: false, contextIsolation: true, sandbox: true, plugins: true, spellcheck: false, preload: path.join(__dirname, 'preload.js') }
   })
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -66,6 +67,14 @@ function createWindow() {
       }
     })
     contents.on('will-attach-webview', (ev) => ev.preventDefault())
+  })
+
+  // Closing the window keeps PrintQR running in the tray, so new-order alerts still come.
+  win.on('close', (e) => {
+    if (!quitting) {
+      e.preventDefault()
+      win.hide()
+    }
   })
 
   win.loadURL(START)
@@ -160,19 +169,47 @@ function setupPrinting() {
 }
 
 // One window only: opening the app again focuses it.
+// ---------------------------------------------------------------------------
+// Tray + start with Windows: the dashboard keeps listening for orders in the background.
+let quitting = false
+let tray = null
+
+function showWindow() {
+  const w = BrowserWindow.getAllWindows()[0]
+  if (!w) return createWindow()
+  if (w.isMinimized()) w.restore()
+  w.show()
+  w.focus()
+}
+
+function setupTray() {
+  let icon = nativeImage.createFromPath(path.join(__dirname, 'build', 'icon.png'))
+  if (!icon.isEmpty()) icon = icon.resize({ width: 16, height: 16 })
+  tray = new Tray(icon)
+  tray.setToolTip('PrintQR – new orders will notify you')
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Open PrintQR', click: showWindow },
+      { type: 'separator' },
+      { label: 'Quit', click: () => { quitting = true; app.quit() } }
+    ])
+  )
+  tray.on('click', showWindow)
+}
+
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
-    const w = BrowserWindow.getAllWindows()[0]
-    if (w) {
-      if (w.isMinimized()) w.restore()
-      w.focus()
-    }
-  })
+  app.on('second-instance', showWindow)
+  app.on('before-quit', () => { quitting = true })
   app.whenReady().then(() => {
+    if (process.platform === 'win32') {
+      app.setAppUserModelId('in.receipto.print')
+      if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] })
+    }
     setupPrinting()
     createWindow()
+    setupTray()
   })
-  app.on('window-all-closed', () => app.quit())
+  app.on('window-all-closed', () => { if (quitting) app.quit() })
 }

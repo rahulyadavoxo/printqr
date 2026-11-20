@@ -1,10 +1,15 @@
 import { nativeBridge } from './app'
 import { supabase } from './supabase'
+import { removeWebPush, setupWebPush } from './webpush'
 
 /** Android app: register this phone for new-order push notifications (Firebase). Safe to call often. */
 export function setupPush() {
   const b = nativeBridge()
-  if (!b?.pushToken) return
+  if (!b?.pushToken) {
+    // Browser (not the Windows app, which keeps itself alive in the tray instead)
+    if (!(window as unknown as { PQDesktop?: unknown }).PQDesktop) void setupWebPush()
+    return
+  }
   const register = (token: string) => {
     if (!token) return
     try { localStorage.setItem('pq-push-token', token) } catch { /* ignore */ }
@@ -23,6 +28,7 @@ export function setupPush() {
 
 /** Before sign out: stop sending this account's orders to this phone. */
 export async function removePush() {
+  await removeWebPush()
   let token = ''
   try { token = localStorage.getItem('pq-push-token') || '' } catch { /* ignore */ }
   if (!token) return
