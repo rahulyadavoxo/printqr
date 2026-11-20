@@ -121,3 +121,18 @@ npm run dev
 
 ## Version 2 ideas
 Photo → PDF, passport photo layout, desktop print agent (direct printer pe), multiple counters, Hindi/English toggle, owner subscription plans.
+
+## Email apne Gmail se (send-email hook)
+
+Signup, password reset aur baaki saare Auth mail `supabase/functions/send-email` se Gmail API ke through jaate hain. Ye bilkul Receipto wala tarika hai, isme SMTP ya App Password nahi lagta.
+
+1. Supabase → Edge Functions → Secrets mein ye daalo. Values wahi hain jo Receipto ke Render env mein hain:
+   - `GMAIL_CLIENT_ID`
+   - `GMAIL_CLIENT_SECRET`
+   - `GMAIL_REFRESH_TOKEN`
+   - `GMAIL_SENDER`
+2. Supabase → Authentication → Hooks → **Send Email** → HTTPS mein URL `https://asqgdgzxkdksoikmffmd.supabase.co/functions/v1/send-email` daalo.
+3. **Generate secret** karke copy karo. Use Secrets mein `SEND_EMAIL_HOOK_SECRET` naam se daalo, phir hook ko Enable karke Save karo.
+4. Authentication → Rate Limits mein "emails per hour" badha do.
+
+Agar refresh token kabhi badla, to use Render aur Supabase dono jagah update karna hoga.
