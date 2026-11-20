@@ -5,6 +5,7 @@ import { rupees } from '../lib/pricing'
 import { Key, useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
 import Icon from '../components/Icon'
+import hourglass from '../assets/hourglass.svg'
 
 type Info = { token: number; status: OrderStatus; total: number; created_at: string; shop_name: string; upi_id: string | null; file_count: number }
 
@@ -95,7 +96,7 @@ export default function Status() {
           <ol className="tracker">
             {STEPS.map((x, i) => (
               <li key={x.s} className={i < stepIdx || info.status === 'done' ? 'done' : i === stepIdx ? 'current' : ''}>
-                <span className="dot">{i < stepIdx || info.status === 'done' ? <Icon name="check" size={16} stroke={3} /> : i + 1}</span>
+                <span className="dot">{i < stepIdx || info.status === 'done' ? <Icon name="check" size={16} stroke={3} /> : i === stepIdx ? <img className="dot-wait" src={hourglass} alt="" /> : i + 1}</span>
                 <span className="lbl">{t(x.label)}</span>
               </li>
             ))}

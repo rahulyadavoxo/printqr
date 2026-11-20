@@ -1332,3 +1332,4 @@ html.in-app input, html.in-app textarea, html.in-app select, html.in-app [conten
 @keyframes w-cr { 0%, 10%, 90%, 100% { transform: scaleX(1.6); } 20%, 80% { transform: scaleX(.75); } }
 @media (prefers-reduced-motion: reduce) { .watcher * { animation: none !important; } }
 [data-theme="dark"] .watcher .w-wall { fill: #17221b; stroke: #2c3d22; }
+.tracker .dot .dot-wait { width: 17px; height: 24px; display: block; }
