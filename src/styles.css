@@ -194,6 +194,18 @@ input:focus, select:focus { outline: none; border-color: var(--c-brand); box-sha
 .skel-token { width: 140px; height: 72px; border-radius: var(--r-sm); }
 .skel-title { height: 26px; margin: 12px 0; }
 .skel-tabs { height: 50px; border-radius: var(--r-pill); margin-bottom: 8px; }
+.skel-num { height: 34px; width: 50%; margin: 10px 0 8px; border-radius: 8px; }
+.stat .skel-line + .skel-num { margin-top: 10px; }
+.skel-row { display: flex; align-items: center; gap: 14px; margin: 0; padding: 16px 18px; }
+.skel-row-text { flex: 1; display: grid; gap: 8px; }
+.skel-dot { width: 40px; height: 40px; border-radius: 12px; flex: none; }
+.skel-pill { width: 72px; height: 28px; border-radius: var(--r-pill); flex: none; }
+.skel-time { width: 90px; flex: none; }
+.admin-log-row .skel-line { height: 12px; }
+.skel-form-admin { display: grid; gap: 18px; }
+.skel-field { display: grid; gap: 8px; }
+.skel-input { height: 42px; border-radius: var(--r-sm); }
+@media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
 @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
 
 /* ===================================================================

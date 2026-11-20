@@ -8,6 +8,64 @@ import { rupees } from '../lib/pricing'
 /* Admin panel tabs: Users, Orders, Payments, Spam watch, Settings. Every RPC checks is_admin() in SQL;
    the admin-action Edge Function checks public.admins too. */
 
+/* Skeleton placeholders shown while admin data loads (same shimmer as the rest of the app). */
+export function SkelStats({ n = 4 }: { n?: number }) {
+  return (
+    <div className="stats skeleton-wrap" aria-busy="true">
+      {Array.from({ length: n }, (_, i) => (
+        <div key={i} className="card stat">
+          <div className="skel skel-line w40" />
+          <div className="skel skel-num" />
+          <div className="skel skel-line w60" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function SkelList({ n = 5 }: { n?: number }) {
+  return (
+    <div className="admin-list skeleton-wrap" aria-busy="true">
+      {Array.from({ length: n }, (_, i) => (
+        <div key={i} className="card skel-row">
+          <div className="skel skel-dot" />
+          <div className="skel-row-text">
+            <div className="skel skel-line w60" />
+            <div className="skel skel-line w40" />
+          </div>
+          <div className="skel skel-pill" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function SkelLog({ n = 6 }: { n?: number }) {
+  return (
+    <div className="card admin-log skeleton-wrap" aria-busy="true">
+      {Array.from({ length: n }, (_, i) => (
+        <div key={i} className="admin-log-row">
+          <div className="skel skel-line skel-time" />
+          <div className="skel skel-line" style={{ width: `${45 + ((i * 17) % 40)}%` }} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function SkelForm({ n = 4 }: { n?: number }) {
+  return (
+    <div className="card skeleton-wrap skel-form-admin" aria-busy="true">
+      {Array.from({ length: n }, (_, i) => (
+        <div key={i} className="skel-field">
+          <div className="skel skel-line w40" />
+          <div className="skel skel-input" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function fmtDate(s: string | null, lang: string) {
   if (!s) return '—'
   return new Date(s).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -85,7 +143,7 @@ export function AdminUsers({ onMsg }: { onMsg: Msg }) {
     <>
       <h2 className="admin-sec">{t('admUsers')}</h2>
       <Search value={q} onChange={setQ} onSubmit={() => setQuery(q.trim())} placeholder={t('admUserSearch')} />
-      {!rows ? <p className="muted">{t('loading')}</p> : rows.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
+      {!rows ? <SkelList /> : rows.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
         <div className="admin-list">
           {rows.map((u) => (
             <div className={`card admin-item${u.banned ? ' is-blocked' : ''}`} key={u.user_id}>
@@ -171,7 +229,7 @@ export function AdminOrders({ onMsg }: { onMsg: Msg }) {
           </button>
         ))}
       </div>
-      {!rows ? <p className="muted">{t('loading')}</p> : rows.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
+      {!rows ? <SkelList /> : rows.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
         <div className="admin-list">
           {rows.map((o) => (
             <div className="card admin-item" key={o.id}>
@@ -238,7 +296,7 @@ export function AdminPayments({ onMsg }: { onMsg: Msg }) {
         <h2 className="admin-sec">{t('admPayments')}</h2>
         <a className="btn small soft" href="https://dashboard.razorpay.com/app/subscriptions" target="_blank" rel="noreferrer">{t('admRazorpay')}</a>
       </div>
-      {!data ? <p className="muted">{t('loading')}</p> : (
+      {!data ? <><SkelStats n={3} /><SkelList n={4} /></> : (
         <>
           {data.subs.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
             <div className="admin-list">
@@ -318,7 +376,7 @@ export function AdminSpam({ onMsg, onChanged }: { onMsg: Msg; onChanged: () => v
     run(() => supabase.rpc('admin_block_ip', { p_hash: hash, p_block: block, p_reason: block ? 'admin' : null }),
       block ? t('admBlockIpAsk') : undefined)
 
-  if (!data) return <p className="muted">{t('loading')}</p>
+  if (!data) return <SkelList n={4} />
   const openReports = data.reports.filter((r) => !r.resolved)
 
   return (
@@ -403,7 +461,7 @@ export function AdminSettings({ onMsg }: { onMsg: Msg }) {
     })
   }, [onMsg, te])
 
-  if (!s) return <p className="muted">{t('loading')}</p>
+  if (!s) return <SkelForm n={5} />
   const set = (patch: Partial<AppSettings>) => setS({ ...s, ...patch })
 
   const save = async (e: FormEvent) => {

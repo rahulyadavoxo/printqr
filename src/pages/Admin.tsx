@@ -5,7 +5,7 @@ import { useSession } from '../lib/useSession'
 import { Key, useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
 import { callFn } from '../lib/billing'
-import { AdminOrders, AdminPayments, AdminSettings, AdminSpam, AdminUsers, fmtBytes, fmtDate } from './AdminTabs'
+import { AdminOrders, AdminPayments, AdminSettings, AdminSpam, AdminUsers, fmtBytes, fmtDate, SkelList, SkelLog, SkelStats } from './AdminTabs'
 
 /* Admin panel. The page only hides itself; the real check is is_admin() inside every admin_* SQL function. */
 
@@ -186,7 +186,7 @@ export default function Admin() {
     </div>
   )
 
-  if (allowed === null) return shell(<p className="muted">{t('loading')}</p>)
+  if (allowed === null) return shell(<><div className="skel skel-title" style={{ width: 180 }} /><div className="skel skel-tabs" /><SkelStats n={6} /></>)
   if (!allowed) return shell(<div className="card"><h2>{t('admNoAccess')}</h2><p className="muted">{t('admNoAccessHint')}</p></div>)
 
   // Before v19 SQL the pro_* counts include Plus and plus_* are missing (then all is priced as Pro).
@@ -212,7 +212,7 @@ export default function Admin() {
 
       {tab === 'overview' && (<>
       <h2 className="admin-sec">{t('admOverview')}</h2>
-      {!ov ? <p className="muted">{t('loading')}</p> : (
+      {!ov ? <SkelStats n={8} /> : (
         <div className="stats">
           <div className="card stat accent">
             <div className="small stat-label">{t('admMrr')}</div>
@@ -270,7 +270,7 @@ export default function Admin() {
         <button type="submit" className="btn">{t('admSearchBtn')}</button>
       </form>
 
-      {!shops ? <p className="muted">{t('loading')}</p> : shops.length === 0 ? <p className="muted">{t('admNoShops')}</p> : (
+      {!shops ? <SkelList /> : shops.length === 0 ? <p className="muted">{t('admNoShops')}</p> : (
         <div className="admin-list">
           {shops.map((s) => (
             <div className={`card admin-shop${s.blocked ? ' is-blocked' : ''}`} key={s.id}>
@@ -363,7 +363,7 @@ export default function Admin() {
 
       {tab === 'log' && (<>
       <h2 className="admin-sec">{t('admLog')}</h2>
-      {!log ? <p className="muted">{t('loading')}</p> : log.length === 0 ? <p className="muted">{t('admLogEmpty')}</p> : (
+      {!log ? <SkelLog /> : log.length === 0 ? <p className="muted">{t('admLogEmpty')}</p> : (
         <div className="card admin-log">
           {log.map((l, i) => (
             <div className="admin-log-row small" key={i}>
