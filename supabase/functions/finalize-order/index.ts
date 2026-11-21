@@ -21,17 +21,16 @@ function scanCount(bytes: Uint8Array): number {
 }
 
 async function countPages(bytes: Uint8Array): Promise<number> {
-  // Big files: try the cheap scan first (Edge Functions have a small CPU budget).
-  if (bytes.length > 20 * 1024 * 1024) {
-    const n = scanCount(bytes)
-    if (n > 0) return n
-  }
+  // The real parser runs first for every size. The regex scan alone can be fooled (a fake open
+  // "/Type /Pages /Count 1" while the real page tree sits in compressed object streams), so for big
+  // files, where pdf-lib may run out of CPU budget, the larger of the two counts is used.
+  let parsed = 0
   try {
     const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false, throwOnInvalidObject: false })
-    const n = doc.getPageCount()
-    if (n > 0) return n
-  } catch { /* fall through */ }
-  const n = scanCount(bytes)
+    parsed = doc.getPageCount()
+  } catch { /* fall back to the scan */ }
+  if (parsed > 0 && bytes.length <= 20 * 1024 * 1024) return parsed
+  const n = Math.max(parsed, scanCount(bytes))
   if (n > 0) return n
   throw new HttpError(422, 'pdf_unreadable', 'This PDF could not be read. Please send another copy of it.')
 }
@@ -56,13 +55,30 @@ async function head(path: string, n = 32): Promise<Uint8Array> {
 const startsWith = (b: Uint8Array, sig: number[], at = 0) => sig.every((x, i) => b[at + i] === x)
 const ascii = (b: Uint8Array, from: number, to: number) => String.fromCharCode(...b.slice(from, to))
 
+/** HEIF still-image / sequence brands (HEIC, AVIF). Video containers (isom, mp42, qt ...) are not allowed. */
+const HEIF_BRANDS = new Set(['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1', 'avif', 'avis'])
+
+/** ftyp box: major brand must be a HEIF brand and the compatible brands must name one too. */
+function heifBrand(b: Uint8Array): boolean {
+  if (b.length < 16) return false
+  const size = ((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0
+  if (size < 16) return false
+  const major = ascii(b, 8, 12)
+  if (!HEIF_BRANDS.has(major)) return false
+  const end = Math.min(size, b.length)
+  const compat: string[] = []
+  for (let i = 16; i + 4 <= end; i += 4) compat.push(ascii(b, i, i + 4))
+  // Files whose ftyp lists no compatible brands (or a box cut off by the read) rely on the major brand.
+  return compat.length === 0 || compat.some((c) => HEIF_BRANDS.has(c))
+}
+
 /** The file's real kind from its first bytes. Families, not exact types: a PNG named .jpg is still a picture. */
 function sniff(b: Uint8Array): 'pdf' | 'image' | 'office' | null {
   if (ascii(b, 0, b.length).includes('%PDF-')) return 'pdf'
   if (startsWith(b, [0xff, 0xd8, 0xff])) return 'image' // JPEG
   if (startsWith(b, [0x89, 0x50, 0x4e, 0x47])) return 'image' // PNG
   if (ascii(b, 0, 4) === 'RIFF' && ascii(b, 8, 12) === 'WEBP') return 'image'
-  if (ascii(b, 4, 8) === 'ftyp') return 'image' // HEIC / HEIF
+  if (ascii(b, 4, 8) === 'ftyp') return heifBrand(b) ? 'image' : null // HEIC / HEIF / AVIF only (not MP4 / MOV)
   if (startsWith(b, [0x50, 0x4b, 0x03, 0x04])) return 'office' // docx / xlsx / pptx (zip)
   if (startsWith(b, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])) return 'office' // doc / xls / ppt
   return null
@@ -105,7 +121,7 @@ Deno.serve(async (req) => {
         checkKind(bytes.slice(0, 1024), f.mime)
         counts[f.id] = await countPages(bytes)
       } else {
-        checkKind(await head(f.storage_path, f.mime === 'application/pdf' ? 1024 : 32), f.mime)
+        checkKind(await head(f.storage_path, f.mime === 'application/pdf' ? 1024 : 64), f.mime)
       }
     }
 

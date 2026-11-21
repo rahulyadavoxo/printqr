@@ -2370,7 +2370,7 @@ function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onCha
   }
 
   async function upgrade(tier: Tier) {
-    // Pro -> Plus: the Pro subscription stops at once and its unused days are not carried over.
+    // Pro -> Plus: the Pro subscription stops at once; its unused days are added to Plus as extra days (server side).
     if (pro && tier === 'plus' && !confirm(t('planUpgradeConfirm'))) return
     setBusy(tier)
     setMsg(null)
@@ -2459,6 +2459,7 @@ function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onCha
                     onClick={() => void upgrade(c.tier)}>
                     {busy === c.tier ? t('pleaseWait') : `${pro ? t('planUpgradePlus') : c.tier === 'plus' ? t('planGetPlus') : t('planGetPro')} · ₹${price}${per}`}
                   </button>
+                  {pro && c.tier === 'plus' && <p className="small muted">{t('planUpgradeCredit')}</p>}
                 </div>
               )
             })}

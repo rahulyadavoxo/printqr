@@ -157,6 +157,8 @@ export type Subscription = {
   current_start?: number | null
   current_end?: number | null
   charge_at?: number | null
+  start_at?: number | null
+  created_at?: number | null
   notes?: Record<string, string> | unknown[] | null
 }
 
@@ -207,10 +209,70 @@ function addDays(d: Date, days: number): Date {
   return new Date(d.getTime() + days * 86400 * 1000)
 }
 
+const DAY_MS = 86400 * 1000
+
+/** End of the shop's paid period (expiry without the grace days), in ms. 0 when there is none. */
+export function paidEndMs(shop: ShopRow): number {
+  return shop.plan_expires_at ? new Date(shop.plan_expires_at).getTime() - GRACE_DAYS * DAY_MS : 0
+}
+
+/** Whole unused paid days of the plan the shop is on now (rounded down). */
+function unusedDays(shop: ShopRow, now: number): number {
+  if (!isPro(shop)) return 0
+  return Math.max(0, Math.floor((paidEndMs(shop) - now) / DAY_MS))
+}
+
+/** Extra days stored for this subscription (v22 billing_credits), or null when none. */
+async function storedCredit(subId: string): Promise<number | null> {
+  try {
+    const rows = await db<{ days: number }[]>(`billing_credits?sub_id=eq.${encodeURIComponent(subId)}&select=days`)
+    return rows[0] ? Number(rows[0].days) || 0 : null
+  } catch (e) {
+    // v22 not run yet: no table means no credits stored.
+    const t = String(e)
+    if (t.includes('PGRST205') || t.includes('42P01')) {
+      console.warn('billing_credits missing: run supabase/migrations/2026-11-21-v22-billing-idem.sql')
+      return null
+    }
+    throw e
+  }
+}
+
+/** Store the extra days once per subscription; the first stored value always wins (repeats add nothing). */
+async function saveCredit(subId: string, shopId: string, days: number, reason: string): Promise<number> {
+  await db('billing_credits?on_conflict=sub_id', {
+    method: 'POST',
+    body: JSON.stringify({ sub_id: subId, shop_id: shopId, days, reason }),
+    prefer: 'resolution=ignore-duplicates,return=minimal'
+  })
+  const stored = await storedCredit(subId)
+  return stored === null ? days : stored
+}
+
+/** Is s older than the shop's current subscription (a late event from one the shop already replaced)? */
+async function olderThanCurrent(s: Subscription, currentId: string): Promise<boolean> {
+  if (!s.created_at) return false
+  try {
+    const cur = await rzp<Subscription>(`subscriptions/${encodeURIComponent(currentId)}`)
+    return !!cur.created_at && s.created_at < cur.created_at
+  } catch (e) {
+    console.warn('current sub lookup', e)
+    return false
+  }
+}
+
 /**
- * Turn Pro on (or extend it) for the shop in the subscription notes.
- * Expiry = current_end + grace. If Razorpay has not filled current_end yet (just paid),
- * fall back to now + one period + grace. Expiry never moves backwards, so repeats are harmless.
+ * Turn the paid plan on (or extend it) for the shop in the subscription notes.
+ * Expiry = current_end + grace + any extra days stored for this subscription. If Razorpay has not filled
+ * current_end yet (just paid), fall back to now + one period + grace. Same tier: expiry never moves
+ * backwards, so repeats are harmless.
+ *
+ * A new subscription replacing another one while that one's paid period is still running gets the
+ * unused days as extra days, computed once and stored per subscription id (billing_credits):
+ *   same tier (re-bought after cancelling)  -> the unused days as they are
+ *   other tier (Pro -> Plus, or Plus -> Pro) -> unused days x old price / new price (same period basis), rounded down
+ * A Pro subscription that starts later (start_at, bought while a cancelled Plus runs) is only recorded;
+ * Plus stays until it ends and Razorpay starts the Pro cycle then.
  */
 export async function activate(s: Subscription, expectShopId?: string): Promise<ShopRow> {
   const shopId = subNotes(s).shop_id
@@ -220,17 +282,44 @@ export async function activate(s: Subscription, expectShopId?: string): Promise<
   if (!shop) throw new HttpError(404, 'no_shop', 'Shop not found')
   const period = (await periodOf(s)) || (shop.plan_period as Period | null) || 'monthly'
   const tier = await tierOf(s)
-  // A late event from the old Pro subscription must not pull an upgraded Plus shop back down.
-  if (tier === 'pro' && shop.plan === 'plus' && isPro(shop) && shop.razorpay_subscription_id && shop.razorpay_subscription_id !== s.id) {
-    return shop
+  const now = Date.now()
+  const running = isPro(shop)
+  const currentId = shop.razorpay_subscription_id || null
+  const isNew = !!currentId && currentId !== s.id
+
+  if (isNew) {
+    // A late event from a subscription whose paid cycle is already over grants nothing and must not
+    // replace the shop's current subscription.
+    if (s.current_end && s.current_end * 1000 + GRACE_DAYS * DAY_MS <= now) return shop
+    // A late event from an older subscription the shop has since replaced (e.g. the old Pro after an
+    // upgrade to Plus) must not pull the shop back. Only checked while a paid plan runs, so a late
+    // payment on a free shop is still honoured.
+    if (running && (await olderThanCurrent(s, currentId))) return shop
   }
-  const end = s.current_end
-    ? addDays(new Date(s.current_end * 1000), GRACE_DAYS)
-    : addDays(period === 'yearly' ? addDays(new Date(), 365) : addDays(new Date(), 31), GRACE_DAYS)
+
+  // Not started yet (start_at in the future, no cycle): record it, keep the running plan as it is.
+  if (s.start_at && s.start_at * 1000 > now && !s.current_end) {
+    const patch: Partial<ShopRow> = { razorpay_subscription_id: s.id, subscription_status: s.status }
+    await updateShop(shop.id, patch)
+    return { ...shop, ...patch }
+  }
+
+  let credit = (await storedCredit(s.id)) ?? 0
+  if (isNew && running && credit === 0) {
+    const unused = unusedDays(shop, now)
+    const oldTier: Tier = shop.plan === 'plus' ? 'plus' : 'pro'
+    const basis = (shop.plan_period as Period | null) || period
+    const days = oldTier === tier ? unused : Math.floor((unused * PLANS[oldTier][basis].amount) / PLANS[tier][basis].amount)
+    if (days > 0) credit = await saveCredit(s.id, shop.id, days, `${oldTier}->${tier} ${basis}`)
+  }
+
+  const base = s.current_end
+    ? new Date(s.current_end * 1000)
+    : addDays(new Date(now), period === 'yearly' ? 365 : 31)
+  const end = addDays(base, GRACE_DAYS + credit)
   const prev = shop.plan_expires_at ? new Date(shop.plan_expires_at) : null
-  // Same tier: never move expiry backwards. Tier change (Pro -> Plus): the new subscription's cycle decides.
+  // Same tier: never move expiry backwards. Tier change: the new subscription's cycle (+ credit) decides.
   const expires = shop.plan === tier && prev && prev > end ? prev : end
-  const oldSub = shop.razorpay_subscription_id && shop.razorpay_subscription_id !== s.id ? shop.razorpay_subscription_id : null
   const patch: Partial<ShopRow> = {
     plan: tier,
     plan_period: period,
@@ -239,9 +328,10 @@ export async function activate(s: Subscription, expectShopId?: string): Promise<
     subscription_status: s.status
   }
   await updateShop(shop.id, patch)
-  // Upgraded from another subscription (Pro -> Plus): stop billing the old one now.
-  if (oldSub) {
-    await rzp(`subscriptions/${encodeURIComponent(oldSub)}/cancel`, 'POST', { cancel_at_cycle_end: 0 }).catch((e) => console.warn('old sub cancel', e))
+  // Replaced another subscription (upgrade, or re-bought after cancelling): its unused days are now
+  // credited above, so stop billing the old one now.
+  if (isNew && currentId) {
+    await rzp(`subscriptions/${encodeURIComponent(currentId)}/cancel`, 'POST', { cancel_at_cycle_end: 0 }).catch((e) => console.warn('old sub cancel', e))
   }
   return { ...shop, ...patch }
 }

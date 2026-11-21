@@ -1,7 +1,7 @@
 // POST { period: 'monthly' | 'yearly', tier?: 'pro' | 'plus' }  (JWT required)
 // Creates a Razorpay subscription for the logged-in owner's shop.
 // Returns { subscription_id, key_id } for Razorpay Checkout.
-import { corsHeaders, db, fail, HttpError, isPro, json, ownerShop, Period, PLANS, planId, Tier, razorpayKeyId, rzp, updateShop } from '../_shared/billing.ts'
+import { corsHeaders, db, fail, HttpError, isPro, json, ownerShop, paidEndMs, Period, PLANS, planId, Tier, razorpayKeyId, rzp, updateShop } from '../_shared/billing.ts'
 
 const ACTIVE = ['created', 'authenticated', 'active', 'pending']
 
@@ -29,12 +29,22 @@ Deno.serve(async (req) => {
       throw new HttpError(409, 'already_pro', 'Your Pro plan is already active')
     }
 
+    // Pro bought while a cancelled Plus is still running (an active Plus was refused above): the Pro
+    // cycle starts when the paid Plus period ends, so nothing is paid twice and Plus is not cut short.
+    // activate() records it now and switches the shop to Pro when Razorpay starts it.
+    let start_at: number | undefined
+    if (tier === 'pro' && shop.plan === 'plus' && isPro(shop)) {
+      const paidEnd = paidEndMs(shop)
+      if (paidEnd > Date.now() + 15 * 60 * 1000) start_at = Math.floor(paidEnd / 1000)
+    }
+
     const plan_id = await planId(period, tier)
     const sub = await rzp<{ id: string; status: string }>('subscriptions', 'POST', {
       plan_id,
       total_count: PLANS[tier][period].total_count,
       quantity: 1,
       customer_notify: 1,
+      ...(start_at ? { start_at } : {}),
       notes: { shop_id: shop.id, period, tier, app: 'printqr', ...(email ? { email } : {}) }
     })
 

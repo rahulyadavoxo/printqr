@@ -33,28 +33,35 @@ Deno.serve(async (req) => {
     if (!event.startsWith('subscription.') || !sub?.id) return reply(200, { ok: true, ignored: event })
     if (sub.notes === undefined || !subNotes(sub).shop_id) return reply(200, { ok: true, ignored: 'not_printqr' })
 
-    // Idempotency: an event id we already handled is acknowledged without doing anything.
+    // Idempotency: claim the event id first (unique). A conflict means another delivery has it: skip.
+    // If the work below fails, the claim is removed again so Razorpay's retry can process the event.
+    let claimed = false
     if (eventId) {
-      const seen = await db<{ event_id: string }[]>(`billing_events?event_id=eq.${encodeURIComponent(eventId)}&select=event_id`)
-      if (seen.length) return reply(200, { ok: true, duplicate: true })
-    }
-
-    if (event === 'subscription.activated' || event === 'subscription.charged' || event === 'subscription.resumed') {
-      await activate(sub)
-    } else if (['subscription.cancelled', 'subscription.halted', 'subscription.completed', 'subscription.paused', 'subscription.pending'].includes(event)) {
-      // Status only. Pro stays until plan_expires_at (already paid for).
-      const shop = await getShopById(subNotes(sub).shop_id)
-      if (shop && shop.razorpay_subscription_id === sub.id) {
-        await updateShop(shop.id, { subscription_status: sub.status || event.slice('subscription.'.length) })
-      }
-    }
-
-    if (eventId) {
-      await db('billing_events?on_conflict=event_id', {
+      const rows = await db<{ event_id: string }[]>('billing_events?on_conflict=event_id', {
         method: 'POST',
         body: JSON.stringify({ event_id: eventId, event }),
-        prefer: 'resolution=ignore-duplicates,return=minimal'
+        prefer: 'resolution=ignore-duplicates,return=representation'
       })
+      if (!rows?.length) return reply(200, { ok: true, duplicate: true })
+      claimed = true
+    }
+
+    try {
+      if (event === 'subscription.activated' || event === 'subscription.charged' || event === 'subscription.resumed') {
+        await activate(sub)
+      } else if (['subscription.cancelled', 'subscription.halted', 'subscription.completed', 'subscription.paused', 'subscription.pending'].includes(event)) {
+        // Status only. The plan stays until plan_expires_at (already paid for).
+        const shop = await getShopById(subNotes(sub).shop_id)
+        if (shop && shop.razorpay_subscription_id === sub.id) {
+          await updateShop(shop.id, { subscription_status: sub.status || event.slice('subscription.'.length) })
+        }
+      }
+    } catch (e) {
+      if (claimed) {
+        await db(`billing_events?event_id=eq.${encodeURIComponent(eventId)}`, { method: 'DELETE', prefer: 'return=minimal' })
+          .catch((d) => console.error('release event claim', d))
+      }
+      throw e
     }
     return reply(200, { ok: true })
   } catch (e) {
