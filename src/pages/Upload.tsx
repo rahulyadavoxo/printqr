@@ -440,9 +440,12 @@ export default function Upload() {
       // v11: the server counts the pages of every uploaded PDF, fixes the price if needed, then queues the order.
       const fin = await supabase.functions.invoke('finalize-order', { body: { order_id: order.order_id, key: order.access_key } })
       if (fin.error) {
-        let m: string | undefined
-        try { m = ((await (fin.error as { context?: Response }).context?.json()) as { message?: string })?.message } catch { /* none */ }
-        throw new Error(m || t('uFinalizeFail'))
+        const ctx = (fin.error as { context?: Response }).context
+        let body: { error?: string; message?: string } | undefined
+        try { body = (await ctx?.json()) as { error?: string; message?: string } } catch { /* none */ }
+        // 546 = the function hit its CPU / memory limit (a very heavy PDF); pdf_too_complex = refused up front.
+        if (ctx?.status === 546 || body?.error === 'pdf_too_complex') throw new Error(t('uPdfHeavy'))
+        throw new Error(body?.message || t('uFinalizeFail'))
       }
       const saved = JSON.parse(localStorage.getItem('pq_orders') || '[]') as unknown[]
       localStorage.setItem('pq_orders', JSON.stringify([{ id: order.order_id, key: order.access_key, shop: shop.name, at: Date.now() }, ...saved].slice(0, 10)))

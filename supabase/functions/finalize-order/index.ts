@@ -1,6 +1,7 @@
 // POST { order_id, key }  (no JWT: customers are not signed in; the order's access key is the proof)
 // Downloads every uploaded PDF of the order, counts its real pages and hands the counts to
 // finalize_order_counted(), which fixes the price, checks the files and queues the order (v11, required).
+import { Buffer } from 'node:buffer'
 import { PDFDocument } from 'npm:pdf-lib@1.17.1'
 import { corsHeaders, db, fail, HttpError, json } from '../_shared/billing.ts'
 
@@ -8,30 +9,62 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 type FileRow = { id: string; storage_path: string; size_bytes: number; mime: string | null; item_kind: string }
 
-/** Fast count without parsing: the biggest /Count of a /Type /Pages node (the page-tree root). */
-function scanCount(bytes: Uint8Array): number {
-  const text = new TextDecoder('latin1').decode(bytes)
+/**
+ * Fast count without parsing: the biggest /Count found in any object that is a /Type /Pages node
+ * (the page-tree root has the biggest). The whole object is searched, from its "obj" to its "endobj",
+ * so a root with a long /Kids array (thousands of pages) or nested dictionaries is still found.
+ */
+const SCAN_WINDOW = 512 * 1024
+
+/** Bytes as a one-char-per-byte string. Buffer is ~50x faster than TextDecoder('latin1') on big files
+ *  (45 MB: ~17 ms vs ~860 ms CPU), which matters inside the Edge Function CPU budget. */
+function latin1(bytes: Uint8Array): string {
+  return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('latin1')
+}
+function scanCount(bytes: Uint8Array, decoded?: string): number {
+  const text = decoded ?? latin1(bytes)
   let max = 0
-  const re = /<<(?:(?!>>)[\s\S]){0,800}?\/Type\s*\/Pages\b(?:(?!>>)[\s\S]){0,800}?>>/g
-  for (const m of text.matchAll(re)) {
-    const c = /\/Count\s+(\d+)/.exec(m[0])
-    if (c) max = Math.max(max, parseInt(c[1], 10))
+  for (const m of text.matchAll(/\/Type\s*\/Pages\b/g)) {
+    const at = m.index ?? 0
+    const objAt = text.lastIndexOf('obj', at)
+    const start = objAt >= 0 && at - objAt <= SCAN_WINDOW ? objAt : Math.max(0, at - SCAN_WINDOW)
+    const endAt = text.indexOf('endobj', at)
+    const end = endAt >= 0 && endAt - at <= SCAN_WINDOW ? endAt : Math.min(text.length, at + SCAN_WINDOW)
+    for (const c of text.slice(start, end).matchAll(/\/Count\s+(\d+)/g)) max = Math.max(max, parseInt(c[1], 10))
   }
   return max
 }
 
+/** Above this many objects pdf-lib can exceed the Edge Function CPU / memory limit (tested: 200k objects
+ *  took ~2.3 s CPU and ~370 MB). A kill there cannot be caught, so such files are refused up front. */
+const MAX_OBJECTS = 60_000
+
+/** Rough object count without parsing: plain "n g obj" headers plus the objects packed in object streams. */
+function objectCount(text: string): number {
+  let n = 0
+  for (const _ of text.matchAll(/\b\d+\s+\d+\s+obj\b/g)) n++
+  for (const m of text.matchAll(/\/Type\s*\/ObjStm\b(?:(?!>>)[\s\S]){0,400}?\/N\s+(\d+)/g)) n += parseInt(m[1], 10)
+  return n
+}
+
 async function countPages(bytes: Uint8Array): Promise<number> {
-  // The real parser runs first for every size. The regex scan alone can be fooled (a fake open
-  // "/Type /Pages /Count 1" while the real page tree sits in compressed object streams), so for big
-  // files, where pdf-lib may run out of CPU budget, the larger of the two counts is used.
-  let parsed = 0
+  const text = latin1(bytes)
+  // 1. No object streams: every /Pages dictionary is plain text, so the biggest /Count can never be lower
+  //    than the real page count (a fake small one cannot hide the real root). Trust the scan, skip pdf-lib.
+  if (!/\/Type\s*\/ObjStm\b/.test(text)) {
+    const n = scanCount(bytes, text)
+    if (n > 0) return n
+  }
+  // 2. Too many objects for the parser's CPU / memory budget: refuse with a clear message.
+  if (objectCount(text) > MAX_OBJECTS) {
+    throw new HttpError(422, 'pdf_too_complex', 'This PDF is too complex to read. Open it, use Print -> Save as PDF, and send that copy.')
+  }
+  // 3. Object streams present (the real page tree may be hidden in them): only the real parser is trusted.
   try {
     const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false, throwOnInvalidObject: false })
-    parsed = doc.getPageCount()
-  } catch { /* fall back to the scan */ }
-  if (parsed > 0 && bytes.length <= 20 * 1024 * 1024) return parsed
-  const n = Math.max(parsed, scanCount(bytes))
-  if (n > 0) return n
+    const n = doc.getPageCount()
+    if (n > 0) return n
+  } catch { /* unreadable */ }
   throw new HttpError(422, 'pdf_unreadable', 'This PDF could not be read. Please send another copy of it.')
 }
 
