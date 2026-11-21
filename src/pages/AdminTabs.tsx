@@ -105,7 +105,7 @@ type UserRow = {
 }
 
 export function AdminUsers({ onMsg }: { onMsg: Msg }) {
-  const { t, te, lang } = useI18n()
+  const { t, teRaw, lang } = useI18n()
   const dt = useDateTime()
   const [q, setQ] = useState('')
   const [query, setQuery] = useState('')
@@ -115,11 +115,11 @@ export function AdminUsers({ onMsg }: { onMsg: Msg }) {
 
   const load = useCallback(async (search: string, offset: number) => {
     const { data, error } = await supabase.rpc('admin_users', { p_q: search, p_limit: PAGE, p_offset: offset })
-    if (error) { onMsg({ text: te(error), error: true }); return }
+    if (error) { onMsg({ text: teRaw(error), error: true }); return }
     const r = (data || []) as UserRow[]
     setRows((prev) => (offset === 0 ? r : [...(prev || []), ...r]))
     setMore(r.length === PAGE)
-  }, [onMsg, te])
+  }, [onMsg, teRaw])
 
   useEffect(() => { load(query, 0) }, [query, load])
 
@@ -133,7 +133,7 @@ export function AdminUsers({ onMsg }: { onMsg: Msg }) {
       onMsg({ text: action === 'send_reset' ? t('admResetSent', { email: u.email || '' }) : t('admDone') })
       load(query, 0)
     } catch (e) {
-      onMsg({ text: te(e), error: true })
+      onMsg({ text: teRaw(e), error: true })
     } finally {
       setBusy(null)
     }
@@ -183,7 +183,7 @@ type OrderRow = {
 }
 
 export function AdminOrders({ onMsg }: { onMsg: Msg }) {
-  const { t, te } = useI18n()
+  const { t, teRaw } = useI18n()
   const dt = useDateTime()
   const [q, setQ] = useState('')
   const [query, setQuery] = useState('')
@@ -194,11 +194,11 @@ export function AdminOrders({ onMsg }: { onMsg: Msg }) {
 
   const load = useCallback(async (search: string, f: string, offset: number) => {
     const { data, error } = await supabase.rpc('admin_orders', { p_q: search, p_filter: f, p_limit: PAGE, p_offset: offset })
-    if (error) { onMsg({ text: te(error), error: true }); return }
+    if (error) { onMsg({ text: teRaw(error), error: true }); return }
     const r = (data || []) as OrderRow[]
     setRows((prev) => (offset === 0 ? r : [...(prev || []), ...r]))
     setMore(r.length === PAGE)
-  }, [onMsg, te])
+  }, [onMsg, teRaw])
 
   useEffect(() => { setRows(null); load(query, filter, 0) }, [query, filter, load])
 
@@ -211,7 +211,7 @@ export function AdminOrders({ onMsg }: { onMsg: Msg }) {
       onMsg({ text: t('admDone') })
       load(query, filter, 0)
     } catch (e) {
-      onMsg({ text: te(e), error: true })
+      onMsg({ text: teRaw(e), error: true })
     } finally {
       setBusy(null)
     }
@@ -261,16 +261,16 @@ type Sub = { shop_id: string; name: string; email: string | null; plan?: string 
 type Ev = { event: string | null; received_at: string }
 
 export function AdminPayments({ onMsg }: { onMsg: Msg }) {
-  const { t, te, lang } = useI18n()
+  const { t, teRaw, lang } = useI18n()
   const dt = useDateTime()
   const [data, setData] = useState<{ subs: Sub[]; events: Ev[] } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const { data: d, error } = await supabase.rpc('admin_payments')
-    if (error) onMsg({ text: te(error), error: true })
+    if (error) onMsg({ text: teRaw(error), error: true })
     else setData(d as { subs: Sub[]; events: Ev[] })
-  }, [onMsg, te])
+  }, [onMsg, teRaw])
   useEffect(() => { load() }, [load])
 
   const cancel = async (s: Sub) => {
@@ -282,7 +282,7 @@ export function AdminPayments({ onMsg }: { onMsg: Msg }) {
       onMsg({ text: t('admDone') })
       load()
     } catch (e) {
-      onMsg({ text: te(e), error: true })
+      onMsg({ text: teRaw(e), error: true })
     } finally {
       setBusy(null)
     }
@@ -348,16 +348,16 @@ type Spam = {
 }
 
 export function AdminSpam({ onMsg, onChanged }: { onMsg: Msg; onChanged: () => void }) {
-  const { t, te, lang } = useI18n()
+  const { t, teRaw, lang } = useI18n()
   const dt = useDateTime()
   const [data, setData] = useState<Spam | null>(null)
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
     const { data: d, error } = await supabase.rpc('admin_spam')
-    if (error) onMsg({ text: te(error), error: true })
+    if (error) onMsg({ text: teRaw(error), error: true })
     else setData(d as Spam)
-  }, [onMsg, te])
+  }, [onMsg, teRaw])
   useEffect(() => { load() }, [load])
 
   const run = async (fn: () => PromiseLike<{ error: unknown }>, ask?: string) => {
@@ -366,7 +366,7 @@ export function AdminSpam({ onMsg, onChanged }: { onMsg: Msg; onChanged: () => v
     onMsg(null)
     const { error } = await fn()
     setBusy(false)
-    if (error) { onMsg({ text: te(error), error: true }); return }
+    if (error) { onMsg({ text: teRaw(error), error: true }); return }
     onMsg({ text: t('admDone') })
     load()
     onChanged()
@@ -450,16 +450,16 @@ export function AdminSpam({ onMsg, onChanged }: { onMsg: Msg; onChanged: () => v
 /* ---------------- Settings ---------------- */
 
 export function AdminSettings({ onMsg }: { onMsg: Msg }) {
-  const { t, te } = useI18n()
+  const { t, teRaw } = useI18n()
   const [s, setS] = useState<AppSettings | null>(null)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     supabase.rpc('get_app_settings').then(({ data, error }) => {
-      if (error) onMsg({ text: te(error), error: true })
+      if (error) onMsg({ text: teRaw(error), error: true })
       setS({ ...DEFAULT_SETTINGS, ...((data as Partial<AppSettings>) || {}) })
     })
-  }, [onMsg, te])
+  }, [onMsg, teRaw])
 
   if (!s) return <SkelForm n={5} />
   const set = (patch: Partial<AppSettings>) => setS({ ...s, ...patch })
@@ -471,7 +471,7 @@ export function AdminSettings({ onMsg }: { onMsg: Msg }) {
     onMsg(null)
     const { data, error } = await supabase.rpc('admin_set_settings', { p: s })
     setBusy(false)
-    if (error) { onMsg({ text: te(error), error: true }); return }
+    if (error) { onMsg({ text: teRaw(error), error: true }); return }
     const next = { ...DEFAULT_SETTINGS, ...(data as Partial<AppSettings>) }
     setS(next)
     setAppSettingsCache(next)

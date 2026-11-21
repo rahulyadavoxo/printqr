@@ -2468,7 +2468,7 @@ function PlanCompare({ current }: { current: PlanTier }) {
 const ENDED = ['cancelled', 'completed', 'expired']
 
 function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onChanged: () => Promise<void> | void }) {
-  const { t, lang } = useI18n()
+  const { t, te, lang } = useI18n()
   const [busy, setBusy] = useState<string | null>(null)
   const [period, setPeriod] = useState<Period>('yearly')
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
@@ -2496,7 +2496,7 @@ function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onCha
     if (code === 'needs_migration') return t('planNeedsUpdate')
     if (code === 'checkout_load_failed') return t('planCheckoutFail')
     if (code === 'not_deployed' || code === 'missing_env') return t('planNotReady')
-    return (e as Error)?.message || t('errGeneric')
+    return te(e)
   }
 
   async function upgrade(tier: Tier) {

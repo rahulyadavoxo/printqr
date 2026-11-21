@@ -1853,6 +1853,7 @@ type Ctx = {
   t: (key: Key, vars?: Vars) => string
   tn: (one: Key, other: Key, n: number) => string
   te: (e: unknown) => string
+  teRaw: (e: unknown) => string
 }
 
 function fill(s: string, vars?: Vars): string {
@@ -1905,9 +1906,20 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       if ((typeof navigator !== 'undefined' && navigator.onLine === false) || /failed to fetch|networkerror|load failed|network request failed|fetch failed/i.test(raw)) return t('errOffline')
       if (/permission denied for (table|relation|schema)|jwt expired|invalid jwt|jwt.*(malformed|invalid)/i.test(raw)) return t('errSession')
       const k = SERVER_ERRORS[raw.trim().replace(/\.$/, '').toLowerCase()]
-      return k ? t(k) : raw
+      if (k) return t(k)
+      // Our own messages (raise exception in SQL = P0001, or short plain sentences from our functions) stay readable;
+      // anything else (database / network / library internals) becomes one friendly line, details in the console.
+      const code = String((e as { code?: string } | null)?.code ?? '')
+      if (code === 'P0001') return raw
+      // Supabase Auth's own messages (weak password, email not confirmed, rate limit) are written for people.
+      const ae = e as { name?: string; status?: number } | null
+      if (ae && /^Auth/.test(String(ae.name || '')) && Number(ae.status) >= 400 && Number(ae.status) < 500) return raw
+      try { console.error('[PrintQR error]', e) } catch { /* ignore */ }
+      return t('errGeneric')
     }
-    return { lang, setLang, t, tn, te }
+    /** Admin panel only: the real server text (admins need it to fix things). */
+    const teRaw = (e: unknown) => errMsg(e)
+    return { lang, setLang, t, tn, te, teRaw }
   }, [lang, setLang])
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>

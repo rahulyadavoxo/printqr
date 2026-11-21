@@ -58,7 +58,7 @@ const TABS: Tab[] = ['overview', 'shops', 'users', 'orders', 'payments', 'spam',
 
 export default function Admin() {
   const { session, loading } = useSession()
-  const { t, te, lang } = useI18n()
+  const { t, teRaw, lang } = useI18n()
   const [allowed, setAllowed] = useState<boolean | null>(null)
   const [ov, setOv] = useState<Overview | null>(null)
   const [shops, setShops] = useState<ShopRow[] | null>(null)
@@ -82,17 +82,17 @@ export default function Admin() {
 
   const loadOverview = useCallback(async () => {
     const { data, error } = await supabase.rpc('admin_overview')
-    if (error) setMsg({ text: te(error), error: true })
+    if (error) setMsg({ text: teRaw(error), error: true })
     else setOv(data as Overview)
-  }, [te])
+  }, [teRaw])
 
   const loadShops = useCallback(async (search: string, offset: number) => {
     const { data, error } = await supabase.rpc('admin_shops', { p_q: search, p_limit: PAGE, p_offset: offset })
-    if (error) { setMsg({ text: te(error), error: true }); return }
+    if (error) { setMsg({ text: teRaw(error), error: true }); return }
     const rows = (data || []) as ShopRow[]
     setShops((prev) => (offset === 0 ? rows : [...(prev || []), ...rows]))
     setMore(rows.length === PAGE)
-  }, [te])
+  }, [teRaw])
 
   const loadLog = useCallback(async () => {
     const { data, error } = await supabase.rpc('admin_recent_log', { p_limit: 20 })
@@ -134,7 +134,7 @@ export default function Admin() {
     if (d > 0 && pick) args.p_tier = pick
     const { data, error } = await supabase.rpc('admin_set_pro', args)
     setBusy(null)
-    if (error) { setMsg({ text: te(error), error: true }); return }
+    if (error) { setMsg({ text: teRaw(error), error: true }); return }
     const tier = d > 0 ? (pick || paidTier(s) || 'pro') : 'pro'
     setMsg({ text: d === 0 ? t('admProRemoved', { name: s.name }) : t('admProGiven', { name: s.name, date: fmtDate(data as string, lang), plan: tier === 'plus' ? 'Plus' : 'Pro' }) })
     refreshAll()
@@ -146,7 +146,7 @@ export default function Admin() {
     setMsg(null)
     const { error } = await supabase.rpc('admin_set_blocked', { p_shop: s.id, p_blocked: block, p_reason: reason[s.id] || null })
     setBusy(null)
-    if (error) { setMsg({ text: te(error), error: true }); return }
+    if (error) { setMsg({ text: teRaw(error), error: true }); return }
     setMsg({ text: block ? t('admBlocked', { name: s.name }) : t('admUnblocked', { name: s.name }) })
     refreshAll()
   }
@@ -170,7 +170,7 @@ export default function Admin() {
       setMsg({ text: t('admDone') })
       refreshAll()
     } catch (e) {
-      setMsg({ text: te(e), error: true })
+      setMsg({ text: teRaw(e), error: true })
     } finally {
       setBusy(null)
     }
