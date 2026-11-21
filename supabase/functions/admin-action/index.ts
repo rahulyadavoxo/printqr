@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
       const order = orders[0]
       if (!order) throw new HttpError(404, 'not_found', 'Order not found')
       const files = await db<{ storage_path: string }[]>(`order_files?order_id=eq.${orderId}&select=storage_path`)
-      const paths = files.map((f) => f.storage_path).filter(Boolean)
+      const paths = files.map((f) => f.storage_path).filter(Boolean).flatMap((p) => [p, p + '.thumb.jpg'])
       if (paths.length) await call('/storage/v1/object/uploads', { method: 'DELETE', body: JSON.stringify({ prefixes: paths }) })
       const patch: Record<string, unknown> = { files_deleted: true }
       if (order.status === 'uploading') patch.status = 'cancelled'

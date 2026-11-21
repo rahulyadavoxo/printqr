@@ -1031,7 +1031,8 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
 
   async function deleteFiles(o: Order) {
     if (!confirm(t('confirmDelete', { token: o.token }))) return
-    const paths = (o.order_files || []).map((f) => f.storage_path)
+    // v24: photos may have a small '<path>.thumb.jpg' beside them (missing ones are ignored)
+    const paths = (o.order_files || []).flatMap((f) => [f.storage_path, f.storage_path + '.thumb.jpg'])
     const { error } = await supabase.storage.from('uploads').remove(paths)
     if (error) return setErr(te(error))
     await supabase.from('orders').update({ files_deleted: true }).eq('id', o.id)

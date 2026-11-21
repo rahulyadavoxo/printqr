@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useI18n } from '../lib/i18n'
 import Icon from './Icon'
 import ZoomPan from './ZoomPan'
+import { thumbPath } from '../lib/thumb'
 
 export type ViewImg = { src: string; name: string }
 
@@ -63,43 +64,43 @@ export function LocalImageThumb({ file, small, fallback = null, onOpen }: { file
 /* ---- Owner side: stored pictures in the private 'uploads' bucket ---- */
 
 const LINK_TTL = 3600 // seconds
-const THUMB = { width: 160, height: 160, resize: 'cover' as const, quality: 60 }
-// Supabase image transformations (small server-made thumbnails) need a paid Supabase plan.
-// If a small thumbnail fails we use the full picture for a day, then try small ones again.
-const SMALL_KEY = 'pq_thumb_small_off'
-let smallOk = (() => { try { return Date.now() - Number(localStorage.getItem(SMALL_KEY) || 0) > 86_400_000 } catch { return true } })()
 const links = new Map<string, { url: string; until: number }>()
+/** Paths known to have no '.thumb.jpg' (older orders, HEIC, reorders of old orders). */
+const noThumb = new Set<string>()
 
-/** One signed link per file and size, reused until near expiry, so the browser cache serves repeat views
+/** One signed link per object, reused until near expiry, so the browser cache serves repeat views
  *  (a fresh link on every re-render would download the same photo again). */
-async function signedLink(path: string, small: boolean): Promise<string | null> {
-  const key = `${small ? 's' : 'f'}:${path}`
-  const hit = links.get(key)
+async function signedLink(path: string): Promise<string | null> {
+  const hit = links.get(path)
   if (hit && hit.until > Date.now() + 60_000) return hit.url
-  const { data } = await supabase.storage.from('uploads').createSignedUrl(path, LINK_TTL, small ? { transform: THUMB } : undefined)
+  const { data } = await supabase.storage.from('uploads').createSignedUrl(path, LINK_TTL)
   if (!data?.signedUrl) return null
-  links.set(key, { url: data.signedUrl, until: Date.now() + LINK_TTL * 1000 })
+  links.set(path, { url: data.signedUrl, until: Date.now() + LINK_TTL * 1000 })
   return data.signedUrl
 }
 
-/** Thumbnail of an uploaded image (owner side): a small server-made copy (~10 KB) when available, else the
- *  full picture. Tapping opens the full picture. */
+/** Thumbnail of an uploaded photo (owner side): the small '<path>.thumb.jpg' (~10 KB) the customer's phone
+ *  made, else (older orders) the full photo. Tapping opens the full photo. */
 export function StoredImageThumb({ path, name, fallback = null, onOpen }: { path: string; name: string; fallback?: JSX.Element | null; onOpen: (v: ViewImg) => void }) {
   const [url, setUrl] = useState<string | null>(null)
-  const [small, setSmall] = useState(smallOk)
+  const [small, setSmall] = useState(() => !noThumb.has(path))
   useEffect(() => {
     let live = true
     setUrl(null)
-    signedLink(path, small).then((u) => { if (live) setUrl(u) }, () => {})
+    const want = small ? thumbPath(path) : path
+    signedLink(want).then((u) => {
+      if (!live) return
+      if (u) setUrl(u)
+      else if (small) { noThumb.add(path); setSmall(false) } // no thumbnail stored: use the photo
+    }, () => {})
     return () => { live = false }
   }, [path, small])
   const broken = () => {
     if (!small) return false
-    smallOk = false
-    try { localStorage.setItem(SMALL_KEY, String(Date.now())) } catch { /* private mode */ }
+    noThumb.add(path)
     setSmall(false)
     return true
   }
-  const open = () => { void signedLink(path, false).then((u) => { if (u) onOpen({ src: u, name }) }) }
+  const open = () => { void signedLink(path).then((u) => { if (u) onOpen({ src: u, name }) }) }
   return <Thumb url={url} name={name} fallback={fallback} onOpen={open} onBroken={broken} />
 }

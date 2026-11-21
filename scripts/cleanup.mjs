@@ -19,7 +19,7 @@ for (let round = 0; round < 20; round++) {
   if (!data?.length) break
   for (const row of data) {
     if (row.paths?.length) {
-      const { error: rmErr } = await sb.storage.from('uploads').remove(row.paths)
+      const { error: rmErr } = await sb.storage.from('uploads').remove(row.paths.flatMap((p) => [p, p + '.thumb.jpg']))
       if (rmErr) { console.error('remove failed', row.order_id, rmErr.message); continue }
     }
     const patch = { files_deleted: true }

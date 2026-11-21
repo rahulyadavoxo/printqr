@@ -66,6 +66,12 @@ Deno.serve(async (req) => {
         throw new HttpError(404, 'not_found', 'Order not found')
       }
       await copy(src, f.storage_path, f.size_bytes)
+      // v24: the photo's small thumbnail too, if it has one (best effort)
+      await fetch(`${base()}/storage/v1/object/copy`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ bucketId: 'uploads', sourceKey: src + '.thumb.jpg', destinationKey: f.storage_path + '.thumb.jpg' })
+      }).then((r) => r.body?.cancel(), () => {})
     }
 
     const res = await fetch(`${base()}/rest/v1/rpc/reorder_finalize`, {

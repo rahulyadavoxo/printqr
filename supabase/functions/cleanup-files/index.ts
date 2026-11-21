@@ -43,7 +43,8 @@ Deno.serve(async (req) => {
       let progressed = 0
       for (const row of rows) {
         try {
-          const paths = (row.paths || []).filter(Boolean)
+          // v24: photos may have a small '<path>.thumb.jpg' beside them (missing ones are ignored)
+          const paths = (row.paths || []).filter(Boolean).flatMap((p) => [p, p + '.thumb.jpg'])
           if (paths.length) {
             await call('/storage/v1/object/uploads', { method: 'DELETE', body: JSON.stringify({ prefixes: paths }) })
           }

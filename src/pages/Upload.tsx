@@ -12,6 +12,7 @@ import { nextOpening, normHours, timeLabel } from '../lib/hours'
 import AdSlot from '../components/AdSlot'
 import Icon from '../components/Icon'
 import { ImageLightbox, LocalImageThumb, ViewImg } from '../components/ImagePreview'
+import { makeThumb, thumbPath } from '../lib/thumb'
 import PagePicker from '../components/PagePicker'
 import ReportShop from '../components/ReportShop'
 import standeeUrl from '../assets/qr-standee.svg'
@@ -485,6 +486,11 @@ export default function Upload() {
           upsert: false
         })
         if (upErr) throw upErr
+        // v24: a small copy of each photo for the owner's list (saves their data). Best effort: never blocks the order.
+        if (u.contentType.startsWith('image/')) {
+          const th = await makeThumb(u.blob)
+          if (th) await supabase.storage.from('uploads').upload(thumbPath(order.paths[i]), th, { contentType: 'image/jpeg', upsert: false }).then(() => {}, () => {})
+        }
       }
       setProgress({ text: t('uSending'), pct: 100 })
       // v11: the server counts the pages of every uploaded PDF, fixes the price if needed, then queues the order.

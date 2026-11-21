@@ -1,4 +1,4 @@
--- PrintQR database schema for Supabase (includes migrations up to v23)
+-- PrintQR database schema for Supabase (includes migrations up to v24)
 -- Run this whole file once in Supabase Dashboard -> SQL Editor -> New query -> Run.
 
 create extension if not exists pgcrypto;
@@ -2759,3 +2759,18 @@ notify pgrst, 'reload schema';
 --   select conname, pg_get_constraintdef(oid) from pg_constraint where conname = 'order_files_item_kind_check';
 --   select id, name, paper_sheets, paper_low_at, paper_alerted_at from public.shops where paper_sheets is not null;
 --   select id, status_code, content from net._http_response order by created desc limit 5;
+
+-- ===== v24 (2026-11-21): photo thumbnails '<path>.thumb.jpg' (also in migrations/2026-11-21-v24-photo-thumbs.sql) =====
+create or replace function public.can_upload(p_name text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.order_files f join public.orders o on o.id = f.order_id
+    where f.source_path is null
+      and o.status = 'uploading' and o.created_at > now() - interval '30 minutes'
+      and (f.storage_path = p_name
+           or (p_name = f.storage_path || '.thumb.jpg' and f.mime like 'image/%'))
+  );
+$$;
+grant execute on function public.can_upload(text) to anon, authenticated;
+
+notify pgrst, 'reload schema';
