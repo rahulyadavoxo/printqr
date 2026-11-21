@@ -13,6 +13,7 @@ import Icon from '../components/Icon'
 import PagePicker from '../components/PagePicker'
 import ReportShop from '../components/ReportShop'
 import standeeUrl from '../assets/qr-standee.svg'
+import closedStandeeUrl from '../assets/closed-qr-standee.svg'
 
 type ShopPublic = {
   id: string
@@ -510,7 +511,7 @@ export default function Upload() {
           <p className="rates-pill">
             {t('ratesLine', { bw: rupees(shop.rates.bw_single), color: rupees(shop.rates.color_single) })}
           </p>
-          {shop.is_open && <img className="shop-standee" src={standeeUrl} alt="" aria-hidden="true" width={160} height={132} />}
+          <img className="shop-standee" src={shop.is_open ? standeeUrl : closedStandeeUrl} alt="" aria-hidden="true" width={160} height={132} />
         </div>
       </header>
 

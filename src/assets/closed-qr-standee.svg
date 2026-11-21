@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="132" viewBox="0 0 160 132" role="img" aria-label="Store closed, curtain drawn over the QR code">
+  <style>
+    :root { --ink:#0e1628; --brand:#3f6212; --card:#ffffff; --counter:#c9ec8a; --counter2:#a6cf5a; --red:#e5484d; --redDark:#b3262b; --pot:#c2703d; --leaf:#4c9a2a; --leaf2:#65a30d; }
+    @media (prefers-color-scheme: dark) { :root { --card:#e9efe3; --counter:#2c3d22; --counter2:#22301b; } }
+
+    .counter  { fill:var(--counter); }
+    .counter2 { fill:var(--counter2); }
+
+    /* QR standee */
+    .leg      { fill:var(--brand); }
+    .card     { fill:var(--card); stroke:var(--brand); stroke-width:2.2; }
+    .qr       { fill:var(--ink); }
+    .fnd      { fill:none; stroke:var(--ink); stroke-width:2.2; }
+
+    /* curtain */
+    .rod      { fill:var(--ink); }
+    .ring     { fill:none; stroke:var(--ink); stroke-width:1.2; }
+    .drop     { animation:drop 7s ease-in infinite; }
+    .cloth    { fill:var(--red); }
+    .fold     { stroke:var(--redDark); stroke-width:1.4; opacity:.55; }
+    .shine    { stroke:#fff; stroke-width:1; opacity:.25; }
+    .label    { fill:#fff; font:800 5.5px system-ui,sans-serif; letter-spacing:.8px; text-anchor:middle; }
+
+    /* hanging CLOSED sign */
+    .hook     { fill:var(--ink); }
+    .swing    { transform-box:view-box; transform-origin:26px 22px; animation:swing 6s ease-in-out infinite; }
+    .chain    { stroke:var(--ink); stroke-width:1.4; stroke-linecap:round; }
+    .sign     { fill:var(--red); stroke:var(--ink); stroke-width:1.8; }
+    .signt    { fill:#fff; font:800 7.5px system-ui,sans-serif; letter-spacing:.6px; text-anchor:middle; }
+
+    /* plant */
+    .pot      { fill:var(--pot); }
+    .leaf     { fill:var(--leaf); transform-box:fill-box; transform-origin:bottom center; animation:sway 7s ease-in-out infinite; }
+    .leaf.b   { fill:var(--leaf2); animation-delay:-2s; }
+    .leaf.c   { animation-delay:-4s; }
+
+    /* curtain falls, bounces slightly, stays down, then lifts and repeats */
+    @keyframes drop  {
+      0%   { transform:translateY(-62px); animation-timing-function:cubic-bezier(.5,0,1,.6); }
+      14%  { transform:translateY(0); animation-timing-function:ease-out; }
+      17%  { transform:translateY(-4px); animation-timing-function:ease-in; }
+      20%  { transform:translateY(0); }
+      88%  { transform:translateY(0); animation-timing-function:ease-in-out; }
+      98%  { transform:translateY(-62px); }
+      100% { transform:translateY(-62px); }
+    }
+    @keyframes swing { 0%,100%{ transform:rotate(-4deg); } 50%{ transform:rotate(4deg); } }
+    @keyframes sway  { 0%,100%{ transform:rotate(-2deg); } 50%{ transform:rotate(3deg); } }
+
+    @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
+  </style>
+
+  <defs>
+    <clipPath id="cardClip">
+      <rect x="58" y="42" width="44" height="54" rx="6"/>
+    </clipPath>
+  </defs>
+
+  <!-- counter -->
+  <rect class="counter"  x="10" y="104" width="140" height="12" rx="6"/>
+  <rect class="counter2" x="10" y="112" width="140" height="4" rx="2"/>
+
+  <!-- QR standee -->
+  <path class="leg" d="M72 96h16l5 8H67z"/>
+  <rect class="card" x="58" y="42" width="44" height="54" rx="6"/>
+
+  <!-- QR code -->
+  <rect class="fnd" x="64.500" y="48.500" width="9" height="9"/>
+  <rect class="qr"  x="67" y="51" width="4" height="4"/>
+  <rect class="fnd" x="86.500" y="48.500" width="9" height="9"/>
+  <rect class="qr"  x="89" y="51" width="4" height="4"/>
+  <rect class="fnd" x="64.500" y="70.500" width="9" height="9"/>
+  <rect class="qr"  x="67" y="73" width="4" height="4"/>
+  <rect class="qr"  x="77" y="48" width="4" height="4"/>
+  <rect class="qr"  x="77" y="54" width="4" height="4"/>
+  <rect class="qr"  x="82" y="59" width="4" height="4"/>
+  <rect class="qr"  x="64" y="60" width="4" height="4"/>
+  <rect class="qr"  x="72" y="60" width="4" height="4"/>
+  <rect class="qr"  x="90" y="62" width="4" height="4"/>
+  <rect class="qr"  x="77" y="66" width="4" height="4"/>
+  <rect class="qr"  x="85" y="68" width="4" height="4"/>
+  <rect class="qr"  x="91" y="72" width="4" height="4"/>
+  <rect class="qr"  x="79" y="74" width="4" height="4"/>
+  <rect class="qr"  x="85" y="76" width="4" height="4"/>
+  <rect class="qr"  x="72" y="68" width="4" height="4"/>
+
+  <!-- curtain falling over the QR (clipped to the card) -->
+  <g clip-path="url(#cardClip)">
+    <g class="drop">
+      <path class="cloth" d="M56 30H104V94q-4 5-8 0q-4 5-8 0q-4 5-8 0q-4 5-8 0q-4 5-8 0q-4 5-8 0Z"/>
+      <line class="fold"  x1="64" y1="30" x2="64" y2="95"/>
+      <line class="fold"  x1="72" y1="30" x2="72" y2="95"/>
+      <line class="fold"  x1="80" y1="30" x2="80" y2="95"/>
+      <line class="fold"  x1="88" y1="30" x2="88" y2="95"/>
+      <line class="fold"  x1="96" y1="30" x2="96" y2="95"/>
+      <line class="shine" x1="68" y1="30" x2="68" y2="94"/>
+      <line class="shine" x1="84" y1="30" x2="84" y2="94"/>
+      <line class="shine" x1="100" y1="30" x2="100" y2="94"/>
+      <text class="label" x="80" y="72">BACK SOON</text>
+    </g>
+  </g>
+
+  <!-- curtain rod -->
+  <rect class="rod" x="54" y="38.500" width="52" height="3.200" rx="1.600"/>
+  <circle class="ring" cx="64" cy="43" r="1.600"/>
+  <circle class="ring" cx="72" cy="43" r="1.600"/>
+  <circle class="ring" cx="80" cy="43" r="1.600"/>
+  <circle class="ring" cx="88" cy="43" r="1.600"/>
+  <circle class="ring" cx="96" cy="43" r="1.600"/>
+
+  <!-- hanging CLOSED sign -->
+  <rect class="hook" x="14" y="20" width="24" height="4" rx="2"/>
+  <g class="swing">
+    <line class="chain" x1="20" y1="24" x2="20" y2="38"/>
+    <line class="chain" x1="32" y1="24" x2="32" y2="38"/>
+    <rect class="sign" x="5" y="38" width="42" height="18" rx="4"/>
+    <text class="signt" x="26" y="50.200">CLOSED</text>
+  </g>
+
+  <!-- plant -->
+  <path class="leaf"   d="M128 94C122 86 122 78 126 72C131 78 132 87 128 94Z"/>
+  <path class="leaf b" d="M130 94C132 86 138 80 144 80C142 88 137 93 130 94Z"/>
+  <path class="leaf c" d="M126 94C120 92 116 88 114 82C121 82 126 87 126 94Z"/>
+  <path class="pot" d="M118 93h20l-3 11h-14z"/>
+</svg>
