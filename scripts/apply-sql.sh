@@ -14,3 +14,8 @@ echo "Newest migration again (must be safe to repeat)"
 run "supabase/migrations/$newest"
 run "supabase/migrations/$newest"
 echo "Fresh install OK"
+for t in supabase/tests/*.sql; do
+  [ -f "$t" ] || continue
+  echo "Test: $t"
+  "${PSQL[@]}" -f "$t"
+done
