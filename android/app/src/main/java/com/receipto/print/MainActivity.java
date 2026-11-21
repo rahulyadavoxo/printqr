@@ -138,6 +138,11 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
+        // No pinch / double-tap zoom, and ignore the phone's font-size setting so the layout never blows up
+        s.setSupportZoom(false);
+        s.setBuiltInZoomControls(false);
+        s.setDisplayZoomControls(false);
+        s.setTextZoom(100);
         s.setAllowFileAccess(false);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setSupportMultipleWindows(true); // Razorpay opens bank / 3-D Secure pages in a pop-up
