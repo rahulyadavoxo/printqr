@@ -1214,7 +1214,7 @@ button.ed-top-title:hover { background: var(--c-sunken); }
   .dash .dash-bar .menu-btn { align-self: center; }
   /* Chrome-style tab: rounded top corners + concave curved feet that flow into the strip */
   .bar-tab {
-    position: relative; margin-left: auto; margin-right: 14px; margin-top: 8px; margin-bottom: -1px;
+    position: relative; margin-left: auto; margin-right: 6px; margin-top: 8px; margin-bottom: -1px;
     display: flex; align-items: center; gap: 8px; max-width: 62vw; padding: 0 18px;
     background: var(--c-bg); color: var(--c-ink); border: none; border-radius: 12px 12px 0 0;
     font-size: 15px; font-weight: 600;
