@@ -1449,12 +1449,14 @@ img.shop-avatar { object-fit: cover; padding: 0; }
 .bnav-lbl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bnav-ic { position: relative; display: grid; place-items: center; width: 52px; height: 30px; border-radius: 999px; transition: background .15s, color .15s; }
 .bnav-item.on { color: var(--c-ink); font-weight: 750; }
-.bnav-item.on .bnav-ic { background: #0b1210; color: var(--c-lime); }
+.bnav-item.on .bnav-ic { background: var(--c-lime); color: #0b1210; }
 .bnav-main .bnav-ic {
   width: 60px; height: 60px; margin-top: -28px; margin-bottom: 2px; border-radius: 50%;
-  background: #0b1210; color: var(--c-lime); border: 3px solid rgba(255, 255, 255, .75); box-shadow: 0 8px 22px rgba(11, 18, 16, .35);
+  background: rgba(255, 255, 255, .85); color: var(--c-muted); border: 3px solid rgba(255, 255, 255, .75); box-shadow: 0 8px 22px rgba(11, 18, 16, .18);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
 }
 .bnav-main.on .bnav-ic { background: var(--c-lime); color: #0b1210; }
+[data-theme="dark"] .bnav-main:not(.on) .bnav-ic { background: rgba(30, 40, 36, .85); border-color: rgba(255, 255, 255, .12); }
 .bnav-badge {
   position: absolute; top: -4px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
   display: grid; place-items: center; background: #e5484d; color: #fff; font-size: 11px; font-weight: 800; line-height: 1; border: 2px solid #fff;
