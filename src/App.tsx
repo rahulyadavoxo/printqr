@@ -5,6 +5,7 @@ import { useI18n } from './lib/i18n'
 import { TopBar } from './components/TopBar'
 import UpdateGate from './components/UpdateGate'
 import AppNotices from './components/AppNotices'
+import { RouteSkeleton } from './components/Skeletons'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Upload from './pages/Upload'
@@ -47,13 +48,7 @@ export default function App() {
   return (
     <UpdateGate>
     <AppNotices />
-    <Suspense fallback={
-      <div className="page skeleton-wrap" aria-busy="true">
-        <div className="skel skel-line w40 skel-title" />
-        <div className="card skel-card"><div className="skel skel-avatar" /><div className="skel skel-line w60" /><div className="skel skel-block" /></div>
-        <div className="card skel-card"><div className="skel skel-line w60" /><div className="skel skel-block" /></div>
-      </div>
-    }>
+    <Suspense fallback={<RouteSkeleton />}>
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />

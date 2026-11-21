@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { recoverySessionReady } from '../lib/recovery'
 import { useI18n } from '../lib/i18n'
 import { LogoMark, TopBar } from '../components/TopBar'
+import { ResetSkelBody } from '../components/Skeletons'
 
 export default function ResetPassword() {
   const { t, te } = useI18n()
@@ -49,12 +50,7 @@ export default function ResetPassword() {
           <div className="auth-logo"><LogoMark size={44} /></div>
           <h1 className="auth-title">{t('rpTitle')}</h1>
           {state === 'checking' && (
-            <div className="skeleton-wrap skel-form" aria-busy="true">
-              <span className="sr-only">{t('loading')}</span>
-              <div className="skel skel-line w40" /><div className="skel skel-input" />
-              <div className="skel skel-line w40" /><div className="skel skel-input" />
-              <div className="skel skel-btn" />
-            </div>
+            <ResetSkelBody />
           )}
           {state === 'invalid' && (
             <>

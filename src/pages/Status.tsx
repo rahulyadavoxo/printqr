@@ -4,6 +4,7 @@ import { DEFAULT_IDCARD_RATE, DEFAULT_PASSPORT_RATE, OrderStatus, Rates, supabas
 import { filePrice, rupees } from '../lib/pricing'
 import { Key, useI18n } from '../lib/i18n'
 import { ShopBrand, TopBar } from '../components/TopBar'
+import { StatusSkelBody } from '../components/Skeletons'
 import { brandStyle } from '../lib/brand'
 import { ding, unlockAudio } from '../lib/sound'
 import { notifyWhenReady, webPushSupported } from '../lib/webpush'
@@ -200,10 +201,7 @@ function StatusPage({ id, orderKey: key }: { id: string; orderKey: string }) {
   }
   if (!info) {
     return shell(
-      <div className="skeleton-wrap" aria-busy="true">
-        <span className="sr-only">{t('loading')}</span>
-        <div className="card skel-card ticket-skel"><div className="skel skel-line w40" /><div className="skel skel-token" /><div className="skel skel-line w60" /></div>
-      </div>
+      <StatusSkelBody />
     )
   }
 

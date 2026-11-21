@@ -4,6 +4,7 @@ import { DEFAULT_RATES, supabase } from '../lib/supabase'
 import { useSession } from '../lib/useSession'
 import { useI18n } from '../lib/i18n'
 import { LogoMark, TopBar } from '../components/TopBar'
+import { SetupSkeleton } from '../components/Skeletons'
 
 function slugify(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
@@ -79,20 +80,7 @@ export default function Setup() {
 
   if (checking) {
     return (
-      <div className="auth-page">
-        <TopBar to={null} />
-        <main className="auth-wrap">
-          <div className="card auth-card skeleton-wrap skel-form" aria-busy="true">
-            <span className="sr-only">{t('loading')}</span>
-            <div className="skel skel-avatar" />
-            <div className="skel skel-line w60 skel-title" />
-            <div className="skel skel-line w40" /><div className="skel skel-input" />
-            <div className="skel skel-line w40" /><div className="skel skel-input" />
-            <div className="skel skel-line w40" /><div className="skel skel-input" />
-            <div className="skel skel-btn" />
-          </div>
-        </main>
-      </div>
+      <SetupSkeleton />
     )
   }
 

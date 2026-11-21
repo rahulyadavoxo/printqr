@@ -4,67 +4,13 @@ import { useI18n } from '../lib/i18n'
 import { callFn } from '../lib/billing'
 import { AppSettings, DEFAULT_SETTINGS, setAppSettingsCache } from '../lib/appSettings'
 import { rupees } from '../lib/pricing'
+import { SkelForm, SkelList, SkelLog, SkelStats } from '../components/Skeletons'
 
 /* Admin panel tabs: Users, Orders, Payments, Spam watch, Settings. Every RPC checks is_admin() in SQL;
    the admin-action Edge Function checks public.admins too. */
 
-/* Skeleton placeholders shown while admin data loads (same shimmer as the rest of the app). */
-export function SkelStats({ n = 4 }: { n?: number }) {
-  return (
-    <div className="stats skeleton-wrap" aria-busy="true">
-      {Array.from({ length: n }, (_, i) => (
-        <div key={i} className="card stat">
-          <div className="skel skel-line w40" />
-          <div className="skel skel-num" />
-          <div className="skel skel-line w60" />
-        </div>
-      ))}
-    </div>
-  )
-}
-
-export function SkelList({ n = 5 }: { n?: number }) {
-  return (
-    <div className="admin-list skeleton-wrap" aria-busy="true">
-      {Array.from({ length: n }, (_, i) => (
-        <div key={i} className="card skel-row">
-          <div className="skel skel-dot" />
-          <div className="skel-row-text">
-            <div className="skel skel-line w60" />
-            <div className="skel skel-line w40" />
-          </div>
-          <div className="skel skel-pill" />
-        </div>
-      ))}
-    </div>
-  )
-}
-
-export function SkelLog({ n = 6 }: { n?: number }) {
-  return (
-    <div className="card admin-log skeleton-wrap" aria-busy="true">
-      {Array.from({ length: n }, (_, i) => (
-        <div key={i} className="admin-log-row">
-          <div className="skel skel-line skel-time" />
-          <div className="skel skel-line" style={{ width: `${45 + ((i * 17) % 40)}%` }} />
-        </div>
-      ))}
-    </div>
-  )
-}
-
-export function SkelForm({ n = 4 }: { n?: number }) {
-  return (
-    <div className="card skeleton-wrap skel-form-admin" aria-busy="true">
-      {Array.from({ length: n }, (_, i) => (
-        <div key={i} className="skel-field">
-          <div className="skel skel-line w40" />
-          <div className="skel skel-input" />
-        </div>
-      ))}
-    </div>
-  )
-}
+/* Skeleton placeholders live with every other page skeleton (components/Skeletons). */
+export { SkelForm, SkelList, SkelLog, SkelStats }
 
 export function fmtDate(s: string | null, lang: string) {
   if (!s) return '—'

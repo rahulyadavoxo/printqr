@@ -21,31 +21,12 @@ import { pushStatus, removePush, setupPush } from '../lib/push'
 import { LangToggle, LogoMark, TopBar, Wordmark } from '../components/TopBar'
 import { ThemePref, useTheme } from '../lib/theme'
 import Icon from '../components/Icon'
+import { BOTTOM, isTab, NAV, savedSidebar, SbMode, Tab, TABS } from '../lib/dashNav'
+import { DashSkeleton, EditorSkel, OrdersSkel } from '../components/Skeletons'
 import { Period, startUpgrade, callFn, Tier, TIER_PRICES, yearlyOff } from '../lib/billing'
-
-type Tab = 'orders' | 'rates' | 'qr' | 'edit' | 'report' | 'settings' | 'plan'
 
 // The document editor is a separate chunk, loaded only when the Edit tab opens.
 const Editor = lazy(() => import('./editor/Editor'))
-const TABS: { id: Tab; label: Key; icon: string }[] = [
-  { id: 'orders', label: 'tabOrders', icon: 'inbox' },
-  { id: 'rates', label: 'tabRates', icon: 'rupee' },
-  { id: 'qr', label: 'tabQr', icon: 'qr' },
-  { id: 'edit', label: 'tabEdit', icon: 'scan' },
-  { id: 'report', label: 'tabReport', icon: 'chart' },
-  { id: 'settings', label: 'tabSettings', icon: 'settings' },
-  { id: 'plan', label: 'tabPlan', icon: 'star' }
-]
-
-/** Android app and Android web: bottom bar, left to right (Orders in the centre, Settings on the right). */
-const BOTTOM: Tab[] = ['report', 'qr', 'orders', 'edit', 'settings']
-
-const NAV: { group: Key; items: Tab[] }[] = [
-  { group: 'navShop', items: ['orders', 'rates', 'qr', 'edit'] },
-  { group: 'navBusiness', items: ['report', 'plan'] },
-  { group: 'navAccount', items: ['settings'] }
-]
-
 
 function ShopAvatar({ shop, size }: { shop: Shop; size: number }) {
   const [broken, setBroken] = useState(false)
@@ -417,13 +398,7 @@ export default function Dashboard() {
   const { session, loading } = useSession()
   const { t, lang } = useI18n()
   const [menu, setMenu] = useState(false)
-  type SbMode = 'expanded' | 'collapsed' | 'hover'
-  const [sb, setSbState] = useState<SbMode>(() => {
-    try {
-      const v = localStorage.getItem('pq_sidebar')
-      return v === 'expanded' || v === 'collapsed' ? v : 'hover'
-    } catch { return 'hover' }
-  })
+  const [sb, setSbState] = useState<SbMode>(savedSidebar)
   const [sbMenu, setSbMenu] = useState(false)
   const setSb = (m: SbMode) => {
     setSbState(m)
@@ -602,18 +577,7 @@ export default function Dashboard() {
 
   if (!shop) {
     return (
-      <div className="app-page">
-        <TopBar to={null} wide lang={false} />
-        <div className="page wide skeleton-wrap" aria-busy="true">
-          <span className="sr-only">{t('loading')}</span>
-          <div className="skel skel-line w40 skel-title" />
-          <div className="skel skel-tabs" />
-          <div className="orders-grid">
-            <div className="card skel-card"><div className="skel skel-line w60" /><div className="skel skel-block" /></div>
-            <div className="card skel-card"><div className="skel skel-line w60" /><div className="skel skel-block" /></div>
-          </div>
-        </div>
-      </div>
+      <DashSkeleton tab={isTab(tabParam) ? tabParam : 'orders'} />
     )
   }
 
@@ -788,7 +752,7 @@ export default function Dashboard() {
             onCounter={(c) => setParams(c ? { tab: 'qr', c } : { tab: 'qr' }, { replace: true })} />
         )}
         {tab === 'edit' && (
-          <Suspense fallback={<div className="card skel-card" aria-busy="true"><div className="skel skel-line w60" /><div className="skel skel-block" /></div>}>
+          <Suspense fallback={<EditorSkel />}>
             <Editor />
           </Suspense>
         )}
@@ -1081,19 +1045,7 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
           </select>
         </div>
       )}
-      {!loaded && (
-        <div className="orders-grid" aria-busy="true">
-          <span className="sr-only">{t('loading')}</span>
-          {[0, 1].map((i) => (
-            <div className="card skel-order" key={i}>
-              <div className="skel-row"><div className="skel skel-chip" /><div className="skel skel-line w40" /></div>
-              <div className="skel skel-line w60" />
-              <div className="skel skel-line" />
-              <div className="skel skel-btn" />
-            </div>
-          ))}
-        </div>
-      )}
+      {!loaded && <OrdersSkel />}
       {loaded && (
         // Paper sheet with a folded top-left corner; the fold shows the active order count
         <div className={`card${active.length ? ' fold-card has-orders' : ' empty'}`} aria-label={`${t('dActive')}: ${active.length}`}>

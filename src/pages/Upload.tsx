@@ -6,6 +6,7 @@ import { filePrice, rupees } from '../lib/pricing'
 import { idcardPreview, idcardSheetPdf, imagesToPdf, PASSPORT_OPTIONS, passportPreview, passportSheetPdf, passportSheets } from '../lib/imagePdf'
 import { useI18n } from '../lib/i18n'
 import { ShopBrand, TopBar } from '../components/TopBar'
+import { UploadSkelBody } from '../components/Skeletons'
 import { brandStyle } from '../lib/brand'
 import { nextOpening, normHours, timeLabel } from '../lib/hours'
 import AdSlot from '../components/AdSlot'
@@ -524,11 +525,7 @@ export default function Upload() {
   }
   if (!shop) {
     return shell(
-      <div className="skeleton-wrap" aria-busy="true">
-        <span className="sr-only">{t('loading')}</span>
-        <div className="card skel-card"><div className="skel skel-avatar" /><div className="skel skel-line w60" /><div className="skel skel-line w40" /></div>
-        <div className="card skel-card"><div className="skel skel-block" /></div>
-      </div>
+      <UploadSkelBody />
     )
   }
 

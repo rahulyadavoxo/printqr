@@ -1488,3 +1488,32 @@ img.shop-avatar { object-fit: cover; padding: 0; }
 :root:has(.dash.has-bnav) .update-note, :root:has(.dash.has-bnav) .update-toast { bottom: calc(102px + env(safe-area-inset-bottom)); }
 :root:has(.dash.has-bnav) .ed-bgload { bottom: calc(150px + env(safe-area-inset-bottom)); }
 @media print { .bnav { display: none; } }
+
+/* =====================================================================
+   Page skeletons (components/Skeletons.tsx): the real layout classes with
+   shimmer blocks inside, so the page does not jump when data arrives.
+   ===================================================================== */
+.skel-stack { display: grid; gap: 8px; align-content: start; }
+.skel-inline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.skel-dropzone { cursor: default; border-color: var(--c-line-2); background: var(--c-surface); }
+.skel-dropzone:hover { border-color: var(--c-line-2); background: var(--c-surface); }
+.skel-dropzone:active { transform: none; }
+.skel-dropzone .skel-inline { justify-content: center; margin-top: 6px; }
+.skel-ticket { --st: var(--c-line-2); --st-bg: var(--c-surface-2); }
+.skel-ticket .ticket-band { gap: 16px; }
+.skel-ticket .tracker .dot { border-color: var(--c-line); }
+.hint-line .skel { margin: 0 auto; }
+.skel-field-real { margin: var(--sp-4) 0; }
+.skel-tabs-row { pointer-events: none; }
+.skel-tabs-row .skel { flex: none; }
+.skel-queue .queue-summary { margin-left: calc(var(--fold) - 6px); }
+.skel-order-card { box-shadow: var(--sh-1); }
+.skel-order-card::before { background: var(--c-line-2); }
+.skel-order-card .files li { display: grid; gap: 0; }
+.skel-poster { border-color: var(--c-line-2); }
+.skel-poster .poster-qr { border-color: var(--c-line-2); }
+.skel-poster .poster-steps .skel-inline { flex-wrap: nowrap; }
+.dash .drawer-item:not(button) { cursor: default; }
+.skel-edbig { min-height: 132px; }
+@media (max-width: 559px) { .ed-start-btns .skel-edbig { height: 72px !important; min-height: 72px; } }
+.skel-poster .poster-rates div { border-color: transparent; }

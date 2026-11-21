@@ -5,7 +5,8 @@ import { useSession } from '../lib/useSession'
 import { Key, useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
 import { callFn } from '../lib/billing'
-import { AdminOrders, AdminPayments, AdminSettings, AdminSpam, AdminUsers, fmtBytes, fmtDate, SkelList, SkelLog, SkelStats } from './AdminTabs'
+import { AdminOrders, AdminPayments, AdminSettings, AdminSpam, AdminUsers, fmtBytes, fmtDate } from './AdminTabs'
+import { AdminSkelBody, AdminSkeleton, SkelList, SkelLog, SkelStats } from '../components/Skeletons'
 
 /* Admin panel. The page only hides itself; the real check is is_admin() inside every admin_* SQL function. */
 
@@ -176,7 +177,7 @@ export default function Admin() {
     }
   }
 
-  if (loading) return null
+  if (loading) return <AdminSkeleton />
   if (!session) return <Navigate to="/login" replace />
 
   const shell = (body: ReactElement) => (
@@ -186,7 +187,7 @@ export default function Admin() {
     </div>
   )
 
-  if (allowed === null) return shell(<><div className="skel skel-title" style={{ width: 180 }} /><div className="skel skel-tabs" /><SkelStats n={6} /></>)
+  if (allowed === null) return shell(<AdminSkelBody />)
   if (!allowed) return shell(<div className="card"><h2>{t('admNoAccess')}</h2><p className="muted">{t('admNoAccessHint')}</p></div>)
 
   // Before v19 SQL the pro_* counts include Plus and plus_* are missing (then all is priced as Pro).
