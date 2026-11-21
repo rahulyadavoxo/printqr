@@ -774,7 +774,7 @@ export default function Dashboard() {
               <button key={id} type="button" className={`bnav-item${id === 'orders' ? ' bnav-main' : ''}${tab === id ? ' on' : ''}`}
                 aria-current={tab === id ? 'page' : undefined} onClick={() => go(id)}>
                 <span className="bnav-ic">
-                  <Icon name={x.icon} size={22} />
+                  <Icon name={x.icon} size={id === 'orders' ? 26 : 22} />
                   {id === 'orders' && !!activeCount && <span className="bnav-badge">{activeCount > 99 ? '99+' : activeCount}</span>}
                 </span>
                 <span className="bnav-lbl">{t(x.label)}</span>
