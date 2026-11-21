@@ -1226,6 +1226,7 @@ button.ed-top-title:hover { background: var(--c-sunken); }
   .bar-tab::after { right: -12px; background: radial-gradient(circle at 100% 0, transparent 12px, var(--c-bg) 12.5px); }
   .bar-tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .bar-tab svg { flex: none; color: var(--c-muted); }
+  .bar-story { flex: 1 1 auto; min-width: 0; max-width: 220px; height: 46px; align-self: center; margin: 0 4px; object-fit: contain; object-position: center; pointer-events: none; }
   .dash .dash-main { padding-top: 14px; }
   [data-theme="dark"] .dash .dash-bar { background: #070b09; }
 }
