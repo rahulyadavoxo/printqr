@@ -1,6 +1,6 @@
 // POST { order_id, key }  (no JWT: customers are not signed in; the order's access key is the proof)
 // Downloads every uploaded PDF of the order, counts its real pages and hands the counts to
-// finalize_order_counted(), which fixes the price, checks the files and queues the order (v11).
+// finalize_order_counted(), which fixes the price, checks the files and queues the order (v11, required).
 import { PDFDocument } from 'npm:pdf-lib@1.17.1'
 import { corsHeaders, db, fail, HttpError, json } from '../_shared/billing.ts'
 
@@ -118,23 +118,19 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify(body)
     })
-    let res = await rpc('finalize_order_counted', { p_order_id: id, p_key: key, p_counts: counts })
-    let text = await res.text()
-    let counted = true
-    // v11 SQL not run yet: finish the old way so orders keep working (no price fix until it is run).
+    // Server-counted path only (v11+). No fallback to finalize_order: a missing migration must fail loudly.
+    const res = await rpc('finalize_order_counted', { p_order_id: id, p_key: key, p_counts: counts })
+    const text = await res.text()
     if (!res.ok && (res.status === 404 || text.includes('PGRST202'))) {
-      console.warn('finalize_order_counted missing: run supabase/migrations/2026-11-19-v11-server-page-count.sql')
-      res = await rpc('finalize_order', { p_order_id: id, p_key: key })
-      text = await res.text()
-      counted = false
+      console.error('finalize_order_counted missing: run supabase/migrations/2026-11-19-v11-server-page-count.sql')
     }
     if (!res.ok) {
       let message = 'Could not send the order. Please try again.'
       try { message = (JSON.parse(text) as { message?: string }).message || message } catch { /* keep */ }
       throw new HttpError(400, 'finalize_failed', message)
     }
-    const row = counted ? (JSON.parse(text) as { total: number; changed: number }[])[0] : null
-    return json({ ok: true, counted, total: row ? Number(row.total) : null, changed: row?.changed ?? 0 })
+    const row = (JSON.parse(text) as { total: number; changed: number }[])[0]
+    return json({ ok: true, counted: true, total: row ? Number(row.total) : null, changed: row?.changed ?? 0 })
   } catch (e) {
     return fail(e)
   }
