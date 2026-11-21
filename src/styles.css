@@ -1517,3 +1517,57 @@ img.shop-avatar { object-fit: cover; padding: 0; }
 .skel-edbig { min-height: 132px; }
 @media (max-width: 559px) { .ed-start-btns .skel-edbig { height: 72px !important; min-height: 72px; } }
 .skel-poster .poster-rates div { border-color: transparent; }
+
+/* Phone/tablet menu (Android app + mobile web): same shape and slide as Receipto's drawer.
+   A 256px floating panel 12px from the edges, 22px corners, compact items, 200ms ease-out slide. */
+@media (max-width: 1023.98px) {
+  .drawer, .dash .drawer {
+    top: 12px; bottom: 12px; left: 12px; width: 256px; max-width: 80vw;
+    border-radius: 22px; border: 1px solid rgba(11, 18, 16, .1);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, .25);
+    transform: translate3d(calc(-100% - 24px), 0, 0);
+    transition: transform .2s cubic-bezier(0, 0, .2, 1);
+    will-change: transform; contain: layout paint; backface-visibility: hidden;
+  }
+  .menu-open .drawer { transform: translate3d(0, 0, 0); }
+  .drawer-scrim { background: rgba(11, 18, 16, .4); transition: opacity .2s cubic-bezier(0, 0, .2, 1); will-change: opacity; }
+  .drawer-head { align-items: flex-start; gap: 12px; padding: 16px 16px 12px; }
+  .drawer-head > img, .drawer-head > svg { width: 40px !important; height: 40px !important; border-radius: 12px; }
+  .drawer-title { gap: 2px; }
+  .drawer-title strong {
+    font-size: 17px; font-weight: 800; line-height: 1.25; letter-spacing: -.01em;
+    background: linear-gradient(90deg, #0b1210, #365314, #4d7c0f); -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  [data-theme="dark"] .drawer-title strong { background: none; color: var(--c-ink); }
+  .drawer-sub { max-width: 100%; font-size: 12px; color: var(--c-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .drawer-title .plan-chip { margin-top: 4px; }
+  .drawer-close { width: 40px; height: 40px; border-radius: 8px; margin: -2px -4px 0 0; }
+  .drawer-close svg { width: 22px; height: 22px; }
+  .drawer-nav { padding: 16px 12px; }
+  .drawer-group { margin-bottom: 20px; }
+  .drawer-group:last-child { margin-bottom: 0; }
+  .drawer-label { font-size: 10px; font-weight: 700; letter-spacing: .05em; padding: 0 12px 6px; color: rgba(11, 18, 16, .4); }
+  [data-theme="dark"] .drawer-label { color: var(--c-faint); }
+  .drawer-item { gap: 12px; min-height: 44px; padding: 10px 12px; margin-bottom: 2px; border-radius: 12px; font-size: 14px; font-weight: 500; color: rgba(11, 18, 16, .65); transition: background-color .15s, color .15s; }
+  .drawer-item svg { width: 20px; height: 20px; flex: none; }
+  .drawer-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .drawer-item:hover:not(.on) { background: rgba(236, 252, 203, .6); color: #0b1210; }
+  .drawer-item.on { background: #0b1210; color: #bef264; font-weight: 500; box-shadow: 0 1px 2px rgba(0, 0, 0, .05); }
+  [data-theme="dark"] .drawer-item { color: var(--c-ink-2); }
+  [data-theme="dark"] .drawer-item:hover:not(.on) { background: var(--c-sunken); color: var(--c-ink); }
+  [data-theme="dark"] .drawer-item.on { background: var(--c-lime); color: #0b1210; }
+  .drawer-foot { padding: 12px; gap: 8px; border-top: 1px solid rgba(11, 18, 16, .1); }
+  [data-theme="dark"] .drawer-foot { border-top-color: var(--c-line); }
+  .drawer-foot-row { padding: 0 4px; }
+
+  /* Smooth slide in the Android WebView: while the menu is open the page behind is dimmed anyway,
+     so stop the blurred glass bars and the bar animation from being redrawn every frame. */
+  .menu-open .topbar, .menu-open .tabs, .menu-open .bnav, .menu-open .bnav-main .bnav-ic, .menu-open .sticky-bar {
+    backdrop-filter: none; -webkit-backdrop-filter: none;
+  }
+  .menu-open .bnav { background: var(--c-surface); }
+  .menu-open .bar-story, .menu-open .bar-story * { animation-play-state: paused !important; }
+}
+@media (max-width: 1023.98px) and (prefers-reduced-motion: reduce) {
+  .drawer, .dash .drawer, .drawer-scrim { transition: none; }
+}

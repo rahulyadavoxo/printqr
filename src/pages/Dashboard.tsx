@@ -405,12 +405,14 @@ export default function Dashboard() {
     setSbMenu(false)
     try { localStorage.setItem('pq_sidebar', m) } catch { /* ignore */ }
   }
-  // Swipe left on the open menu to close it (the menu follows the finger).
+  // Swipe left on the open menu to close it (the menu and the dim follow the finger, like Receipto).
   const drawerRef = useRef<HTMLElement>(null)
-  const swipe = useRef<{ x: number; y: number; dx: number; horiz: boolean | null } | null>(null)
+  const scrimRef = useRef<HTMLDivElement>(null)
+  const swipe = useRef<{ x: number; y: number; dx: number; t: number; v: number; horiz: boolean | null } | null>(null)
+  const swipeRaf = useRef(0)
   function swipeStart(e: RTouchEvent) {
     const p = e.touches[0]
-    swipe.current = { x: p.clientX, y: p.clientY, dx: 0, horiz: null }
+    swipe.current = { x: p.clientX, y: p.clientY, dx: 0, t: e.timeStamp, v: 0, horiz: null }
   }
   function swipeMove(e: RTouchEvent) {
     const s = swipe.current
@@ -422,20 +424,39 @@ export default function Dashboard() {
     if (s.horiz === null) {
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return
       s.horiz = Math.abs(dx) > Math.abs(dy)
+      if (s.horiz) {
+        el.style.transition = 'none'
+        if (scrimRef.current) scrimRef.current.style.transition = 'none'
+      }
     }
     if (!s.horiz) return
-    s.dx = Math.min(0, dx)
-    el.style.transition = 'none'
-    el.style.transform = `translateX(${s.dx}px)`
+    const next = Math.min(0, dx)
+    const dt = Math.max(1, e.timeStamp - s.t)
+    s.v = (next - s.dx) / dt
+    s.dx = next
+    s.t = e.timeStamp
+    // one style write per frame: touchmove can fire faster than the screen draws
+    if (!swipeRaf.current) swipeRaf.current = requestAnimationFrame(() => {
+      swipeRaf.current = 0
+      const cur = swipe.current
+      if (!cur || !drawerRef.current) return
+      drawerRef.current.style.transform = `translate3d(${cur.dx}px,0,0)`
+      const w = drawerRef.current.offsetWidth + 24
+      if (scrimRef.current) scrimRef.current.style.opacity = String(Math.max(0, 1 + cur.dx / w))
+    })
   }
   function swipeEnd() {
     const s = swipe.current
     const el = drawerRef.current
     swipe.current = null
+    cancelAnimationFrame(swipeRaf.current)
+    swipeRaf.current = 0
     if (!s || !el || !s.horiz) return
     el.style.transition = ''
     el.style.transform = ''
-    if (s.dx < -Math.min(80, el.offsetWidth * 0.25)) setMenu(false)
+    if (scrimRef.current) { scrimRef.current.style.transition = ''; scrimRef.current.style.opacity = '' }
+    // close on a long drag, or on a quick flick to the left
+    if (s.dx < -Math.min(80, el.offsetWidth * 0.25) || (s.v < -0.5 && s.dx < -20)) setMenu(false)
   }
   useEffect(() => {
     if (!menu) return
@@ -658,13 +679,14 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <div className="drawer-scrim no-print" onClick={() => setMenu(false)} aria-hidden="true" />
+      <div className="drawer-scrim no-print" ref={scrimRef} onClick={() => setMenu(false)} aria-hidden="true" />
       <aside className="drawer no-print" aria-label={t('menu')} ref={drawerRef}
         onTouchStart={swipeStart} onTouchMove={swipeMove} onTouchEnd={swipeEnd} onTouchCancel={swipeEnd}>
         <div className="drawer-head">
           <ShopAvatar shop={shop} size={44} />
           <div className="drawer-title">
             <strong>{shop.name}</strong>
+            {shop.address && <span className="drawer-sub m-only">{shop.address}</span>}
             {staff ? <span className="plan-chip">{t('staffChip')}</span> : ready && <span className={`plan-chip${pro ? ' is-pro' : ''}`}>{planLabel}</span>}
           </div>
           <button type="button" className="drawer-close" onClick={() => setMenu(false)} aria-label={t('close')}>
