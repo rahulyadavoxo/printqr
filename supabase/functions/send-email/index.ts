@@ -8,7 +8,8 @@
 // Optional: MAIL_FROM_NAME (default "PrintQR")
 // Deployed with --no-verify-jwt; every request is checked with the Standard Webhooks signature instead.
 
-import { button, codeBox, fallbackLink, layout, note, para, sendGmail } from '../_shared/gmail.ts'
+import { button, codeBox, fallbackLink, layout, note, para, sendMail } from '../_shared/gmail.ts'
+import { logOps } from '../_shared/ops.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
 
@@ -154,11 +155,12 @@ Deno.serve(async (req) => {
     for (const j of jobs) {
       const url = j.hash ? link(type, j.hash, redirect) : null
       const m = render(type, url, j.code)
-      await sendGmail(j.to, m.subject, m.html, m.text)
+      await sendMail(j.to, m.subject, m.html, m.text)
     }
     return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })
   } catch (e) {
     console.error('send-email', e)
+    await logOps('send-email', e)
     return hookError(500, e instanceof Error ? e.message : 'send failed')
   }
 })

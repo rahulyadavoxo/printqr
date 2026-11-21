@@ -1,5 +1,9 @@
-// Send mail from your own Gmail through the Gmail API (same flow as Receipto's server/utils/mailer.js).
-// Secrets: GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, GMAIL_SENDER. Optional MAIL_FROM_NAME.
+// Sends PrintQR's mail. sendMail() is what the functions call:
+//  1. Resend (a transactional mail service), when RESEND_API_KEY is set. From: MAIL_FROM (e.g. no-reply@receipto.in,
+//     the domain must be verified in Resend).
+//  2. Otherwise, or when Resend fails, your own Gmail through the Gmail API (same flow as Receipto's mailer.js).
+// Secrets: GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, GMAIL_SENDER. Optional MAIL_FROM_NAME,
+//          RESEND_API_KEY, MAIL_FROM.
 
 const FROM_NAME = Deno.env.get('MAIL_FROM_NAME') || 'PrintQR'
 const enc = new TextEncoder()
@@ -71,6 +75,34 @@ export async function sendGmail(to: string, subject: string, html: string, text:
   if (!res.ok) throw new Error(`Gmail send failed (${res.status}): ${(await res.text()).slice(0, 200)}`)
 }
 
+async function sendResend(to: string, subject: string, html: string, text: string): Promise<void> {
+  const key = (Deno.env.get('RESEND_API_KEY') || '').trim()
+  const from = (Deno.env.get('MAIL_FROM') || '').trim()
+  if (!from) throw new Error('MAIL_FROM is not set (needed with RESEND_API_KEY)')
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: `${FROM_NAME} <${from}>`, to: [to], subject, html, text })
+  })
+  if (!res.ok) throw new Error(`Resend send failed (${res.status}): ${(await res.text()).slice(0, 200)}`)
+}
+
+/** Resend first (when configured), Gmail as the fallback. Throws only when every way failed. */
+export async function sendMail(to: string, subject: string, html: string, text: string): Promise<void> {
+  if ((Deno.env.get('RESEND_API_KEY') || '').trim()) {
+    try {
+      return await sendResend(to, subject, html, text)
+    } catch (e) {
+      console.error('Resend failed, trying Gmail:', e instanceof Error ? e.message : e)
+      try {
+        return await sendGmail(to, subject, html, text)
+      } catch (g) {
+        throw new Error(`${e instanceof Error ? e.message : e} | ${g instanceof Error ? g.message : g}`)
+      }
+    }
+  }
+  return sendGmail(to, subject, html, text)
+}
 
 export function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))

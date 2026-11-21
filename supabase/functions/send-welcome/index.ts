@@ -1,6 +1,7 @@
 // POST (JWT required): send the logged-in user one welcome mail from your Gmail, once.
 // Only after the email is confirmed. The "sent" flag lives in the user's app_metadata (users can't edit it).
-import { button, layout, note, para, sendGmail, steps as stepList } from '../_shared/gmail.ts'
+import { button, layout, note, para, sendMail, steps as stepList } from '../_shared/gmail.ts'
+import { logOps } from '../_shared/ops.ts'
 
 const URL_ = Deno.env.get('SUPABASE_URL') || ''
 const KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
@@ -47,10 +48,11 @@ Deno.serve(async (req) => {
       note('Koi sawaal ho to bas is mail ka reply kar dijiye, hum madad karenge. / कोई सवाल हो तो इस मेल का जवाब दें।')
     ].join('\n'), { icon: '🎉', subtitle: 'PrintQR में आपका स्वागत है', preheader: 'Your shop is ready. 3 quick steps to get your first print order.' })
     const text = `Welcome to PrintQR!\n\nAapka account ban gaya hai.\n\n${steps.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\nDashboard: ${SITE}#/dashboard\n\nKoi sawaal ho to is mail ka reply kar dijiye.`
-    await sendGmail(user.email, 'Welcome to PrintQR 🎉', html, text)
+    await sendMail(user.email, 'Welcome to PrintQR 🎉', html, text)
     return reply({ ok: true })
   } catch (e) {
     console.error('send-welcome', e)
+    await logOps('send-welcome', e, 'warn')
     return reply({ error: 'server_error', message: 'Something went wrong. Please try again.' }, 500)
   }
 })

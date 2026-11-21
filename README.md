@@ -25,7 +25,7 @@ Customer ko shop ka WhatsApp number save nahi karna padta. Shop wala apna QR pos
 - File kholo/print, download, status badlo (Print shuru → Ready → Done), cancel
 - Hisaab: aaj, 7 din, 30 din ki kamai
 - Shop khuli/band toggle
-- Files auto-delete (1 se 48 ghante, shop choose kare) + "files abhi delete karo" button
+- Files auto-delete (plan ke hisaab se: Free 3 ghante, Pro 24 ghante, Plus 7 din; jo order abhi print nahi hua uski files kam se kam 48 ghante rehti hain) + "files abhi delete karo" button
 - Kaagaz ka stock (sheets ya reams): order Done karne pe sheets apne aap ghat-ti hain, kam hone pe banner + phone pe ek push (sab plans)
 
 ## Tech
@@ -58,7 +58,7 @@ Agar `schema.sql` pehle chala chuke ho, to **SQL Editor** mein `supabase/migrati
 
 | Plan | Price | Features |
 |---|---|---|
-| Free | ₹0 | Owner dashboard pe ads, sirf main QR queue, passport / ID card sheet nahi, files 1 ghanta, order 50 MB, history 7 din |
+| Free | ₹0 | Owner dashboard pe ads, sirf main QR queue, passport / ID card sheet nahi, files 3 ghante, order 50 MB, history 7 din |
 | Pro | ₹49/month ya ₹539/year (1 month free) | Customers ke liye no ads, 2 naye counters, passport photo sheet, ID card sheet, dynamic QR, QR card design, auto-print, files 24 ghante, order 100 MB, history 6 mahine |
 | Plus | ₹99/month ya ₹999/year | Pro ka sab kuch + kahin bhi ads nahi, unlimited counters, apna colour/logo (branding), staff logins, files 7 din, order 200 MB, history 1 saal |
 
@@ -74,9 +74,9 @@ SQL Editor mein `supabase/migrations/2026-11-18-v5-dynamic-qr.sql` paste karke *
 
 Limits server pe bhi lagte hain (counter trigger, `create_order`, `get_shop_public.is_pro`). Owner plan columns khud update nahi kar sakta.
 
-### 1f. Baaki database updates (v6 se v23)
+### 1f. Baaki database updates (v6 se v25)
 
-**Ab apne aap:** `supabase/migrations/` mein nayi ya badli hui `.sql` file `main` pe push hote hi workflow **"Run Supabase SQL migrations"** use live DB pe chala deta hai (version order mein, wahi `SUPABASE_ACCESS_TOKEN` secret). Haath se chalana ho to Actions → is workflow → **Run workflow** → file ka naam ya `all`. Log mein sirf OK/FAIL aata hai. Har nayi migration file dobara chalane pe safe honi chahiye.
+**Ab apne aap, aapki approval ke baad:** `supabase/migrations/` mein nayi ya badli hui `.sql` file `main` pe push hote hi workflow **"Run Supabase SQL migrations"** ruk kar aapki approval maangta hai (GitHub environment `production`, required reviewer: aap). Actions → us run → **Review deployments → production → Approve** dabate hi wo use live DB pe chala deta hai (version order mein, wahi `SUPABASE_ACCESS_TOKEN` secret). Haath se chalana ho to Actions → is workflow → **Run workflow** → file ka naam ya `all`. Log mein sirf OK/FAIL aata hai. Har nayi migration file dobara chalane pe safe honi chahiye.
 
 `supabase/migrations/` ki files **version number ke order mein** (v6, v7, … v18) SQL Editor mein paste karke **Run** karo. Sab file kitni bhi baar chala sakte ho.
 
@@ -96,6 +96,10 @@ Limits server pe bhi lagte hain (counter trigger, `create_order`, `get_shop_publ
 | v19-admin-plus | Admin panel mein Plus plan (Plus ko din dene par Plus hi rahe, MRR, Plus tag) | v16 |
 | v20-admin-grants | Edge Functions ko admins list padhne ki permission (admin panel ka "Something went wrong" fix) | v13 |
 | v23-idcard-reorder-paper | ID card sheet (Pro), Dobara print (`reorder`), kaagaz stock + low alert | v4, v14, v17, v18; functions `reorder`, `finalize-order`, `push-new-order` |
+| v24-photo-thumbs | Photo ke chhote thumbnails owner list ke liye | v23 |
+| v25-launch-safety | Bina print hue order ki files nahi mitti (max 48 ghante), Free 3 ghante, storage budget, zarurat pe hi bot check (`upload-pass`), "Block sender", finalize limit, `ops_events` + `ops_health` (alerts) | v24; secret `TURNSTILE_SECRET`; function `upload-pass` |
+
+**Fresh install:** `supabase/schema.sql` ab generated hai (`supabase/schema-base.sql` + saari migrations). Nayi migration ke baad `scripts/build-schema.sh` chalao; CI (pull request pe) check karta hai ki schema.sql purana na ho, aur ek local Supabase pe poora install + har migration dobara chala ke dekhta hai.
 
 ### 1g. v23: ID card sheet, Dobara print, kaagaz stock
 1. `main` pe push hote hi workflow **"Run Supabase SQL migrations"** `2026-11-21-v23-idcard-reorder-paper.sql` chala deta hai, aur **"Deploy Supabase Edge Functions"** naya `reorder` function (aur badle hue `finalize-order`, `push-new-order`) deploy karta hai. Koi naya secret nahi.
@@ -104,6 +108,17 @@ Limits server pe bhi lagte hain (counter trigger, `create_order`, `get_shop_publ
 4. Kaagaz: Settings → Paper stock. Order **Done** hone pe ek hi baar sheets ghat-ti hain (dono side = pages/2 upar round, passport / ID card = sheet × copies), 0 se neeche nahi. Limit se neeche jaane pe ek push, stock badhane ke baad hi agla.
 
 Function SQL se pehle deploy ho jaaye to zyada tar functions purane tarike se chalte rehte hain, lekin naye features SQL chalne ke baad hi on hote hain.
+
+### 1h. Launch safety (v25): alerts, backups, approval
+
+- **SQL approval:** Repo → Settings → Environments → **New environment** `production` → **Required reviewers**: apna GitHub user → Save. Iske baad koi bhi migration live DB pe tabhi chalegi jab aap Approve karoge.
+- **Branch protection:** Settings → Branches → Add rule `main` → *Require a pull request before merging* (approvals 0) + *Require status checks*: `web`, `sql` (workflow **CI**).
+- **Alerts:** workflow **"Health check"** har 15 minute site, Supabase, Edge Function errors (`ops_events`), pg_cron, auto-delete aur storage/DB size check karta hai. Problem par label `alert` wala GitHub issue khulta hai (theek hone par band). GitHub app mein is repo ki notifications ON rakho. Supabase Pro lene ke baad repo **variables** `STORAGE_LIMIT_MB=102400`, `DB_LIMIT_MB=8192` set karo.
+- **Backups:** nightly backup ab GnuPG AES-256 (integrity check ke saath, `.tar.gz.gpg`). Fail hone ya secrets na hone par alert issue. **"Backup restore test"** har mahine (aur manually) sabse naya backup ek local Supabase mein restore karke check karta hai.
+- **Restore (asli disaster mein):** R2 se file lo → `gpg --decrypt printqr-db-....tar.gz.gpg | tar -xz` (purani `.enc`: `openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in FILE | tar -xz`) → naye Supabase project pe `psql "<DB URL>" --single-transaction -f roles.sql -f schema.sql -c 'SET session_replication_role = replica' -f data.sql`. Uploaded files backup mein nahi hote (wo 3 ghante se 7 din mein waise bhi mit jaate hain).
+- **Bot check:** `app_settings.order_captcha` = `auto` (default: sirf jab ek network se 10 min mein 3+ ya ek shop pe 20+ order), `always`, ya `off`. Edge Function secret `TURNSTILE_SECRET` zaroori hai.
+- **Storage budget:** `app_settings.storage_budget_mb` (poori service, default 700), `shop_storage_free_mb` (150), `shop_storage_paid_mb` (500). Supabase Pro ke baad badha do.
+- **Email:** `RESEND_API_KEY` + `MAIL_FROM` (jaise `no-reply@receipto.in`, domain Resend mein verify) secrets daalte hi mail Resend se jaata hai, Gmail sirf fallback. Dono na ho to pehle jaisa Gmail.
 
 ### 2. GitHub secrets
 Repo → **Settings → Secrets and variables → Actions → New repository secret**:

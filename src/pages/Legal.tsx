@@ -2,7 +2,7 @@ import { ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { TopBar } from '../components/TopBar'
 
-const UPDATED = '17 November 2026'
+const UPDATED = '22 November 2026'
 const OWNER = 'Rahul Kumar'
 const ADDRESS = 'Abadganj, Mission School Road, Near Shiv Temple, Daltonganj, Jharkhand 822101, India'
 const SUPPORT = 'receipto.support@gmail.com'
@@ -30,10 +30,11 @@ const DOCS: Record<string, Doc> = {
         </ul>
         <h2>2. How long files are kept</h2>
         <p>
-          Uploaded files are deleted automatically after the shop's auto-delete time, which is 24 hours by default and
-          can be set by the shop between 1 hour and 7 days. Files from uploads that were never finished are deleted
-          after about 1 hour. After deletion the order shows as files removed; the token, name and amount stay in the
-          shop's order history.
+          Uploaded files are deleted automatically after the shop's auto-delete time. The shop chooses it, up to 3 hours
+          on the Free plan, 24 hours on Pro and 7 days on Plus. Files of an order the shop has not printed yet are kept
+          until it is printed, for at most 48 hours (or the plan's time if longer). Files from uploads that were never
+          finished are deleted after about 35 minutes. After deletion the order shows as files removed; the token, name
+          and amount stay in the shop's order history.
         </p>
         <h2>3. Who can see your files</h2>
         <p>

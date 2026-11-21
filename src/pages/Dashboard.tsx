@@ -855,7 +855,7 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
   /** Orders changed (maybe one became Done): re-read the paper stock (v23). */
   onPaper?: () => void
 }) {
-  const { t, te, lang } = useI18n()
+  const { t, tn, te, lang } = useI18n()
   const [orders, setOrders] = useState<Order[]>([])
   const [loaded, setLoaded] = useState(false)
   const [filter, setFilterState] = useState<string>(() => localStorage.getItem(FILTER_KEY) || 'all')
@@ -995,10 +995,10 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
     return r.ok
   }
 
-  async function printDirect(o: Order, files: OrderFile[]) {
+  async function printDirect(o: Order, files: OrderFile[], claimed = false) {
     if (!desk || printingId) return
     setErr(null)
-    setInfo(null)
+    if (!claimed) setInfo(null)
     setPrintingId(files.length === 1 ? files[0].id : o.id)
     let ok = true
     for (const f of files) {
@@ -1007,14 +1007,53 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
     setPrintingId(null)
     if (ok) {
       setInfo(t('dpSent', { token: o.token }))
-      if (o.status === 'received') void setStatus(o, 'printing')
+      if (!claimed && o.status === 'received') void setStatus(o, 'printing')
+    } else if (claimed) {
+      // Nothing (or not everything) reached the printer: put the order back so it can be started again.
+      setOrders((l) => l.map((x) => (x.id === o.id ? { ...x, status: 'received' } : x)))
+      await supabase.from('orders').update({ status: 'received', updated_at: new Date().toISOString() }).eq('id', o.id).eq('status', 'printing')
     }
+  }
+
+  /**
+   * v25: only one screen may start printing an order. The database moves it Received -> Printing only if it is
+   * still Received, so a second device (owner + staff, PC + phone) gets "already started" instead of a second copy.
+   */
+  async function claimForPrint(o: Order): Promise<boolean> {
+    const { data, error } = await supabase.from('orders')
+      .update({ status: 'printing', updated_at: new Date().toISOString() })
+      .eq('id', o.id).eq('status', 'received').select('id')
+    if (error) {
+      setErr(te(error))
+      return false
+    }
+    if (!data || data.length === 0) {
+      setInfo(t('dpAlreadyStarted', { token: o.token }))
+      void load()
+      return false
+    }
+    setOrders((l) => l.map((x) => (x.id === o.id ? { ...x, status: 'printing' } : x)))
+    return true
+  }
+
+  /** v25: block the network this order came from (this shop only) and cancel its open orders. */
+  async function blockSender(o: Order) {
+    if (!confirm(t('blockConfirm'))) return
+    setErr(null)
+    const { data, error } = await supabase.rpc('block_order_sender', { p_order_id: o.id })
+    if (error) return setErr(te(error))
+    const n = Number(data)
+    setInfo(n < 0 ? t('blockNoId') : tn('blockDone_one', 'blockDone_other', n))
+    void load()
   }
 
   /** "Start printing": Pro / Plus in the Windows app also send the files to the printer; otherwise only the status moves. */
   async function startPrinting(o: Order) {
     const files = (o.order_files || []).filter((f) => canDirectPrint(f.file_name))
-    if (startPrints && !o.files_deleted && files.length) return printDirect(o, files)
+    if (startPrints && !o.files_deleted && files.length) {
+      if (printingId || !(await claimForPrint(o))) return
+      return printDirect(o, files, true)
+    }
     if (desk && !autoPrintAllowed && files.length) setInfo(t('apLocked'))
     return setStatus(o, 'printing')
   }
@@ -1091,7 +1130,7 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
           ) : (
             <div className="orders-grid">
               {active.map((o) => (
-                <OrderCard key={o.id} o={o} keepHours={keepHours} lang={lang} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} onStart={startPrinting} printingId={printingId} />
+                <OrderCard key={o.id} o={o} keepHours={keepHours} lang={lang} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} onStart={startPrinting} onBlock={blockSender} printingId={printingId} />
               ))}
             </div>
           )}
@@ -1105,7 +1144,7 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
       {showDone && (
         <div className="orders-grid">
           {finished.map((o) => (
-            <OrderCard key={o.id} o={o} keepHours={keepHours} lang={lang} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} onStart={startPrinting} printingId={printingId} />
+            <OrderCard key={o.id} o={o} keepHours={keepHours} lang={lang} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} onStart={startPrinting} onBlock={blockSender} printingId={printingId} />
           ))}
         </div>
       )}
@@ -1159,9 +1198,12 @@ function OrderCard(props: {
   /** Hours files stay (plan + owner setting): shows when they auto-delete. */
   keepHours?: number
   lang?: string
+  onBlock?: (o: Order) => void
 }) {
-  const { o, onStatus, onOpen, onDownload, onDelete, onPrint, onStart, printingId, keepHours, lang } = props
-  const expiry = keepHours ? new Date(new Date(o.created_at).getTime() + keepHours * 3600 * 1000) : null
+  const { o, onStatus, onOpen, onDownload, onDelete, onPrint, onStart, onBlock, printingId, keepHours, lang } = props
+  // v25: orders not printed yet keep their files for at least 48 hours.
+  const keepFor = keepHours ? (['received', 'printing'].includes(o.status) ? Math.max(keepHours, 48) : keepHours) : 0
+  const expiry = keepFor ? new Date(new Date(o.created_at).getTime() + keepFor * 3600 * 1000) : null
   const expiryText = expiry
     ? expiry.toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN', expiry.toDateString() === new Date().toDateString()
       ? { hour: 'numeric', minute: '2-digit' } : { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
@@ -1250,6 +1292,9 @@ function OrderCard(props: {
         )}
         {['done', 'cancelled'].includes(o.status) && !o.files_deleted && (
           <button type="button" className="btn" onClick={() => onDelete(o)}><Icon name="trash" size={17} /> {t('deleteNow')}</button>
+        )}
+        {onBlock && (
+          <button type="button" className="link small block-sender" onClick={() => onBlock(o)}>{t('blockSender')}</button>
         )}
       </div>
     </article>
@@ -1981,6 +2026,18 @@ function Settings({ shop, onSaved, onUpgrade }: { shop: Shop; onSaved: (s: Shop)
     auto_delete_hours: shop.auto_delete_hours
   })
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
+  // v25: networks this shop blocked from its orders ("Block sender" on an order)
+  const [blocked, setBlocked] = useState(0)
+  useEffect(() => {
+    supabase.rpc('blocked_sender_count', { p_shop: shop.id }).then(({ data, error }) => { if (!error) setBlocked(Number(data) || 0) }, () => {})
+  }, [shop.id])
+  async function unblockAll() {
+    if (!confirm(t('unblockConfirm'))) return
+    const { error } = await supabase.rpc('unblock_all_senders', { p_shop: shop.id })
+    if (error) return setMsg({ text: te(error), error: true })
+    setBlocked(0)
+    setMsg({ text: t('unblockDone'), error: false })
+  }
   const keepText = (h: number) => (h % 24 === 0 && h >= 48 ? tn('keepD_one', 'keepD_other', h / 24) : tn('hours_one', 'hours_other', h))
   const durText = (h: number) => (h % 24 === 0 && h >= 48 ? tn('durD_one', 'durD_other', h / 24) : tn('durH_one', 'durH_other', h))
   async function save(e: FormEvent) {
@@ -2030,6 +2087,12 @@ function Settings({ shop, onSaved, onUpgrade }: { shop: Shop; onSaved: (s: Shop)
         </small>
       </label>
       {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
+      {blocked > 0 && (
+        <p className="small muted blocked-row">
+          {tn('blockedCount_one', 'blockedCount_other', blocked)}{' '}
+          <button type="button" className="link small" onClick={() => void unblockAll()}>{t('unblockAll')}</button>
+        </p>
+      )}
       <button className="btn primary block lg">{t('save')}</button>
     </form>
   )

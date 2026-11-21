@@ -1592,3 +1592,9 @@ img.shop-avatar { object-fit: cover; padding: 0; }
 @media (max-width: 1023.98px) and (prefers-reduced-motion: reduce) {
   .drawer, .dash .drawer, .drawer-scrim { transition: none; }
 }
+
+/* v25: bot check (only when the server asks), block sender, blocked count */
+.check-card { display: grid; gap: 10px; margin: 12px 0; }
+.check-card .turnstile-box { min-height: 65px; }
+.order-actions .block-sender { margin-left: auto; color: var(--muted); padding: 10px 4px; min-height: 44px; }
+.blocked-row { margin: 4px 0 12px; }

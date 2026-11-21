@@ -1,0 +1,109 @@
+name: Health check
+
+# Every 15 minutes (GitHub may run it a few minutes late). Opens a GitHub issue labelled "alert" when
+# something is wrong, comments while it lasts, and closes it once it is fixed. You get the issue as a
+# GitHub notification (turn on notifications for this repo in the GitHub app).
+# Checks: website up; Supabase answers; errors logged by Edge Functions (send-email, finalize-order, cleanup,
+# billing webhook, upload-pass, push); failed pg_cron jobs; auto-delete running behind; storage / database size.
+# Logs and issues are public (public repo): only counts, sizes and short masked error texts are written.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: health
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SB_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      SB_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      # Supabase Free plan limits. After moving to Supabase Pro set these to 102400 (100 GB) and 8192 (8 GB).
+      STORAGE_LIMIT_MB: ${{ vars.STORAGE_LIMIT_MB || '1024' }}
+      DB_LIMIT_MB: ${{ vars.DB_LIMIT_MB || '500' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          sparse-checkout: scripts
+
+      - name: Website
+        run: |
+          code=$(curl -sS -o site.html -w '%{http_code}' -m 25 https://print.receipto.in/ || echo 000)
+          if [ "$code" = "200" ] && grep -q 'id="root"' site.html; then
+            echo "Website OK"
+            scripts/gh-alert.sh close "Website down: print.receipto.in"
+          else
+            echo "::warning::Website returned HTTP $code"
+            scripts/gh-alert.sh open "Website down: print.receipto.in" "https://print.receipto.in/ answered HTTP $code. Check GitHub Pages (Settings -> Pages) and the receipto.in DNS."
+          fi
+
+      - name: Backend
+        run: |
+          set -uo pipefail
+          if [ -z "$SB_URL" ] || [ -z "$SB_KEY" ]; then echo "::error::VITE_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY secrets missing"; exit 1; fi
+          call() {
+            curl -sS -m 25 -o "$2" -w '%{http_code}' -X POST "$SB_URL/rest/v1/rpc/ops_health" \
+              -H "apikey: $SB_KEY" -H "Authorization: Bearer $SB_KEY" -H "Content-Type: application/json" \
+              -d "{\"p_since_min\": $1}" || echo 000
+          }
+          code=$(call 20 now.json)
+          if [ "$code" = "404" ]; then echo "::warning::ops_health() missing: run migration v25"; exit 0; fi
+          if [ "$code" != "200" ]; then
+            scripts/gh-alert.sh open "Backend not responding (Supabase)" "ops_health answered HTTP $code. Check https://status.supabase.com and the Supabase dashboard (project paused? over a limit?)."
+            exit 0
+          fi
+          scripts/gh-alert.sh close "Backend not responding (Supabase)"
+
+          # 1. Errors from Edge Functions in the last 20 minutes
+          errs=$(jq '[.events[] | select(.level == "error") | .n] | add // 0' now.json)
+          if [ "$errs" -gt 0 ]; then
+            body=$(jq -r '"Errors in the last 20 minutes:\n\n" + ([.events[] | "- **\(.source)** (\(.level), \(.n)x): \(.last)"] | join("\n")) + "\n\nSee Supabase -> Edge Functions -> (function) -> Logs for details."' now.json)
+            scripts/gh-alert.sh open "Errors in Edge Functions" "$body"
+          else
+            code2=$(call 180 calm.json)
+            calm=$(jq '[.events[]? | select(.level == "error") | .n] | add // 0' calm.json 2>/dev/null || echo 1)
+            if [ "$code2" = "200" ] && [ "$calm" -eq 0 ]; then scripts/gh-alert.sh close "Errors in Edge Functions" "No errors for 3 hours."; fi
+          fi
+          echo "Edge Function errors (20 min): $errs"
+
+          # 2. Failed scheduled jobs (pg_cron: cleanup, shop hours, purge)
+          cron=$(jq '.cron_failed' now.json)
+          if [ "$cron" -gt 0 ]; then
+            scripts/gh-alert.sh open "Scheduled jobs failing (pg_cron)" "$cron pg_cron run(s) failed in the last 20 minutes. Supabase -> Integrations -> Cron -> History."
+          else
+            scripts/gh-alert.sh close "Scheduled jobs failing (pg_cron)"
+          fi
+
+          # 3. Auto-delete behind (files that should be gone for 2+ hours) / uploads stuck
+          over=$(jq '.cleanup_overdue' now.json); stuck=$(jq '.stuck_uploading' now.json)
+          if [ "$over" -gt 0 ] || [ "$stuck" -gt 0 ]; then
+            scripts/gh-alert.sh open "Auto-delete is behind" "$over order(s) kept their files 2+ hours past the auto-delete time, $stuck unfinished upload(s) older than 2 hours. Check the cleanup-files function logs and the 'Auto-delete old files (backup)' workflow."
+          else
+            scripts/gh-alert.sh close "Auto-delete is behind"
+          fi
+
+          # 4. Storage and database size against the plan limits
+          st=$(jq '.storage_bytes / 1048576 | floor' now.json); db=$(jq '.db_bytes / 1048576 | floor' now.json)
+          stp=$(( st * 100 / STORAGE_LIMIT_MB )); dbp=$(( db * 100 / DB_LIMIT_MB ))
+          echo "Storage: ${st} MB of ${STORAGE_LIMIT_MB} MB (${stp}%), database: ${db} MB of ${DB_LIMIT_MB} MB (${dbp}%)"
+          if [ "$stp" -ge 70 ]; then
+            scripts/gh-alert.sh open "Storage almost full" "File storage is at ${st} MB of ${STORAGE_LIMIT_MB} MB (${stp}%). New uploads stop at the limit. Options: lower auto-delete hours, lower app_settings.storage_budget_mb, or move to Supabase Pro."
+          else
+            scripts/gh-alert.sh close "Storage almost full"
+          fi
+          if [ "$dbp" -ge 70 ]; then
+            scripts/gh-alert.sh open "Database almost full" "Database is at ${db} MB of ${DB_LIMIT_MB} MB (${dbp}%). At the limit Supabase makes it read-only. Move to Supabase Pro or purge old data."
+          else
+            scripts/gh-alert.sh close "Database almost full"
+          fi

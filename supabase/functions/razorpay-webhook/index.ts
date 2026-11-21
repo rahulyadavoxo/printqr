@@ -4,6 +4,7 @@
 //         subscription.halted, subscription.completed (others are acknowledged and ignored).
 // Signature: X-Razorpay-Signature = hex HMAC-SHA256(raw body, RAZORPAY_WEBHOOK_SECRET).
 import { activate, db, getShopById, hmacHex, safeEqual, Subscription, subNotes, updateShop } from '../_shared/billing.ts'
+import { logOps } from '../_shared/ops.ts'
 
 function reply(status: number, body: Record<string, unknown>): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -66,6 +67,7 @@ Deno.serve(async (req) => {
     return reply(200, { ok: true })
   } catch (e) {
     console.error(e)
+    await logOps('razorpay-webhook', e)
     // Non-2xx makes Razorpay retry later.
     return reply(500, { error: 'server_error' })
   }
