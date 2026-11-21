@@ -1557,6 +1557,9 @@ img.shop-avatar { object-fit: cover; padding: 0; }
   [data-theme="dark"] .drawer-item.on { background: var(--c-lime); color: #0b1210; }
   .drawer-foot { padding: 12px; gap: 8px; border-top: 1px solid rgba(11, 18, 16, .1); }
   [data-theme="dark"] .drawer-foot { border-top-color: var(--c-line); }
+  /* Shop open, language and theme capsules all 46px tall */
+  .drawer-foot .toggle { min-height: 46px; height: 46px; box-sizing: border-box; }
+  .drawer-foot .lang, .drawer-foot .theme-seg { height: 46px; box-sizing: border-box; }
 
   /* Smooth slide in the Android WebView: while the menu is open the page behind is dimmed anyway,
      so stop the blurred glass bars and the bar animation from being redrawn every frame. */
