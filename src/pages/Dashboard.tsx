@@ -1,4 +1,4 @@
-import { nativeBridge, IN_APP } from '../lib/app'
+import { nativeBridge, IN_APP, ON_ANDROID } from '../lib/app'
 import barStoryUrl from '../assets/header-print-shop-story.svg'
 import { AppDownloadBanner } from '../components/AppDownload'
 import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, PointerEvent as RPointerEvent, TouchEvent as RTouchEvent, WheelEvent as RWheelEvent, useCallback, useEffect, useRef, useState } from 'react'
@@ -35,6 +35,9 @@ const TABS: { id: Tab; label: Key; icon: string }[] = [
   { id: 'settings', label: 'tabSettings', icon: 'settings' },
   { id: 'plan', label: 'tabPlan', icon: 'star' }
 ]
+
+/** Android app and Android web: bottom bar, left to right (Orders in the centre, Settings on the right). */
+const BOTTOM: Tab[] = ['report', 'qr', 'orders', 'edit', 'settings']
 
 const NAV: { group: Key; items: Tab[] }[] = [
   { group: 'navShop', items: ['orders', 'rates', 'qr', 'edit'] },
@@ -609,7 +612,11 @@ export default function Dashboard() {
   const goPlan = () => setParams({ tab: 'plan' })
 
   const current = TABS.find((x) => x.id === tab) || TABS[0]
-  const nav_ = staff ? [{ group: 'navShop' as Key, items: ['orders' as Tab] }] : NAV
+  const bottomNav = ON_ANDROID && !staff
+  // In the app the bottom bar holds BOTTOM, so the drawer keeps only the rest (Rates, Plan).
+  const nav_ = staff ? [{ group: 'navShop' as Key, items: ['orders' as Tab] }]
+    : bottomNav ? NAV.map((g) => ({ ...g, items: g.items.filter((id) => !BOTTOM.includes(id)) })).filter((g) => g.items.length)
+    : NAV
   const go = (id: Tab) => {
     setMenu(false)
     ;(document.activeElement as HTMLElement | null)?.blur?.()
@@ -624,7 +631,7 @@ export default function Dashboard() {
   )
 
   return (
-    <div className={`app-page dash sb-${sb}${sbMenu ? ' sb-pinned' : ''}${menu ? ' menu-open' : ''}`} onClick={unlockAudio}>
+    <div className={`app-page dash sb-${sb}${sbMenu ? ' sb-pinned' : ''}${menu ? ' menu-open' : ''}${bottomNav ? ' has-bnav' : ''}`} onClick={unlockAudio}>
       <header className="topbar dash-bar no-print">
         <div className="topbar-in wide">
           <button type="button" className="menu-btn" onClick={() => setMenu(true)} aria-label={t('menu')} aria-expanded={menu}>
@@ -758,6 +765,24 @@ export default function Dashboard() {
         )}
         {tab === 'plan' && <PlanTab shop={shop} email={session?.user.email} onChanged={loadShop} />}
       </div>
+
+      {bottomNav && (
+        <nav className="bnav m-only no-print" aria-label={t('menu')}>
+          {BOTTOM.map((id) => {
+            const x = TABS.find((y) => y.id === id)!
+            return (
+              <button key={id} type="button" className={`bnav-item${id === 'orders' ? ' bnav-main' : ''}${tab === id ? ' on' : ''}`}
+                aria-current={tab === id ? 'page' : undefined} onClick={() => go(id)}>
+                <span className="bnav-ic">
+                  <Icon name={x.icon} size={id === 'orders' ? 26 : 22} />
+                  {id === 'orders' && !!activeCount && <span className="bnav-badge">{activeCount > 99 ? '99+' : activeCount}</span>}
+                </span>
+                <span className="bnav-lbl">{t(x.label)}</span>
+              </button>
+            )
+          })}
+        </nav>
+      )}
     </div>
   )
 }

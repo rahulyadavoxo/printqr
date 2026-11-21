@@ -31,3 +31,6 @@ export type NativeBridge = {
 export function nativeBridge(): NativeBridge | undefined {
   return (window as unknown as { PQ?: NativeBridge }).PQ
 }
+
+/** Any Android device: the PrintQR app or a browser on an Android phone/tablet. */
+export const ON_ANDROID = IN_APP || (typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent))
