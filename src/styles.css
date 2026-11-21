@@ -344,6 +344,16 @@ input:focus, select:focus { outline: none; border-color: var(--c-brand); box-sha
 .file-badge.k-pdf { background: #fde4e4; color: #a51c1c; }
 .file-badge.k-image { background: #dcf5e3; color: #146c34; }
 .file-badge.k-doc { background: #e3edff; color: #1d4ed8; }
+.fname.is-img strong { font-size: 13.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
+.file-thumb { flex: none; width: 52px; height: 52px; padding: 0; border: 1px solid var(--c-line-2); border-radius: 11px; overflow: hidden; background: var(--c-sunken); cursor: zoom-in; }
+.file-thumb.sm { width: 34px; height: 34px; border-radius: 8px; }
+.file-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.file-thumb:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--brand-ring); }
+.img-lightbox { position: fixed; inset: 0; z-index: 1000; background: rgba(10, 12, 16, .92); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: max(56px, env(safe-area-inset-top)) 14px max(24px, env(safe-area-inset-bottom)); animation: lbIn .16s ease-out; }
+.img-lightbox img { max-width: 100%; max-height: calc(100% - 40px); object-fit: contain; border-radius: 8px; background: #fff; }
+.img-lightbox-name { color: #e7e9ee; font-size: 13px; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.img-lightbox-x { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; width: 44px; height: 44px; border-radius: 50%; border: none; background: rgba(255,255,255,.14); color: #fff; display: grid; place-items: center; cursor: pointer; }
+@keyframes lbIn { from { opacity: 0; } to { opacity: 1; } }
 .stepper { display: flex; align-items: stretch; border: 1.5px solid var(--c-line-2); border-radius: var(--r-sm); overflow: hidden; background: var(--c-surface); min-height: 50px; }
 .stepper:has(:focus-visible) { border-color: var(--c-brand); box-shadow: 0 0 0 4px var(--brand-ring); }
 .stepper button { flex: none; width: 46px; border: none; background: var(--c-surface-2); font-size: 22px; font-weight: 700; color: var(--c-brand); cursor: pointer; }

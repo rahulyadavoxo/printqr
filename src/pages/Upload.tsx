@@ -175,6 +175,49 @@ function FileBadge({ kind }: { kind: Item['kind'] }) {
   return <span className={`file-badge k-${kind}`}>{label}</span>
 }
 
+/** Object URL for a picked image, revoked when the row goes away. */
+function useObjectUrl(file: File | null) {
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (!file) return
+    const u = URL.createObjectURL(file)
+    setUrl(u)
+    return () => { URL.revokeObjectURL(u); setUrl(null) }
+  }, [file])
+  return url
+}
+
+/** Small picture of an image file in place of the IMG badge; tap opens it full size. Falls back to the badge if the browser can't draw it (e.g. HEIC). */
+function ImageThumb({ file, onOpen, small = false }: { file: File; onOpen: (src: string, name: string) => void; small?: boolean }) {
+  const url = useObjectUrl(file)
+  const [broken, setBroken] = useState(false)
+  if (!url || broken) return small ? null : <FileBadge kind="image" />
+  return (
+    <button type="button" className={`file-thumb${small ? ' sm' : ''}`} aria-label={file.name} title={file.name} onClick={() => onOpen(url, file.name)}>
+      <img src={url} alt="" onError={() => setBroken(true)} />
+    </button>
+  )
+}
+
+/** Full-screen picture preview; tap anywhere, the X or Escape closes it. */
+function ImageLightbox({ src, name, onClose }: { src: string; name: string; onClose: () => void }) {
+  const { t } = useI18n()
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', k)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { window.removeEventListener('keydown', k); document.body.style.overflow = prev }
+  }, [onClose])
+  return (
+    <div className="img-lightbox" role="dialog" aria-modal="true" aria-label={name} onClick={onClose}>
+      <button type="button" className="img-lightbox-x" aria-label={t('close')} title={t('close')} onClick={onClose}><Icon name="x" size={22} /></button>
+      <img src={src} alt={name} />
+      <span className="img-lightbox-name">{name}</span>
+    </div>
+  )
+}
+
 export default function Upload() {
   const { slug = '' } = useParams()
   const [params] = useSearchParams()
@@ -183,6 +226,7 @@ export default function Upload() {
   const nav = useNavigate()
   const { t, tn, te, lang } = useI18n()
   const [shop, setShop] = useState<ShopPublic | null>(null)
+  const [viewImg, setViewImg] = useState<{ src: string; name: string } | null>(null)
   const [loadErr, setLoadErr] = useState<{ text?: string; notFound?: boolean } | null>(null)
   const [items, setItems] = useState<Item[]>([])
   const [name, setName] = useState(() => localStorage.getItem('pq_name') || '')
@@ -660,6 +704,7 @@ export default function Upload() {
                 {images.map((it, i) => (
                   <li key={it.key}>
                     <span className="combo-num">{i + 1}</span>
+                    <ImageThumb file={it.file} small onOpen={(src, name) => setViewImg({ src, name })} />
                     <span className="combo-name">{it.file.name}</span>
                     <span className="small muted">{sizeText(it.file.size)}</span>
                     <button type="button" className="icon-btn sm" aria-label={t('uRemove')} title={t('uRemove')}
@@ -682,8 +727,10 @@ export default function Upload() {
           {priced.map(({ it, pages, price }) => (
             <div className="card file-card" key={it.key}>
               <div className="file-top">
-                <FileBadge kind={it.kind} />
-                <div className="fname">
+                {it.kind === 'image'
+                  ? <ImageThumb file={it.file} onOpen={(src, name) => setViewImg({ src, name })} />
+                  : <FileBadge kind={it.kind} />}
+                <div className={`fname${it.kind === 'image' ? ' is-img' : ''}`}>
                   <strong>{it.file.name}</strong>
                   <span className="muted small">
                     {sizeText(it.file.size)}
@@ -895,6 +942,8 @@ export default function Upload() {
           onDone={(pages) => { update(pickItem.key, { pages }); closePicker(pickItem.key) }}
           onCancel={() => closePicker(pickItem.key)} />
       )}
+
+      {viewImg && <ImageLightbox src={viewImg.src} name={viewImg.name} onClose={() => setViewImg(null)} />}
     </>,
     hasItems ? 'has-sticky' : ''
   )
