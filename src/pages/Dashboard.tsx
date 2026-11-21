@@ -401,9 +401,14 @@ function ProfileMenu({ shop, planChip, onSettings, onLogout }: {
 
 export default function Dashboard() {
   // Phone/tablet: status bar (app) and Android browser bar match the grey top bar (#e6e1d6 / dark #070b09).
+  // Phone width (below 1024px): the bottom bar and the coloured top strip only exist here.
+  const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 1023.98px)').matches)
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1023.98px)')
-    const sync = () => setTopColor(mq.matches ? { light: '#e6e1d6', dark: '#070b09' } : null)
+    const sync = () => {
+      setNarrow(mq.matches)
+      setTopColor(mq.matches ? { light: '#e6e1d6', dark: '#070b09' } : null)
+    }
     sync()
     mq.addEventListener?.('change', sync)
     return () => { mq.removeEventListener?.('change', sync); setTopColor(null) }
@@ -621,7 +626,8 @@ export default function Dashboard() {
   const goPlan = () => setParams({ tab: 'plan' })
 
   const current = TABS.find((x) => x.id === tab) || TABS[0]
-  const bottomNav = ON_ANDROID && !staff
+  // Only below 1024px: at desktop width the bar is hidden (.m-only), so the drawer must keep every tab.
+  const bottomNav = ON_ANDROID && !staff && narrow
   // In the app the bottom bar holds BOTTOM, so the drawer keeps only the rest (Rates, Plan).
   const nav_ = staff ? [{ group: 'navShop' as Key, items: ['orders' as Tab] }]
     : bottomNav ? NAV.map((g) => ({ ...g, items: g.items.filter((id) => !BOTTOM.includes(id)) })).filter((g) => g.items.length)

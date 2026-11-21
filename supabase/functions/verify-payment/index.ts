@@ -17,6 +17,10 @@ Deno.serve(async (req) => {
     if (!safeEqual(expected, signature)) throw new HttpError(400, 'bad_signature', 'Payment could not be verified')
 
     const sub = await rzp<Subscription>(`subscriptions/${encodeURIComponent(subId)}`)
+    // A replayed checkout of a subscription that has ended must not switch the plan back on.
+    if (['cancelled', 'completed', 'expired', 'halted'].includes(String(sub.status || ''))) {
+      throw new HttpError(409, 'subscription_ended', 'This subscription has ended. Please start a new one.')
+    }
     const updated = await activate(sub, shop.id)
     return json({
       ok: true,

@@ -2216,3 +2216,27 @@ notify pgrst, 'reload schema';
 -- Safe to run more than once.
 grant select on public.admins to service_role;
 grant select, insert on public.admin_log to service_role;
+
+-- ===== v21 (2026-11-21): security clean-up =====
+
+-- 1
+revoke execute on function public.finalize_order(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.finalize_order(uuid, uuid) to service_role;
+
+-- 2
+drop function if exists public.create_order_checked(uuid, text, text, text, jsonb, uuid);
+drop table if exists public.upload_pass;
+
+-- 3
+update public.shops set logo_url = null
+where logo_url is not null
+  and logo_url not like 'https://asqgdgzxkdksoikmffmd.supabase.co/storage/v1/object/public/shop-logos/' || id::text || '/%';
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'shops_logo_url_own_bucket') then
+    alter table public.shops add constraint shops_logo_url_own_bucket check (
+      logo_url is null
+      or logo_url like 'https://asqgdgzxkdksoikmffmd.supabase.co/storage/v1/object/public/shop-logos/' || id::text || '/%');
+  end if;
+end $$;
+
+notify pgrst, 'reload schema';
