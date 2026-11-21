@@ -5,7 +5,7 @@ import { AppDownloadBanner } from '../components/AppDownload'
 import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, PointerEvent as RPointerEvent, TouchEvent as RTouchEvent, WheelEvent as RWheelEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
-import { Counter, DEFAULT_PASSPORT_RATE, Order, OrderFile, OrderStatus, plansReady, PRO_COUNTER_LIMIT, QrDesign, QrLink, qrCodeUrl, Rates, Shop, shopIsPlus, shopIsPro, shopUrl, supabase } from '../lib/supabase'
+import { Counter, DEFAULT_IDCARD_RATE, DEFAULT_PASSPORT_RATE, Order, OrderFile, OrderStatus, plansReady, PRO_COUNTER_LIMIT, QrDesign, QrLink, qrCodeUrl, Rates, Shop, shopIsPlus, shopIsPro, shopUrl, supabase } from '../lib/supabase'
 import { fileHours, FILE_HOURS, HISTORY_DAYS, PlanTier, shopTier, tierFor } from '../lib/plans'
 import { BRAND_SWATCHES, inkOn, validHex } from '../lib/brand'
 import { DAY_ORDER, normHours, ShopHours } from '../lib/hours'
@@ -549,6 +549,28 @@ export default function Dashboard() {
   }
 
   const [activeCount, setActiveCount] = useState<number | null>(null)
+
+  // Paper stock (v23, owner only): re-read after order changes, since marking Done takes sheets off in the DB.
+  const paperOn = useRef(false)
+  paperOn.current = !!shop && !shop.staff && shop.paper_sheets !== null && shop.paper_sheets !== undefined
+  const refreshPaper = useCallback(async (shopId: string) => {
+    if (!paperOn.current) return
+    const { data, error } = await supabase.from('shops').select('paper_sheets, paper_low_at, paper_alerted_at').eq('id', shopId).maybeSingle()
+    if (!error && data) setShop((s) => (s && s.id === shopId ? { ...s, ...(data as Partial<Shop>) } : s))
+  }, [])
+  const paperLow = paperOn.current && Number(shop?.paper_sheets) < Number(shop?.paper_low_at ?? 200)
+  // Browser fallback for the low-paper push: one notification per alert, only when this tab is in the background.
+  useEffect(() => {
+    const at = shop?.paper_alerted_at
+    if (!paperLow || !at) return
+    try {
+      if (localStorage.getItem('pq-paper-alert') === at) return
+      localStorage.setItem('pq-paper-alert', at)
+    } catch { /* ignore */ }
+    if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+      try { new Notification(t('paperTitle'), { body: t('paperLow', { n: Number(shop?.paper_sheets) }), tag: 'paper-low' }) } catch { /* ignore */ }
+    }
+  }, [paperLow, shop?.paper_alerted_at]) // eslint-disable-line react-hooks/exhaustive-deps
   const [appVer] = useState(() => {
     try {
       const v = nativeBridge()?.appVersion?.() || (navigator.userAgent.match(/PrintQR\/(\d[\d.]*)/i) || [])[1] || ''
@@ -752,7 +774,13 @@ export default function Dashboard() {
             <strong>{t('blockedTitle')}</strong> {t('blockedBody')}{shop.blocked_reason ? ` ${t('blockedReason', { r: shop.blocked_reason })}` : ''}
           </div>
         )}
-        {tab === 'orders' && <Orders shop={shop} counters={counters} onCount={setActiveCount} autoPrintAllowed={!ready || pro} onUpgrade={staff ? undefined : goPlan} />}
+        {paperLow && tab !== 'settings' && (
+          <div className="notice error paper-banner" role="alert">
+            <Icon name="alert" size={18} /> <strong>{t('paperLow', { n: Number(shop.paper_sheets) })}</strong>
+            <button type="button" className="btn small" onClick={() => go('settings')}>{t('paperUpdate')}</button>
+          </div>
+        )}
+        {tab === 'orders' && <Orders shop={shop} counters={counters} onCount={setActiveCount} autoPrintAllowed={!ready || pro} onUpgrade={staff ? undefined : goPlan} onPaper={() => void refreshPaper(shop.id)} />}
         {ready && !plus && !staff && tab === 'orders' && <AdSlot className="dash-ad" />}
         {tab === 'rates' && <RatesTab shop={shop} v2={v2} passportLocked={free} onUpgrade={goPlan} onSaved={setShop} />}
         {tab === 'qr' && (
@@ -769,6 +797,7 @@ export default function Dashboard() {
           <>
             <Settings shop={shop} onSaved={setShop} onUpgrade={goPlan} />
             <HoursCard shop={shop} onSaved={setShop} />
+            <PaperCard shop={shop} onSaved={setShop} />
             <BrandCard shop={shop} plus={!ready || plus} onSaved={setShop} onUpgrade={goPlan} />
             <StaffCard shop={shop} plus={!ready || plus} onUpgrade={goPlan} />
             <CountersCard shop={shop} counters={counters} usable={usable.length} locked={free} limit={counterLimit} needPlus={pro} v2={v2}
@@ -831,11 +860,13 @@ function matchesCounter(o: Order, filter: string) {
   return o.counter_id === filter
 }
 
-function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = false, onUpgrade }: {
+function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = false, onUpgrade, onPaper }: {
   shop: Shop; counters: Counter[]; onCount?: (n: number) => void; canPrint?: boolean
   /** Auto-print new orders (Windows app) is Pro / Plus; manual direct print is free. */
   autoPrintAllowed?: boolean
   onUpgrade?: () => void
+  /** Orders changed (maybe one became Done): re-read the paper stock (v23). */
+  onPaper?: () => void
 }) {
   const { t, te, lang } = useI18n()
   const [orders, setOrders] = useState<Order[]>([])
@@ -873,6 +904,8 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
   const teRef = useRef(te)
   tRef.current = t
   teRef.current = te
+  const paperRef = useRef(onPaper)
+  paperRef.current = onPaper
 
   const load = useCallback(async () => {
     const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString()
@@ -906,6 +939,7 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
     setOrders(list)
     setLoaded(true)
     setErr(null)
+    paperRef.current?.()
   }, [shop.id])
 
   useEffect(() => {
@@ -952,10 +986,11 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
     const r = await desk.print({
       url: data.signedUrl,
       name: f.file_name,
-      copies: f.item_kind === 'passport' ? Math.max(1, Number(f.pages_to_print) || 1) : Math.max(1, Number(f.copies) || 1),
+      // Passport / ID card sheets: the PDF already has every sheet; print it `copies` times, one side, never scaled.
+      copies: Math.max(1, Number(f.copies) || 1),
       color: f.item_kind === 'passport' ? true : !!f.color,
-      duplex: f.item_kind === 'passport' ? false : !!f.duplex,
-      pages: f.item_kind === 'passport' ? null : f.page_range,
+      duplex: f.item_kind === 'passport' || f.item_kind === 'idcard' ? false : !!f.duplex,
+      pages: f.item_kind === 'passport' || f.item_kind === 'idcard' ? null : f.page_range,
       kind: f.item_kind || 'print',
       printer
     }).catch(() => ({ ok: false }))
@@ -1174,7 +1209,14 @@ function OrderCard(props: {
             {f.item_kind === 'passport' ? (
               <div className="file-meta">
                 <span className="pill tiny pp-pill">🪪 {t('ppSheetLabel')}</span>
-                <span>{t('ppCalc', { n: f.photos ?? '?', s: f.pages_to_print })}</span>
+                <span>{t('ppCalc', { n: f.photos ?? '?', s: f.pages_to_print })}{f.copies > 1 ? ` × ${f.copies}` : ''}</span>
+                <b>{rupees(Number(f.price))}</b>
+              </div>
+            ) : f.item_kind === 'idcard' ? (
+              <div className="file-meta">
+                <span className="pill tiny pp-pill">🪪 {t('idSheetLabel')}</span>
+                <span className={`mchip${f.color ? ' is-color' : ''}`}>{f.color ? t('color') : t('bw')}</span>
+                <span>{t('idCalc', { c: f.copies })} · {t('idPrintHint')}</span>
                 <b>{rupees(Number(f.price))}</b>
               </div>
             ) : (
@@ -1231,7 +1273,7 @@ function RatesTab({ shop, v2, passportLocked, onUpgrade, onSaved }: {
   onSaved: (s: Shop) => void
 }) {
   const { t, te } = useI18n()
-  const [r, setR] = useState<Rates>({ ...shop.rates, passport_sheet: shop.rates.passport_sheet ?? DEFAULT_PASSPORT_RATE, binding: shop.rates.binding ?? 0, lamination: shop.rates.lamination ?? 0 })
+  const [r, setR] = useState<Rates>({ ...shop.rates, passport_sheet: shop.rates.passport_sheet ?? DEFAULT_PASSPORT_RATE, idcard_sheet: shop.rates.idcard_sheet ?? DEFAULT_IDCARD_RATE, binding: shop.rates.binding ?? 0, lamination: shop.rates.lamination ?? 0 })
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
   const fields: { k: keyof Rates; label: Key; hint: Key }[] = [
     { k: 'bw_single', label: 'rate_bw_single', hint: 'perPage' },
@@ -1242,6 +1284,8 @@ function RatesTab({ shop, v2, passportLocked, onUpgrade, onSaved }: {
   // The passport rate is only used by the server after the v2 database update.
   // Free plan: passport sheet is a Pro feature (shown locked below, not editable).
   if (v2 && !passportLocked) fields.push({ k: 'passport_sheet', label: 'rate_passport_sheet', hint: 'perSheet' })
+  // ID card sheet (v23): Pro / Plus like the passport sheet. Saved in rates; used once the v23 SQL has run.
+  if (v2 && !passportLocked) fields.push({ k: 'idcard_sheet', label: 'rate_idcard_sheet', hint: 'perIdSheet' })
   async function save(e: FormEvent) {
     e.preventDefault()
     const clean: Rates = {
@@ -1254,6 +1298,7 @@ function RatesTab({ shop, v2, passportLocked, onUpgrade, onSaved }: {
       lamination: Math.max(0, Number(r.lamination) || 0)
     }
     if (v2 && !passportLocked) clean.passport_sheet = Math.max(0, Number(r.passport_sheet) || 0)
+    if (v2 && !passportLocked) clean.idcard_sheet = Math.max(0, Number(r.idcard_sheet) || 0)
     const { data, error } = await supabase.from('shops').update({ rates: clean }).eq('id', shop.id).select().single()
     if (error) return setMsg({ text: te(error), error: true })
     onSaved(data as Shop)
@@ -1275,19 +1320,19 @@ function RatesTab({ shop, v2, passportLocked, onUpgrade, onSaved }: {
             <small className="hint">{t(f.hint)}</small>
           </label>
         ))}
-        {v2 && passportLocked && (
-          <div className="field locked-field">
-            <span>{t('rate_passport_sheet')} <span className="pro-badge">{t('planPro')}</span></span>
+        {v2 && passportLocked && ([['rate_passport_sheet', 'ppProOnly'], ['rate_idcard_sheet', 'idProOnly']] as [Key, Key][]).map(([label, hint]) => (
+          <div className="field locked-field" key={label}>
+            <span>{t(label)} <span className="pro-badge">{t('planPro')}</span></span>
             <div className="input-affix">
               <span className="affix">🔒</span>
-              <input value="" disabled placeholder={t('proFeature')} aria-label={t('rate_passport_sheet')} />
+              <input value="" disabled placeholder={t('proFeature')} aria-label={t(label)} />
             </div>
             <small className="hint">
-              {t('ppProOnly')}{' '}
+              {t(hint)}{' '}
               <button type="button" className="link small" onClick={onUpgrade}>{t('seePlans')}</button>
             </small>
           </div>
-        )}
+        ))}
       </div>
       <h3 className="sub-title">{t('ratesExtrasTitle')}</h3>
       <p className="small muted">{t('ratesExtrasSub')}</p>
@@ -2056,6 +2101,79 @@ function HoursCard({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void }
   )
 }
 
+/** Paper stock (all plans, v23): sheets come off by themselves when an order is marked Done (database trigger). */
+function PaperCard({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => void }) {
+  const { t, te } = useI18n()
+  const REAM = 500
+  const [on, setOn] = useState(shop.paper_sheets !== null && shop.paper_sheets !== undefined)
+  const [unit, setUnit] = useState<'sheets' | 'reams'>('sheets')
+  const [stock, setStock] = useState<string>(String(shop.paper_sheets ?? 0))
+  const [low, setLow] = useState<string>(String(shop.paper_low_at ?? 200))
+  const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
+  // Stock changed elsewhere (orders marked Done): show the new number unless the owner is typing one.
+  const [dirty, setDirty] = useState(false)
+  useEffect(() => {
+    if (!dirty && shop.paper_sheets !== null && shop.paper_sheets !== undefined) {
+      setStock(String(unit === 'reams' ? shop.paper_sheets / REAM : shop.paper_sheets))
+    }
+  }, [shop.paper_sheets]) // eslint-disable-line react-hooks/exhaustive-deps
+  const sheets = Math.max(0, Math.min(10000000, Math.round((Number(stock) || 0) * (unit === 'reams' ? REAM : 1))))
+  function switchUnit(u: 'sheets' | 'reams') {
+    if (u === unit) return
+    setStock(String(u === 'reams' ? sheets / REAM : sheets))
+    setUnit(u)
+  }
+  async function save(e: FormEvent) {
+    e.preventDefault()
+    const { data, error } = await supabase.from('shops')
+      .update({ paper_sheets: on ? sheets : null, paper_low_at: Math.max(0, Math.min(10000000, Math.round(Number(low) || 0))) })
+      .eq('id', shop.id).select().single()
+    if (error) return setMsg({ text: te(error), error: true })
+    onSaved(data as Shop)
+    setDirty(false)
+    setMsg({ text: t('saved'), error: false })
+  }
+  const current = shop.paper_sheets
+  return (
+    <form className="card form-card" onSubmit={save}>
+      <h2 className="card-title">{t('paperTitle')}</h2>
+      <p className="small muted">{t('paperSub')}</p>
+      <label className="check-row plain">
+        <input type="checkbox" checked={on} onChange={(e) => { setOn(e.target.checked); setDirty(true) }} />
+        <span><strong>{t('paperOn')}</strong></span>
+      </label>
+      {on && (
+        <>
+          {current !== null && current !== undefined && (
+            <p className={`notice${current < (shop.paper_low_at ?? 200) ? ' error' : ''}`}>
+              {current < (shop.paper_low_at ?? 200) ? t('paperLow', { n: current }) : t('paperNow', { n: current })}
+            </p>
+          )}
+          <div className="field">
+            <span>{t('paperStock')}</span>
+            <div className="paper-units">
+              <input type="number" min={0} step={unit === 'reams' ? 0.5 : 1} inputMode="decimal" value={stock} aria-label={t('paperStock')}
+                onChange={(e) => { setStock(e.target.value); setDirty(true) }} />
+              <div className="seg" role="group" aria-label={t('paperStock')}>
+                <button type="button" className={unit === 'sheets' ? 'on' : ''} aria-pressed={unit === 'sheets'} onClick={() => switchUnit('sheets')}>{t('paperUnitSheets')}</button>
+                <button type="button" className={unit === 'reams' ? 'on' : ''} aria-pressed={unit === 'reams'} onClick={() => switchUnit('reams')}>{t('paperUnitReams')}</button>
+              </div>
+              <button type="button" className="btn small" onClick={() => { setStock(String(unit === 'reams' ? sheets / REAM + 1 : sheets + REAM)); setDirty(true) }}>{t('paperAddReam')}</button>
+            </div>
+            {unit === 'reams' && <small className="hint">= {sheets} {t('paperUnitSheets')}</small>}
+          </div>
+          <label className="field">
+            <span>{t('paperLowAt')}</span>
+            <input type="number" min={0} step={1} inputMode="numeric" value={low} onChange={(e) => { setLow(e.target.value); setDirty(true) }} />
+          </label>
+        </>
+      )}
+      {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
+      <button className="btn primary block lg">{t('save')}</button>
+    </form>
+  )
+}
+
 /** Plus: own colour + logo on the customer pages, no PrintQR branding there. */
 function BrandCard({ shop, plus, onSaved, onUpgrade }: { shop: Shop; plus: boolean; onSaved: (s: Shop) => void; onUpgrade: () => void }) {
   const { t, te } = useI18n()
@@ -2291,10 +2409,12 @@ const COMPARE: { label: Key; v: [boolean | Key, boolean | Key, boolean | Key] }[
   { label: 'cmpExtras', v: [true, true, true] },
   { label: 'cmpReady', v: [true, true, true] },
   { label: 'cmpDirectPrint', v: [true, true, true] },
+  { label: 'cmpPaper', v: [true, true, true] },
   { label: 'cmpAutoPrint', v: [false, true, true] },
   { label: 'cmpQrDesign', v: [false, true, true] },
   { label: 'cmpDynQr', v: [false, true, true] },
   { label: 'cmpPassport', v: [false, true, true] },
+  { label: 'cmpIdcard', v: [false, true, true] },
   { label: 'cmpNoAdsCust', v: [false, true, true] },
   { label: 'cmpNoAdsYou', v: [false, false, true] },
   { label: 'cmpNoBranding', v: [false, false, true] },
@@ -2405,7 +2525,7 @@ function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onCha
 
   const per = period === 'yearly' ? t('perYear') : t('perMonth')
   const cards: { tier: Tier; feats: Key[] }[] = [
-    { tier: 'pro', feats: ['planFeatDynQr', 'planFeatNoAdsCust', 'planFeatPassport', 'planFeatCounters2', 'planFeatKeep24h', 'planFeatOrder100', 'planFeatHist6m', 'planFeatQrDesign', 'planFeatAutoPrint'] },
+    { tier: 'pro', feats: ['planFeatDynQr', 'planFeatNoAdsCust', 'planFeatPassport', 'planFeatIdcard', 'planFeatCounters2', 'planFeatKeep24h', 'planFeatOrder100', 'planFeatHist6m', 'planFeatQrDesign', 'planFeatAutoPrint'] },
     { tier: 'plus', feats: ['planFeatAllPro', 'planFeatNoAdsAll', 'planFeatCounters', 'planFeatKeep7d', 'planFeatOrder200', 'planFeatHist1y', 'planFeatNoBranding', 'planFeatOwnBrand', 'planFeatStaff'] }
   ]
   // Free: both plans. Pro: only the upgrade to Plus. Plus: nothing to buy.

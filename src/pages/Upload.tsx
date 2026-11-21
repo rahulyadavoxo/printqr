@@ -1,9 +1,9 @@
-import { ChangeEvent, DragEvent, ReactElement, useEffect, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, DragEvent, lazy, ReactElement, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Rates, supabase, UUID_RE } from '../lib/supabase'
+import { DEFAULT_IDCARD_RATE, Rates, supabase, UUID_RE } from '../lib/supabase'
 import { countPdfPages, extractPages, pagesToRange } from '../lib/pdf'
 import { filePrice, rupees } from '../lib/pricing'
-import { imagesToPdf, PASSPORT_OPTIONS, passportPreview, passportSheetPdf, passportSheets } from '../lib/imagePdf'
+import { idcardPreview, idcardSheetPdf, imagesToPdf, PASSPORT_OPTIONS, passportPreview, passportSheetPdf, passportSheets } from '../lib/imagePdf'
 import { useI18n } from '../lib/i18n'
 import { ShopBrand, TopBar } from '../components/TopBar'
 import { brandStyle } from '../lib/brand'
@@ -14,6 +14,9 @@ import PagePicker from '../components/PagePicker'
 import ReportShop from '../components/ReportShop'
 import standeeUrl from '../assets/qr-standee.svg'
 import closedStandeeUrl from '../assets/closed-qr-standee.svg'
+
+// ID card crop screen (editor code): loaded only when a customer adds an ID card.
+const IdCardCrop = lazy(() => import('../components/IdCardCrop'))
 
 type ShopPublic = {
   id: string
@@ -53,6 +56,10 @@ type Progress = { text: string; pct: number }
 type Opts = { copies: number; color: boolean; duplex: boolean; binding: boolean; lamination: boolean }
 
 type Passport = { file: File; photos: number; preview: string }
+
+/** ID card sheet (v23): cropped front (and back) pictures, printed `copies` times. */
+type IdSide = { card: HTMLCanvasElement; preview: string }
+type IdCard = { front: IdSide; back: IdSide | null; copies: number; color: boolean }
 
 /** One file that will be uploaded: what create_order gets, and the bytes. */
 type Upload = { payload: Record<string, unknown>; blob: Blob; contentType: string }
@@ -186,11 +193,16 @@ export default function Upload() {
   const [combine, setCombine] = useState(true)
   const [combo, setCombo] = useState<Opts>({ copies: 1, color: true, duplex: false, binding: false, lamination: false })
   const [passport, setPassport] = useState<Passport | null>(null)
+  const [idcard, setIdcard] = useState<IdCard | null>(null)
+  /** Photo being cropped for one side of the ID card. */
+  const [idCrop, setIdCrop] = useState<{ file: File; side: 'front' | 'back' } | null>(null)
   const [counterName, setCounterName] = useState<string | null>(null)
   /** PDFs waiting for the page picker (opens right after upload), first one is shown. */
   const [pickQueue, setPickQueue] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const passportRef = useRef<HTMLInputElement>(null)
+  const idFrontRef = useRef<HTMLInputElement>(null)
+  const idBackRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     supabase.rpc('get_shop_public', { p_slug: slug }).then(({ data, error }) => {
@@ -220,7 +232,7 @@ export default function Upload() {
 
   async function addFiles(files: File[]) {
     setMsg(null)
-    const room = MAX_FILES - items.length - (passport ? 1 : 0)
+    const room = MAX_FILES - items.length - (passport ? 1 : 0) - (idcard ? 1 : 0)
     if (files.length > room) setMsg(t('uMaxFiles', { n: MAX_FILES }))
     const added: Item[] = []
     // Whole order: up to the shop plan's size (50 / 100 / 200 MB, checked again by the server).
@@ -290,6 +302,23 @@ export default function Upload() {
     }
   }
 
+  function onPickIdSide(side: 'front' | 'back', e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    setMsg(null)
+    if (f.size > MAX_SIZE) return setMsg(t('uTooBig', { name: f.name }))
+    if (!mimeOf(f)?.startsWith('image/')) return setMsg(t('uBadType', { name: f.name }))
+    setIdCrop({ file: f, side })
+  }
+
+  function onIdCropped(side: 'front' | 'back', card: HTMLCanvasElement) {
+    setIdCrop(null)
+    const s: IdSide = { card, preview: idcardPreview(card) }
+    if (side === 'front') setIdcard((c) => (c ? { ...c, front: s } : { front: s, back: null, copies: 1, color: true }))
+    else setIdcard((c) => (c ? { ...c, back: s } : c))
+  }
+
   function onDrop(e: DragEvent<HTMLButtonElement>) {
     e.preventDefault()
     setDragging(false)
@@ -302,6 +331,9 @@ export default function Upload() {
   const passportRate = shop?.rates.passport_sheet
   // Passport sheet is a Pro feature (free shops also get no passport_sheet rate from the server).
   const passportEnabled = passportRate !== undefined && passportRate !== null && shop?.is_pro !== false
+  // ID card sheet (v23): same rule. Before the v23 database update the rate is missing, so it stays hidden.
+  const idcardRate = shop?.rates.idcard_sheet
+  const idcardEnabled = idcardRate !== undefined && idcardRate !== null && shop?.is_pro !== false
 
   const priced = useMemo(() => {
     if (!shop) return []
@@ -317,12 +349,13 @@ export default function Upload() {
   const comboPrice = shop && combineOn ? filePrice(shop.rates, images.length, combo.copies, combo.color, combo.duplex, combo.binding, combo.lamination) : 0
   const sheets = passport ? passportSheets(passport.photos) : 0
   const passportPrice = passport ? sheets * Number(passportRate ?? 0) : 0
-  const total = priced.reduce((s, p) => s + p.price, 0) + comboPrice + passportPrice
+  const idcardPrice = idcard ? idcard.copies * Number(idcardRate ?? DEFAULT_IDCARD_RATE) : 0
+  const total = priced.reduce((s, p) => s + p.price, 0) + comboPrice + passportPrice + idcardPrice
   const invalid = priced.some((p) => !p.pages) || items.some((i) => i.counting)
-  const uploadCount = priced.length + (combineOn ? 1 : 0) + (passport ? 1 : 0)
+  const uploadCount = priced.length + (combineOn ? 1 : 0) + (passport ? 1 : 0) + (idcard ? 1 : 0)
 
   async function submit() {
-    if (!shop || (!items.length && !passport) || invalid) return
+    if (!shop || (!items.length && !passport && !idcard) || invalid) return
     setBusy(true)
     setMsg(null)
     try {
@@ -412,6 +445,20 @@ export default function Upload() {
           contentType: 'application/pdf'
         })
       }
+      if (idcard) {
+        setProgress({ text: t('idMaking'), pct: 50 })
+        let pdf: Blob
+        try {
+          pdf = await idcardSheetPdf(idcard.front.card, idcard.back?.card ?? null)
+        } catch {
+          throw new Error(t('ppReadFail'))
+        }
+        uploads.push({
+          payload: { kind: 'idcard', name: 'id-card.pdf', mime: 'application/pdf', size: pdf.size, copies: idcard.copies, color: idcard.color },
+          blob: pdf,
+          contentType: 'application/pdf'
+        })
+      }
       setProgress(null)
       if (uploads.reduce((n, u) => n + u.blob.size, 0) > maxOrder) throw new Error(t('uOrderTooBig', { mb: maxMb }))
 
@@ -487,8 +534,8 @@ export default function Upload() {
 
   const opening = !shop.is_open ? nextOpening(shop.hours ? normHours(shop.hours) : null) : null
   const dayName = (d: number) => new Date(2024, 0, 7 + d).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { weekday: 'long' })
-  const hasItems = items.length > 0 || passport !== null
-  const roomLeft = MAX_FILES - items.length - (passport ? 1 : 0)
+  const hasItems = items.length > 0 || passport !== null || idcard !== null
+  const roomLeft = MAX_FILES - items.length - (passport ? 1 : 0) - (idcard ? 1 : 0)
   const flowAt = !hasItems ? 0 : busy ? 2 : 1
   const flow = [t('flowAdd'), t('flowOptions'), t('flowSend')]
   const pickItem = busy ? null : pickQueue.map((k) => items.find((it) => it.key === k)).find((it) => it && it.kind === 'pdf' && !it.counting) ?? null
@@ -543,6 +590,8 @@ export default function Upload() {
           <input ref={inputRef} type="file" multiple hidden onChange={onPick}
             accept=".pdf,image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx" />
           <input ref={passportRef} type="file" hidden accept="image/*" onChange={(e) => void onPickPassport(e)} />
+          <input ref={idFrontRef} type="file" hidden accept="image/*" onChange={(e) => onPickIdSide('front', e)} />
+          <input ref={idBackRef} type="file" hidden accept="image/*" onChange={(e) => onPickIdSide('back', e)} />
 
           {!hasItems ? (
             <button
@@ -571,6 +620,14 @@ export default function Upload() {
             <button type="button" className="btn block lg passport-entry" onClick={() => passportRef.current?.click()} disabled={busy}>
               <span className="pe-icon" aria-hidden="true"><Icon name="idcard" size={22} /></span>
               <span className="pe-text"><strong>{t('ppEntry')}</strong><span className="small muted">{t('ppEntrySub')}</span></span>
+              <Icon name="arrow" size={18} className="pe-arrow" />
+            </button>
+          )}
+
+          {!hasItems && idcardEnabled && (
+            <button type="button" className="btn block lg passport-entry" onClick={() => idFrontRef.current?.click()} disabled={busy}>
+              <span className="pe-icon" aria-hidden="true"><Icon name="idcard" size={22} /></span>
+              <span className="pe-text"><strong>{t('idEntry')}</strong><span className="small muted">{t('idEntrySub')}</span></span>
               <Icon name="arrow" size={18} className="pe-arrow" />
             </button>
           )}
@@ -702,6 +759,60 @@ export default function Upload() {
             </div>
           )}
 
+          {idcard && (
+            <div className="card file-card passport-card idcard-card">
+              <div className="file-top">
+                <div className="fname">
+                  <strong>{t('idTitle')}</strong>
+                  <span className="muted small">{t('idSub')}</span>
+                </div>
+                <button type="button" className="icon-btn" aria-label={t('uRemove')} title={t('uRemove')}
+                  onClick={() => setIdcard(null)} disabled={busy}><Icon name="x" size={18} /></button>
+              </div>
+              <div className="id-sides">
+                <div className="id-side">
+                  <img className="id-thumb" src={idcard.front.preview} alt={t('idFront')} />
+                  <span className="small"><strong>{t('idFront')}</strong> · <button type="button" className="link small" onClick={() => idFrontRef.current?.click()} disabled={busy}>{t('idChange')}</button></span>
+                </div>
+                <div className="id-side">
+                  {idcard.back ? (
+                    <>
+                      <img className="id-thumb" src={idcard.back.preview} alt={t('idBack')} />
+                      <span className="small"><strong>{t('idBack')}</strong> · <button type="button" className="link small" onClick={() => idBackRef.current?.click()} disabled={busy}>{t('idChange')}</button>
+                        {' · '}<button type="button" className="link small" onClick={() => setIdcard({ ...idcard, back: null })} disabled={busy}>{t('idRemoveBack')}</button></span>
+                    </>
+                  ) : (
+                    <>
+                      <button type="button" className="id-thumb id-add" onClick={() => idBackRef.current?.click()} disabled={busy}>
+                        <Icon name="plus" size={20} /><span className="small">{t('idAddBack')}</span>
+                      </button>
+                      <span className="small muted">{t('idBackOptional')}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="grid2">
+                <CopiesField o={{ copies: idcard.copies, color: idcard.color, duplex: false, binding: false, lamination: false }}
+                  onChange={(p) => setIdcard({ ...idcard, ...(p.copies ? { copies: p.copies } : {}) })} disabled={busy} />
+              </div>
+              <div className="opt-row">
+                <span className="opt-label">{t('optPrint')}</span>
+                <div className="seg" role="group" aria-label={t('optPrint')}>
+                  <button type="button" className={!idcard.color ? 'on' : ''} aria-pressed={!idcard.color} onClick={() => setIdcard({ ...idcard, color: false })}>
+                    <span className="swatch sw-bw" aria-hidden="true" />{t('bw')}
+                  </button>
+                  <button type="button" className={idcard.color ? 'on' : ''} aria-pressed={idcard.color} onClick={() => setIdcard({ ...idcard, color: true })}>
+                    <span className="swatch sw-color" aria-hidden="true" />{t('color')}
+                  </button>
+                </div>
+              </div>
+              <div className="file-price">
+                <span className="small muted">{t('idCalc', { c: idcard.copies })}</span>
+                <strong>{rupees(idcardPrice)}</strong>
+              </div>
+            </div>
+          )}
+
           {hasItems && roomLeft > 0 && (
             <div className="add-row">
               <button type="button" className="btn dashed block lg" onClick={() => inputRef.current?.click()} disabled={busy}>
@@ -710,6 +821,11 @@ export default function Upload() {
               {passportEnabled && !passport && (
                 <button type="button" className="btn dashed block lg" onClick={() => passportRef.current?.click()} disabled={busy}>
                   <Icon name="idcard" size={20} /> {t('ppEntry')}
+                </button>
+              )}
+              {idcardEnabled && !idcard && (
+                <button type="button" className="btn dashed block lg" onClick={() => idFrontRef.current?.click()} disabled={busy}>
+                  <Icon name="idcard" size={20} /> {t('idEntry')}
                 </button>
               )}
             </div>
@@ -767,6 +883,15 @@ export default function Upload() {
       </p>
       {shop.is_pro === false && <AdSlot className="upload-ad" />}
       <ReportShop slug={slug} />
+
+      {idCrop && (
+        <Suspense fallback={<div className="ed-busy" role="status"><div className="ed-busy-box"><span className="spinner" aria-hidden="true" /> {t('idOpening')}</div></div>}>
+          <IdCardCrop key={idCrop.file.name + idCrop.file.lastModified + idCrop.side} file={idCrop.file}
+            onDone={(card) => onIdCropped(idCrop.side, card)}
+            onCancel={() => setIdCrop(null)}
+            onError={() => { setIdCrop(null); setMsg(t('ppReadFail')) }} />
+        </Suspense>
+      )}
 
       {pickItem && (
         <PagePicker key={pickItem.key} file={pickItem.file} total={pickItem.totalPages} initial={pickItem.pages}

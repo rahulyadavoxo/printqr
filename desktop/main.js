@@ -135,8 +135,8 @@ function setupPrinting() {
         copies: Math.min(99, Math.max(1, parseInt(job.copies, 10) || 1)),
         monochrome: !job.color,
         side: job.duplex ? 'duplex' : 'simplex',
-        // Passport sheets keep their exact size; other files shrink to fit the page.
-        scale: job.kind === 'passport' ? 'noscale' : ext === 'pdf' ? 'shrink' : 'fit'
+        // Passport / ID card sheets keep their exact size; other files shrink to fit the page.
+        scale: job.kind === 'passport' || job.kind === 'idcard' ? 'noscale' : ext === 'pdf' ? 'shrink' : 'fit'
       }
       if (typeof job.printer === 'string' && job.printer.trim()) opts.printer = job.printer.trim()
       if (ext === 'pdf' && typeof job.pages === 'string' && /^[0-9][0-9,\- ]*$/.test(job.pages.trim())) {

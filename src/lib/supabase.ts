@@ -19,6 +19,8 @@ export type Rates = {
   color_double: number
   /** Passport photo sheet (A4), price per sheet. Present once the v2 database migration has run. */
   passport_sheet?: number
+  /** ID card sheet (A4, front + back at card size), price per sheet. Pro / Plus, v23 database update. */
+  idcard_sheet?: number
   /** v17 extras (0 / missing = not offered): binding per copy, lamination per sheet. */
   binding?: number
   lamination?: number
@@ -57,6 +59,10 @@ export type Shop = {
   brand_color?: string | null
   qr_design?: QrDesign | null
   hours?: unknown
+  /** v23: paper stock in sheets (null = not tracked), alert below paper_low_at sheets. */
+  paper_sheets?: number | null
+  paper_low_at?: number
+  paper_alerted_at?: string | null
   /** Set when this login is staff at the shop (my_staff_shop), not the owner. */
   staff?: boolean
   staff_active?: boolean
@@ -102,7 +108,7 @@ export type OrderFile = {
   color: boolean
   duplex: boolean
   price: number
-  item_kind?: 'print' | 'passport'
+  item_kind?: 'print' | 'passport' | 'idcard'
   photos?: number | null
   binding?: boolean
   lamination?: boolean
@@ -126,6 +132,8 @@ export type Order = {
 
 export const DEFAULT_RATES: Rates = { bw_single: 2, bw_double: 1.5, color_single: 10, color_double: 8 }
 export const DEFAULT_PASSPORT_RATE = 40
+/** Same default as the database (create_order / get_shop_public, v23). */
+export const DEFAULT_IDCARD_RATE = 20
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 

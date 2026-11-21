@@ -3,6 +3,7 @@
 // x-cron-token header kept in private.cron_tokens (name 'push'). Deployed with --no-verify-jwt.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (auto) and FCM_SERVICE_ACCOUNT (the Firebase
 // service-account JSON, Project settings -> Service accounts -> Generate new private key).
+// Also: {kind:'ready', order_id} for the customer (v17) and {kind:'paper_low', shop_id} for the owner (v23).
 
 function reply(status: number, body: Record<string, unknown>): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -112,6 +113,59 @@ async function sendReady(sa: ServiceAccount, orderId: string): Promise<Record<st
   return { sent, ...(lastErr ? { error: lastErr } : {}) }
 }
 
+/** Owner phones (+ staff phones while on Plus) with their language. Before v18 there is no lang column. */
+async function shopTokens(shopId: string, ownerId: string, plan: string, expires: string | null): Promise<{ token: string; lang?: string | null }[]> {
+  const users = [ownerId]
+  const plus = plan === 'plus' && !!expires && new Date(expires).getTime() > Date.now()
+  if (plus) {
+    const staff = (await call(`/rest/v1/shop_staff?shop_id=eq.${shopId}&user_id=not.is.null&select=user_id`).catch(() => [])) as { user_id: string }[]
+    for (const s of staff) if (s.user_id && !users.includes(s.user_id)) users.push(s.user_id)
+  }
+  const inList = `owner_id=in.(${users.join(',')})`
+  return (await call(`/rest/v1/push_tokens?${inList}&select=token,lang`)
+    .catch(() => call(`/rest/v1/push_tokens?${inList}&select=token`))) as { token: string; lang?: string | null }[]
+}
+
+/** v23: "paper is low" for the owner's phones, once per drop below the shop's limit (shops_paper_alert trigger). */
+async function sendPaperLow(sa: ServiceAccount, shopId: string): Promise<Record<string, unknown>> {
+  const shops = (await call(`/rest/v1/shops?id=eq.${shopId}&select=owner_id,plan,plan_expires_at,paper_sheets,paper_low_at`)) as
+    { owner_id: string; plan: string; plan_expires_at: string | null; paper_sheets: number | null; paper_low_at: number }[]
+  const s = shops[0]
+  if (!s || s.paper_sheets === null || s.paper_sheets >= s.paper_low_at) return { skipped: 'not_low' }
+  const tokens = await shopTokens(shopId, s.owner_id, s.plan, s.plan_expires_at)
+  if (!tokens.length) return { sent: 0 }
+  const n = s.paper_sheets
+  const access = await googleToken(sa)
+  let sent = 0
+  let lastErr = ''
+  const dead: string[] = []
+  for (const { token, lang } of tokens) {
+    const title = lang === 'hi' ? 'कागज़ कम है' : lang === 'en' ? 'Paper is low' : 'Paper is low · कागज़ कम है'
+    const body = lang === 'hi' ? `${n} शीट बची हैं` : lang === 'en' ? `${n} sheets left` : `${n} sheets left · ${n} शीट बची हैं`
+    const r = await fcmSend(sa, access, {
+      token,
+      notification: { title, body },
+      data: { kind: 'paper_low', shop_id: shopId, sheets: String(n), lang: lang === 'hi' || lang === 'en' ? lang : '' },
+      android: {
+        priority: 'HIGH',
+        notification: { channel_id: 'orders', sound: 'default', tag: `paper-${shopId}`, icon: 'ic_stat_print' }
+      },
+      webpush: {
+        headers: { Urgency: 'high', TTL: '86400' },
+        notification: { title, body, icon: 'https://print.receipto.in/icon-192.png', badge: 'https://print.receipto.in/badge-96.png', tag: `paper-${shopId}` },
+        fcm_options: { link: 'https://print.receipto.in/#/dashboard?tab=settings' }
+      }
+    })
+    if (r.ok) sent++
+    else if (r.dead) dead.push(token)
+    else if (r.err) lastErr = r.err
+  }
+  for (const t of dead) {
+    await call(`/rest/v1/push_tokens?token=eq.${encodeURIComponent(t)}`, { method: 'DELETE' }).catch(() => {})
+  }
+  return { sent, removed: dead.length, ...(lastErr ? { error: lastErr } : {}) }
+}
+
 type OrderRow = { id: string; token: number; total: number; customer_name: string | null; shop_id: string; counter_id: string | null; status: string }
 
 Deno.serve(async (req) => {
@@ -138,12 +192,26 @@ Deno.serve(async (req) => {
   }
 
   let orderId = ''
+  let shopId = ''
   let kind = 'new'
   try {
     const j = await req.json()
     orderId = String(j.order_id || '')
+    shopId = String(j.shop_id || '')
     if (j.kind === 'ready') kind = 'ready'
+    if (j.kind === 'paper_low') kind = 'paper_low'
   } catch { /* empty body */ }
+
+  // v23: paper stock below the shop's limit (all plans).
+  if (kind === 'paper_low') {
+    if (!/^[0-9a-f-]{36}$/i.test(shopId)) return reply(400, { error: 'bad_shop' })
+    try {
+      return reply(200, await sendPaperLow(sa, shopId))
+    } catch (e) {
+      console.error(e)
+      return reply(500, { error: 'push_failed', detail: String((e as Error)?.message || e).slice(0, 400) })
+    }
+  }
   if (!/^[0-9a-f-]{36}$/i.test(orderId)) return reply(400, { error: 'bad_order' })
 
   // v17: "your order is ready" for the customer (web push from the status page), all plans.
@@ -164,17 +232,9 @@ Deno.serve(async (req) => {
       { owner_id: string; plan: string; plan_expires_at: string | null }[]
     if (!shops[0]) return reply(200, { skipped: 'no_shop' })
     // Owner's phones, plus staff phones while the shop is on Plus (v17).
-    const users = [shops[0].owner_id]
-    const plus = shops[0].plan === 'plus' && !!shops[0].plan_expires_at && new Date(shops[0].plan_expires_at).getTime() > Date.now()
-    if (plus) {
-      const staff = (await call(`/rest/v1/shop_staff?shop_id=eq.${o.shop_id}&user_id=not.is.null&select=user_id`).catch(() => [])) as { user_id: string }[]
-      for (const s of staff) if (s.user_id && !users.includes(s.user_id)) users.push(s.user_id)
-    }
     // v18: each phone / browser gets its own language (push_tokens.lang). Before the v18 SQL has run the
     // column does not exist yet, so fall back to tokens only (both languages, as before).
-    const inList = `owner_id=in.(${users.join(',')})`
-    const tokens = (await call(`/rest/v1/push_tokens?${inList}&select=token,lang`)
-      .catch(() => call(`/rest/v1/push_tokens?${inList}&select=token`))) as { token: string; lang?: string | null }[]
+    const tokens = await shopTokens(o.shop_id, shops[0].owner_id, shops[0].plan, shops[0].plan_expires_at)
     if (!tokens.length) return reply(200, { sent: 0 })
 
     let counter = ''

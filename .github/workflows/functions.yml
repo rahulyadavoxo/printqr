@@ -37,6 +37,7 @@ jobs:
       # upload-pass was retired in v21: remove it from the project (no-op once it is gone)
       - run: supabase functions delete upload-pass --project-ref "$PROJECT_REF" --yes || true
       - run: supabase functions deploy finalize-order --no-verify-jwt --project-ref "$PROJECT_REF" --yes
+      - run: supabase functions deploy reorder --no-verify-jwt --project-ref "$PROJECT_REF" --yes
       - run: supabase functions deploy admin-action --project-ref "$PROJECT_REF" --yes
       - run: supabase functions deploy push-new-order --no-verify-jwt --project-ref "$PROJECT_REF" --yes
       - run: supabase functions deploy send-email --no-verify-jwt --project-ref "$PROJECT_REF" --yes

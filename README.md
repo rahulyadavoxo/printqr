@@ -14,6 +14,8 @@ Customer ko shop ka WhatsApp number save nahi karna padta. Shop wala apna QR pos
 - Shop ke rate se total live dikhta hai (price server pe dobara calculate hota hai, browser pe trust nahi)
 - Token number, live status page (Line mein → Printing → Ready)
 - UPI pay button (agar shop ne UPI ID daali hai)
+- ID card (Aadhaar / PAN) sheet (Pro shop): front + back photo, crop, ek A4 pe asli card size (85.6 × 54 mm) cut line ke saath
+- Status page pe **Dobara print karo**: purani files dobara upload kiye bina naya order (naya token), copies aur B/W/Color chuno
 
 **Shop owner**
 - Email/password signup, shop details
@@ -24,6 +26,7 @@ Customer ko shop ka WhatsApp number save nahi karna padta. Shop wala apna QR pos
 - Hisaab: aaj, 7 din, 30 din ki kamai
 - Shop khuli/band toggle
 - Files auto-delete (1 se 48 ghante, shop choose kare) + "files abhi delete karo" button
+- Kaagaz ka stock (sheets ya reams): order Done karne pe sheets apne aap ghat-ti hain, kam hone pe banner + phone pe ek push (sab plans)
 
 ## Tech
 
@@ -55,8 +58,8 @@ Agar `schema.sql` pehle chala chuke ho, to **SQL Editor** mein `supabase/migrati
 
 | Plan | Price | Features |
 |---|---|---|
-| Free | ₹0 | Owner dashboard pe ads, sirf main QR queue, passport sheet nahi, files 1 ghanta, order 50 MB, history 7 din |
-| Pro | ₹49/month ya ₹539/year (1 month free) | Customers ke liye no ads, 2 naye counters, passport photo sheet, dynamic QR, QR card design, auto-print, files 24 ghante, order 100 MB, history 6 mahine |
+| Free | ₹0 | Owner dashboard pe ads, sirf main QR queue, passport / ID card sheet nahi, files 1 ghanta, order 50 MB, history 7 din |
+| Pro | ₹49/month ya ₹539/year (1 month free) | Customers ke liye no ads, 2 naye counters, passport photo sheet, ID card sheet, dynamic QR, QR card design, auto-print, files 24 ghante, order 100 MB, history 6 mahine |
 | Plus | ₹99/month ya ₹999/year | Pro ka sab kuch + kahin bhi ads nahi, unlimited counters, apna colour/logo (branding), staff logins, files 7 din, order 200 MB, history 1 saal |
 
 Plus ke liye Razorpay mein alag plan banane ki zaroorat nahi, functions khud banate hain (v16 SQL ke baad). Pro se Plus upgrade purani subscription cancel kar deta hai.
@@ -71,7 +74,7 @@ SQL Editor mein `supabase/migrations/2026-11-18-v5-dynamic-qr.sql` paste karke *
 
 Limits server pe bhi lagte hain (counter trigger, `create_order`, `get_shop_public.is_pro`). Owner plan columns khud update nahi kar sakta.
 
-### 1f. Baaki database updates (v6 se v18)
+### 1f. Baaki database updates (v6 se v23)
 
 **Ab apne aap:** `supabase/migrations/` mein nayi ya badli hui `.sql` file `main` pe push hote hi workflow **"Run Supabase SQL migrations"** use live DB pe chala deta hai (version order mein, wahi `SUPABASE_ACCESS_TOKEN` secret). Haath se chalana ho to Actions → is workflow → **Run workflow** → file ka naam ya `all`. Log mein sirf OK/FAIL aata hai. Har nayi migration file dobara chalane pe safe honi chahiye.
 
@@ -92,6 +95,13 @@ Limits server pe bhi lagte hain (counter trigger, `create_order`, `get_shop_publ
 | v18-order-lang | Notification sirf customer/owner ki bhasha mein | v17 |
 | v19-admin-plus | Admin panel mein Plus plan (Plus ko din dene par Plus hi rahe, MRR, Plus tag) | v16 |
 | v20-admin-grants | Edge Functions ko admins list padhne ki permission (admin panel ka "Something went wrong" fix) | v13 |
+| v23-idcard-reorder-paper | ID card sheet (Pro), Dobara print (`reorder`), kaagaz stock + low alert | v4, v14, v17, v18; functions `reorder`, `finalize-order`, `push-new-order` |
+
+### 1g. v23: ID card sheet, Dobara print, kaagaz stock
+1. `main` pe push hote hi workflow **"Run Supabase SQL migrations"** `2026-11-21-v23-idcard-reorder-paper.sql` chala deta hai, aur **"Deploy Supabase Edge Functions"** naya `reorder` function (aur badle hue `finalize-order`, `push-new-order`) deploy karta hai. Koi naya secret nahi.
+2. ID card: `order_files.item_kind = 'idcard'`, rate `rates.idcard_sheet` (na ho to ₹20) × copies. Sirf Pro / Plus. Windows app mein 100% (no scaling) pe print hota hai.
+3. Dobara print: `reorder()` naya order banata hai, phir `reorder` function purani files ko naye order ke apne path pe copy karta hai (har order ki apni files, isliye auto-delete ek order ki files dusre order se kabhi nahi hatata). Files delete ho chuki hon ya shop band ho to button nahi dikhta.
+4. Kaagaz: Settings → Paper stock. Order **Done** hone pe ek hi baar sheets ghat-ti hain (dono side = pages/2 upar round, passport / ID card = sheet × copies), 0 se neeche nahi. Limit se neeche jaane pe ek push, stock badhane ke baad hi agla.
 
 Function SQL se pehle deploy ho jaaye to zyada tar functions purane tarike se chalte rehte hain, lekin naye features SQL chalne ke baad hi on hote hain.
 

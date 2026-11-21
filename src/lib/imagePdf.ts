@@ -2,6 +2,7 @@
  * Client-side PDF making without dependencies:
  *  - imagesToPdf: each photo on its own A4 page (compressed JPEG)
  *  - passportSheetPdf: one photo, center-cropped to 35x45 mm, laid out on A4 at 300 dpi with cut lines
+ *  - idcardSheetPdf: front (and back) of an ID card at real size (85.6 x 54 mm) on one A4 page at 300 dpi
  * The PDF writer embeds canvas JPEGs directly (DCTDecode), so the files stay small.
  */
 
@@ -206,4 +207,55 @@ export async function passportSheetPdf(file: Blob, photos: number): Promise<Blob
     pages.push({ jpeg, pxW: SHEET_W, pxH: SHEET_H, pageW: A4_W, pageH: A4_H, x: 0, y: 0, w: A4_W, h: A4_H })
   }
   return buildPdf(pages)
+}
+
+/* ---------------- ID card (Aadhaar / PAN ...) ---------------- */
+
+const CARD_W = mm(85.6) // 1011 px, ID-1 / CR80
+const CARD_H = mm(54) // 638 px
+const CARD_GAP = mm(12)
+const CARD_RADIUS = mm(3.18)
+
+/** Small preview (data URL) of a cropped card side. */
+export function idcardPreview(side: HTMLCanvasElement): string {
+  const portrait = side.height > side.width
+  const w = portrait ? 108 : 171
+  const h = portrait ? 171 : 108
+  const { c, g } = canvas(w, h)
+  g.drawImage(side, 0, 0, w, h)
+  return c.toDataURL('image/jpeg', 0.85)
+}
+
+/**
+ * One A4 page at 300 dpi: the front above the back (if given), each at real card size, centred,
+ * with a thin dashed cut line on the card edge. A side cropped upright (taller than wide) is printed
+ * as an upright card (54 x 85.6 mm). The shop prints it at 100% (no scaling), `copies` times.
+ */
+export async function idcardSheetPdf(front: HTMLCanvasElement, back: HTMLCanvasElement | null): Promise<Blob> {
+  const sides = back ? [front, back] : [front]
+  const sizes = sides.map((s) => (s.height > s.width ? { w: CARD_H, h: CARD_W } : { w: CARD_W, h: CARD_H }))
+  const blockH = sizes.reduce((n, z) => n + z.h, 0) + CARD_GAP * (sides.length - 1)
+  const { c, g } = canvas(SHEET_W, SHEET_H)
+  g.fillStyle = '#ffffff'
+  g.fillRect(0, 0, SHEET_W, SHEET_H)
+  let y = Math.round((SHEET_H - blockH) / 2)
+  sides.forEach((side, i) => {
+    const { w, h } = sizes[i]
+    const x = Math.round((SHEET_W - w) / 2)
+    g.drawImage(side, x, y, w, h)
+    g.save()
+    g.strokeStyle = '#9ca3af'
+    g.lineWidth = 2
+    g.setLineDash([mm(1.5), mm(1)])
+    // Rounded like the card; older browsers without roundRect get a plain rectangle.
+    g.beginPath()
+    if (typeof g.roundRect === 'function') g.roundRect(x - 1, y - 1, w + 2, h + 2, CARD_RADIUS)
+    else g.rect(x - 1, y - 1, w + 2, h + 2)
+    g.stroke()
+    g.restore()
+    y += h + CARD_GAP
+  })
+  const jpeg = await toJpeg(c, 0.92)
+  c.width = c.height = 1
+  return buildPdf([{ jpeg, pxW: SHEET_W, pxH: SHEET_H, pageW: A4_W, pageH: A4_H, x: 0, y: 0, w: A4_W, h: A4_H }])
 }

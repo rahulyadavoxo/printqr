@@ -1,7 +1,7 @@
 import { ReactElement, useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { OrderStatus, supabase } from '../lib/supabase'
-import { rupees } from '../lib/pricing'
+import { useNavigate, useParams } from 'react-router-dom'
+import { DEFAULT_IDCARD_RATE, DEFAULT_PASSPORT_RATE, OrderStatus, Rates, supabase } from '../lib/supabase'
+import { filePrice, rupees } from '../lib/pricing'
 import { Key, useI18n } from '../lib/i18n'
 import { ShopBrand, TopBar } from '../components/TopBar'
 import { brandStyle } from '../lib/brand'
@@ -17,6 +17,22 @@ type Info = {
   token: number; status: OrderStatus; total: number; created_at: string; shop_name: string; upi_id: string | null; file_count: number
   /** v17 */
   files_deleted?: boolean; files_expire_at?: string | null; is_plus?: boolean; logo_url?: string | null; brand_color?: string | null
+}
+
+/** "Print again" (v23, public.reorder_info): the old order's files and the shop's rates today. */
+type ReFile = {
+  id: string; file_name: string; item_kind: 'print' | 'passport' | 'idcard'; pages: number; copies: number
+  color: boolean; duplex: boolean; binding: boolean; lamination: boolean; photos: number | null; allowed: boolean
+}
+type ReInfo = { can: boolean; is_open: boolean; rates: Rates; files: ReFile[] }
+type ReChoice = { on: boolean; copies: number; color: boolean }
+
+/** Same rules as public.reorder(): extras only while the shop still has a rate for them. */
+function rePrice(rates: Rates, f: ReFile, c: ReChoice): number {
+  if (f.item_kind === 'passport') return f.pages * c.copies * Number(rates.passport_sheet ?? DEFAULT_PASSPORT_RATE)
+  if (f.item_kind === 'idcard') return c.copies * Number(rates.idcard_sheet ?? DEFAULT_IDCARD_RATE)
+  return filePrice(rates, f.pages, c.copies, c.color, f.duplex,
+    f.binding && Number(rates.binding ?? 0) > 0, f.lamination && Number(rates.lamination ?? 0) > 0)
 }
 
 const READY_KEY = 'pq-ready-push'
@@ -44,9 +60,15 @@ const STEPS: { s: OrderStatus; label: Key }[] = [
   { s: 'printing', label: 'step_printing' }
 ]
 
+// A new order ("print again") opens a fresh page, so no state carries over from the old order.
 export default function Status() {
   const { id = '', key = '' } = useParams()
+  return <StatusPage key={id} id={id} orderKey={key} />
+}
+
+function StatusPage({ id, orderKey: key }: { id: string; orderKey: string }) {
   const { t, tn, te, lang } = useI18n()
+  const nav = useNavigate()
   const [info, setInfo] = useState<Info | null>(null)
   // "Ready" alert (v17): web push when the page is closed, sound + vibration while it is open.
   const [push, setPush] = useState<'off' | 'asking' | 'on' | 'denied'>(() => (pushAsked(id) ? 'on' : 'off'))
@@ -88,6 +110,56 @@ export default function Status() {
     setPush(ok ? 'on' : Notification.permission === 'denied' ? 'denied' : 'off')
   }
   const [err, setErr] = useState<{ text?: string; notFound?: boolean } | null>(null)
+
+  // "Print again" (v23): a new order with the same files, without uploading them again.
+  const [re, setRe] = useState<ReInfo | null>(null)
+  const [reOpen, setReOpen] = useState(false)
+  const [reChoice, setReChoice] = useState<Record<string, ReChoice>>({})
+  const [reBusy, setReBusy] = useState(false)
+  const [reMsg, setReMsg] = useState<string | null>(null)
+  const reEligible = !!info && !info.files_deleted && ['received', 'printing', 'ready', 'done'].includes(info.status)
+  useEffect(() => {
+    if (!reEligible) return
+    let stop = false
+    // Before the v23 database update this RPC does not exist: the button simply stays hidden.
+    supabase.rpc('reorder_info', { p_order_id: id, p_key: key }).then(({ data, error }) => {
+      if (stop || error || !data) return
+      const r = data as ReInfo
+      setRe(r)
+      setReChoice(Object.fromEntries(r.files.map((f) => [f.id, { on: f.allowed, copies: f.copies, color: f.item_kind === 'passport' ? true : f.color }])))
+    }, () => {})
+    return () => { stop = true }
+  }, [reEligible, id, key])
+
+  async function sendAgain() {
+    if (!re || !info) return
+    const items = re.files.filter((f) => f.allowed && reChoice[f.id]?.on)
+      .map((f) => ({ file_id: f.id, copies: reChoice[f.id].copies, color: reChoice[f.id].color }))
+    if (!items.length) return setReMsg(t('reNone'))
+    setReBusy(true)
+    setReMsg(null)
+    try {
+      const { data, error } = await supabase.rpc('reorder', { p_order_id: id, p_key: key, p_items: items })
+      if (error) throw error
+      const order = (data as { order_id: string; access_key: string }[])[0]
+      void supabase.rpc('set_order_lang', { p_order_id: order.order_id, p_key: order.access_key, p_lang: lang === 'hi' ? 'hi' : 'en' }).then(() => {}, () => {})
+      // The server copies the stored files to the new order and sends it to the shop.
+      const fin = await supabase.functions.invoke('reorder', { body: { order_id: order.order_id, key: order.access_key } })
+      if (fin.error) {
+        const ctx = (fin.error as { context?: Response }).context
+        let body: { message?: string } | undefined
+        try { body = (await ctx?.json()) as { message?: string } } catch { /* none */ }
+        throw new Error(body?.message || t('uFinalizeFail'))
+      }
+      const saved = JSON.parse(localStorage.getItem('pq_orders') || '[]') as unknown[]
+      localStorage.setItem('pq_orders', JSON.stringify([{ id: order.order_id, key: order.access_key, shop: info.shop_name, at: Date.now() }, ...saved].slice(0, 10)))
+      nav(`/o/${order.order_id}/${order.access_key}`)
+    } catch (e) {
+      setReMsg(te(e))
+    } finally {
+      setReBusy(false)
+    }
+  }
 
   useEffect(() => {
     let stop = false
@@ -191,6 +263,69 @@ export default function Status() {
       {info.files_deleted
         ? <p className="hint-line"><Icon name="shield" size={18} /> <span>{t('sFilesDeleted')}</span></p>
         : expText && <p className="hint-line"><Icon name="shield" size={18} /> <span>{t('sFilesExpire', { time: expText })}</span></p>}
+      {reEligible && re?.can && !reOpen && (
+        <button type="button" className="btn block lg" onClick={() => setReOpen(true)}>
+          <Icon name="printer" size={19} /> {t('reButton')}
+        </button>
+      )}
+      {reEligible && re?.can && reOpen && (() => {
+        const total = re.files.reduce((n, f) => n + (f.allowed && reChoice[f.id]?.on ? rePrice(re.rates, f, reChoice[f.id]) : 0), 0)
+        const set = (fid: string, p: Partial<ReChoice>) => setReChoice((c) => ({ ...c, [fid]: { ...c[fid], ...p } }))
+        return (
+          <div className="card form-card reorder-card">
+            <h2 className="card-title">{t('reTitle')}</h2>
+            <p className="small muted">{t('reSub')}</p>
+            {re.files.map((f) => {
+              const c = reChoice[f.id]
+              if (!c) return null
+              const off = !f.allowed || !c.on
+              return (
+                <div key={f.id} className={`re-file${off ? ' is-off' : ''}`}>
+                  <label className="re-name">
+                    <input type="checkbox" checked={c.on && f.allowed} disabled={!f.allowed || reBusy} onChange={(e) => set(f.id, { on: e.target.checked })} aria-label={t('reInclude')} />
+                    <strong>{f.item_kind === 'passport' ? t('ppSheetLabel') : f.item_kind === 'idcard' ? t('idSheetLabel') : f.file_name}</strong>
+                  </label>
+                  {!f.allowed ? <span className="small muted">🔒 {t('reLocked')}</span> : (
+                    <div className="re-opts">
+                      <span className="small muted">
+                        {f.item_kind === 'passport' ? t('ppCalc', { n: f.photos ?? '?', s: f.pages })
+                          : f.item_kind === 'idcard' ? t('idSub')
+                          : `${tn('uPages_one', 'uPages_other', f.pages)} · ${f.duplex ? t('bothSides') : t('oneSide')}`}
+                      </span>
+                      <div className="field">
+                        <span>{t('uCopies')}</span>
+                        <div className="stepper">
+                          <button type="button" aria-label={`${t('uCopies')} −`} disabled={off || reBusy || c.copies <= 1} onClick={() => set(f.id, { copies: Math.max(1, c.copies - 1) })}>−</button>
+                          <input type="number" min={1} max={100} value={c.copies} aria-label={t('uCopies')} disabled={off || reBusy}
+                            onChange={(e) => set(f.id, { copies: Math.max(1, Math.min(100, Number(e.target.value) || 1)) })} />
+                          <button type="button" aria-label={`${t('uCopies')} +`} disabled={off || reBusy || c.copies >= 100} onClick={() => set(f.id, { copies: Math.min(100, c.copies + 1) })}>+</button>
+                        </div>
+                      </div>
+                      {f.item_kind !== 'passport' && (
+                        <div className="seg" role="group" aria-label={t('optPrint')}>
+                          <button type="button" className={!c.color ? 'on' : ''} aria-pressed={!c.color} disabled={off || reBusy} onClick={() => set(f.id, { color: false })}>
+                            <span className="swatch sw-bw" aria-hidden="true" />{t('bw')}
+                          </button>
+                          <button type="button" className={c.color ? 'on' : ''} aria-pressed={c.color} disabled={off || reBusy} onClick={() => set(f.id, { color: true })}>
+                            <span className="swatch sw-color" aria-hidden="true" />{t('color')}
+                          </button>
+                        </div>
+                      )}
+                      <div className="file-price"><span /><strong>{rupees(rePrice(re.rates, f, c))}</strong></div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            {reMsg && <p className="notice error" role="alert"><Icon name="alert" size={18} /> <span>{reMsg}</span></p>}
+            <div className="file-price"><span className="muted">{t('total')}</span><strong>{rupees(total)}</strong></div>
+            <button type="button" className="btn primary block lg" disabled={reBusy || !re.files.some((f) => f.allowed && reChoice[f.id]?.on)} onClick={() => void sendAgain()}>
+              {reBusy ? <><span className="spinner" aria-hidden="true" />{t('pleaseWait')}</> : <>{t('reSend')} · {rupees(total)}</>}
+            </button>
+            <button type="button" className="btn ghost block" disabled={reBusy} onClick={() => { setReOpen(false); setReMsg(null) }}>{t('cancel')}</button>
+          </div>
+        )
+      })()}
     </>
   )
 }

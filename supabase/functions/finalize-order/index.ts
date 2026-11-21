@@ -1,6 +1,7 @@
 // POST { order_id, key }  (no JWT: customers are not signed in; the order's access key is the proof)
 // Downloads every uploaded PDF of the order, counts its real pages and hands the counts to
 // finalize_order_counted(), which fixes the price, checks the files and queues the order (v11, required).
+// ID card sheets (v23) are not repriced (copies x idcard_sheet) but must be a one-page PDF.
 import { Buffer } from 'node:buffer'
 import { PDFDocument } from 'npm:pdf-lib@1.17.1'
 import { corsHeaders, db, fail, HttpError, json } from '../_shared/billing.ts'
@@ -153,6 +154,13 @@ Deno.serve(async (req) => {
         const bytes = await download(f.storage_path)
         checkKind(bytes.slice(0, 1024), f.mime)
         counts[f.id] = await countPages(bytes)
+      } else if (f.item_kind === 'idcard' && f.mime === 'application/pdf') {
+        // v23: an ID card sheet is priced as one page per copy, so it must really be one page.
+        const bytes = await download(f.storage_path)
+        checkKind(bytes.slice(0, 1024), f.mime)
+        if ((await countPages(bytes)) !== 1) {
+          throw new HttpError(422, 'bad_file', 'The ID card sheet must be one page. Please make it again.')
+        }
       } else {
         checkKind(await head(f.storage_path, f.mime === 'application/pdf' ? 1024 : 64), f.mime)
       }
