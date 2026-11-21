@@ -1535,30 +1535,28 @@ img.shop-avatar { object-fit: cover; padding: 0; }
   .drawer-head > img, .drawer-head > svg { width: 40px !important; height: 40px !important; border-radius: 12px; }
   .drawer-title { gap: 2px; }
   .drawer-title strong {
-    font-size: 17px; font-weight: 800; line-height: 1.25; letter-spacing: -.01em;
     background: linear-gradient(90deg, #0b1210, #365314, #4d7c0f); -webkit-background-clip: text; background-clip: text; color: transparent;
   }
   [data-theme="dark"] .drawer-title strong { background: none; color: var(--c-ink); }
-  .drawer-sub { max-width: 100%; font-size: 12px; color: var(--c-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .drawer-sub { max-width: 100%; font-size: 13px; color: var(--c-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .drawer-title .plan-chip { margin-top: 4px; }
   .drawer-close { width: 40px; height: 40px; border-radius: 8px; margin: -2px -4px 0 0; }
   .drawer-close svg { width: 22px; height: 22px; }
   .drawer-nav { padding: 16px 12px; }
   .drawer-group { margin-bottom: 20px; }
   .drawer-group:last-child { margin-bottom: 0; }
-  .drawer-label { font-size: 10px; font-weight: 700; letter-spacing: .05em; padding: 0 12px 6px; color: rgba(11, 18, 16, .4); }
+  .drawer-label { padding: 0 12px 6px; color: rgba(11, 18, 16, .4); }
   [data-theme="dark"] .drawer-label { color: var(--c-faint); }
-  .drawer-item { gap: 12px; min-height: 44px; padding: 10px 12px; margin-bottom: 2px; border-radius: 12px; font-size: 14px; font-weight: 500; color: rgba(11, 18, 16, .65); transition: background-color .15s, color .15s; }
-  .drawer-item svg { width: 20px; height: 20px; flex: none; }
+  .drawer-item { gap: 12px; min-height: 52px; padding: 10px 12px; margin-bottom: 2px; border-radius: 12px; color: rgba(11, 18, 16, .65); transition: background-color .15s, color .15s; }
+  .drawer-item svg { flex: none; }
   .drawer-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .drawer-item:hover:not(.on) { background: rgba(236, 252, 203, .6); color: #0b1210; }
-  .drawer-item.on { background: #0b1210; color: #bef264; font-weight: 500; box-shadow: 0 1px 2px rgba(0, 0, 0, .05); }
+  .drawer-item.on { background: #0b1210; color: #bef264; box-shadow: 0 1px 2px rgba(0, 0, 0, .05); }
   [data-theme="dark"] .drawer-item { color: var(--c-ink-2); }
   [data-theme="dark"] .drawer-item:hover:not(.on) { background: var(--c-sunken); color: var(--c-ink); }
   [data-theme="dark"] .drawer-item.on { background: var(--c-lime); color: #0b1210; }
   .drawer-foot { padding: 12px; gap: 8px; border-top: 1px solid rgba(11, 18, 16, .1); }
   [data-theme="dark"] .drawer-foot { border-top-color: var(--c-line); }
-  .drawer-foot-row { padding: 0 4px; }
 
   /* Smooth slide in the Android WebView: while the menu is open the page behind is dimmed anyway,
      so stop the blurred glass bars and the bar animation from being redrawn every frame. */
