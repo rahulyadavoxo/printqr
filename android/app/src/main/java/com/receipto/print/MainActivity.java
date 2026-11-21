@@ -96,6 +96,9 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         "if(a&&/^(blob|data):/.test(a.href)){e.preventDefault();e.stopPropagation();save(a)}},true);" +
         "})();";
 
+    /** Strip behind the status bar; its colour follows the page's top bar (setStatusColor). */
+    private View statusBg;
+
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -114,11 +117,19 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             Insets sys = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
             Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
-            v.setPadding(sys.left, sys.top, sys.right, Math.max(sys.bottom, ime.bottom));
+            // Top inset gets its own strip (statusBg) so the page can colour the status bar to match its top bar.
+            v.setPadding(sys.left, 0, sys.right, Math.max(sys.bottom, ime.bottom));
+            FrameLayout.LayoutParams wl = (FrameLayout.LayoutParams) web.getLayoutParams();
+            if (wl.topMargin != sys.top) { wl.topMargin = sys.top; web.setLayoutParams(wl); }
+            FrameLayout.LayoutParams sl = (FrameLayout.LayoutParams) statusBg.getLayoutParams();
+            if (sl.height != sys.top) { sl.height = sys.top; statusBg.setLayoutParams(sl); }
             return WindowInsetsCompat.CONSUMED;
         });
         web = new WebView(this);
         root.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        statusBg = new View(this);
+        statusBg.setBackgroundColor(0xFFFAF9F6);
+        root.addView(statusBg, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, android.view.Gravity.TOP));
         setContentView(root);
         PushService.ensureChannel(this);
         PushService.active = this;
@@ -670,9 +681,24 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
                 w.setStatusBarColor(c);
                 w.setNavigationBarColor(c);
                 root.setBackgroundColor(c);
+                if (statusBg != null) statusBg.setBackgroundColor(c);
                 WindowInsetsControllerCompat bars = WindowCompat.getInsetsController(w, w.getDecorView());
                 bars.setAppearanceLightStatusBars(!dark);
                 bars.setAppearanceLightNavigationBars(!dark);
+            });
+        }
+
+        /** Status bar colour to match the page's own top bar (app 1.5.47+). hex like #e6e1d6. */
+        @JavascriptInterface
+        public void setStatusColor(String hex, boolean darkIcons) {
+            if (!trustedPage) return;
+            final int c;
+            try { c = android.graphics.Color.parseColor(hex); } catch (Exception e) { return; }
+            runOnUiThread(() -> {
+                Window w = getWindow();
+                w.setStatusBarColor(c);
+                if (statusBg != null) statusBg.setBackgroundColor(c);
+                WindowCompat.getInsetsController(w, w.getDecorView()).setAppearanceLightStatusBars(darkIcons);
             });
         }
 

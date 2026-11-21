@@ -20,6 +20,8 @@ export type NativeBridge = {
   canInstall?: () => boolean
   installUpdate?: () => string
   setBars?: (dark: boolean) => void
+  // status bar colour to match a page's top bar (app 1.5.47+)
+  setStatusColor?: (hex: string, darkIcons: boolean) => void
   // push notifications (app 1.5.21+); a new token also arrives through window.__pqPush
   pushToken?: () => string
   askNotify?: () => void

@@ -1,4 +1,5 @@
 import { nativeBridge, IN_APP, ON_ANDROID } from '../lib/app'
+import { setTopColor } from '../lib/theme'
 import barStoryUrl from '../assets/header-print-shop-story.svg'
 import { AppDownloadBanner } from '../components/AppDownload'
 import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, PointerEvent as RPointerEvent, TouchEvent as RTouchEvent, WheelEvent as RWheelEvent, useCallback, useEffect, useRef, useState } from 'react'
@@ -399,6 +400,14 @@ function ProfileMenu({ shop, planChip, onSettings, onLogout }: {
 }
 
 export default function Dashboard() {
+  // Phone/tablet: status bar (app) and Android browser bar match the grey top bar (#e6e1d6 / dark #070b09).
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023.98px)')
+    const sync = () => setTopColor(mq.matches ? { light: '#e6e1d6', dark: '#070b09' } : null)
+    sync()
+    mq.addEventListener?.('change', sync)
+    return () => { mq.removeEventListener?.('change', sync); setTopColor(null) }
+  }, [])
   const { free_counter_limit: freeLimit } = useAppSettings()
   const { session, loading } = useSession()
   const { t, lang } = useI18n()

@@ -24,13 +24,23 @@ export function applyTheme(pref: ThemePref) {
   const root = document.documentElement
   root.dataset.theme = dark ? 'dark' : 'light'
   root.style.colorScheme = dark ? 'dark' : 'light'
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0b1210' : '#faf9f6')
+  const top = topColor ? (dark ? topColor.dark : topColor.light) : dark ? '#0b1210' : '#faf9f6'
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', top)
   try {
     const b = nativeBridge()
     b?.setBars?.(dark)
+    if (topColor) b?.setStatusColor?.(top, !dark)
   } catch {
     /* older app without setBars */
   }
+}
+
+/** A page whose top bar has its own colour sets it here, so the phone status bar (app) and
+ *  Android browser bar (theme-color) match it; null puts back the normal page colour. */
+let topColor: { light: string; dark: string } | null = null
+export function setTopColor(c: { light: string; dark: string } | null) {
+  topColor = c
+  applyTheme(readTheme())
 }
 
 export function useTheme() {
