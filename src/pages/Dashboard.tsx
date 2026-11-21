@@ -1,6 +1,6 @@
 import { nativeBridge, IN_APP, ON_ANDROID } from '../lib/app'
 import { setTopColor } from '../lib/theme'
-import barStoryUrl from '../assets/header-print-shop-story.svg'
+import BarStory from '../components/BarStory'
 import { AppDownloadBanner } from '../components/AppDownload'
 import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, PointerEvent as RPointerEvent, TouchEvent as RTouchEvent, WheelEvent as RWheelEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -647,7 +647,7 @@ export default function Dashboard() {
             <Icon name="menu" size={24} />
           </button>
           {/* Android app only: animated print-shop story in the empty space of the phone bar */}
-          {IN_APP && <img className="bar-story m-only" src={barStoryUrl} alt="" aria-hidden="true" width={186} height={52} />}
+          {IN_APP && <BarStory />}
           {/* Phone/tablet: current page as a Supabase-style tab on the right of the bar */}
           <div className="bar-tab m-only" aria-current="page">
             <Icon name={current.icon} size={16} />
