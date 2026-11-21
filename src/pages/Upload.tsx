@@ -591,9 +591,16 @@ export default function Upload() {
         </div>
         {counterName && <p className="counter-tag">🧾 {t('uCounter', { name: counterName })}</p>}
         <div className="shop-head-foot">
-          <p className="rates-pill">
-            {t('ratesLine', { bw: rupees(shop.rates.bw_single), color: rupees(shop.rates.color_single) })}
-          </p>
+          <div className="rate-papers" role="img" aria-label={t('ratesLine', { bw: rupees(shop.rates.bw_single), color: rupees(shop.rates.color_single) })}>
+            <span className="rate-paper">
+              <svg viewBox="0 0 30 38" width="30" height="38" aria-hidden="true"><path d="M2 2h18l8 8v26H2z" fill="#fff" stroke="#9a9484" strokeWidth="1.5" strokeLinejoin="round"/><path d="M20 2v8h8" fill="#ece8dd" stroke="#9a9484" strokeWidth="1.5" strokeLinejoin="round"/><rect x="6" y="9" width="10" height="7" rx="1" fill="#2b2b2b"/><rect x="6" y="20" width="18" height="2.2" rx="1.1" fill="#555"/><rect x="6" y="25" width="15" height="2.2" rx="1.1" fill="#888"/><rect x="6" y="30" width="17" height="2.2" rx="1.1" fill="#555"/></svg>
+              <b>{rupees(shop.rates.bw_single)}</b><small>/page</small>
+            </span>
+            <span className="rate-paper">
+              <svg viewBox="0 0 30 38" width="30" height="38" aria-hidden="true"><path d="M2 2h18l8 8v26H2z" fill="#fff" stroke="#9a9484" strokeWidth="1.5" strokeLinejoin="round"/><path d="M20 2v8h8" fill="#fde9b0" stroke="#9a9484" strokeWidth="1.5" strokeLinejoin="round"/><rect x="6" y="9" width="10" height="7" rx="1" fill="#3b82f6"/><circle cx="13" cy="12" r="2" fill="#fbbf24"/><rect x="6" y="20" width="18" height="2.2" rx="1.1" fill="#ef4444"/><rect x="6" y="25" width="15" height="2.2" rx="1.1" fill="#22c55e"/><rect x="6" y="30" width="17" height="2.2" rx="1.1" fill="#a855f7"/></svg>
+              <b>{rupees(shop.rates.color_single)}</b><small>/page</small>
+            </span>
+          </div>
           <img className="shop-standee" src={shop.is_open ? standeeUrl : closedStandeeUrl} alt="" aria-hidden="true" width={160} height={132} />
         </div>
       </header>

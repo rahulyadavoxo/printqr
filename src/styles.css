@@ -536,6 +536,12 @@ input:focus, select:focus { outline: none; border-color: var(--c-brand); box-sha
 .order-actions .btn.primary.next-ready:hover { background: #222c42; }
 
 .form-card { max-width: 720px; }
+.rate-papers { display: flex; gap: 10px; margin: 14px 0 0; flex-wrap: wrap; }
+.rate-paper { display: inline-flex; align-items: center; gap: 7px; background: var(--c-accent-50); color: var(--c-accent-ink); border: 1px solid #f6d58b; padding: 6px 12px 6px 8px; border-radius: 14px; }
+.rate-paper svg { flex: none; filter: drop-shadow(0 1px 1px rgba(0,0,0,.12)); }
+.rate-paper b { font-size: 17px; font-weight: 800; }
+.rate-paper small { font-size: 12px; font-weight: 600; margin-left: -4px; opacity: .8; }
+[data-theme="dark"] .rate-paper { border-color: #5a4718; }
 .rates-grid { display: grid; grid-template-columns: 1fr; gap: 0 14px; }
 .input-affix { position: relative; }
 .input-affix .affix { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--c-muted); font-weight: 700; pointer-events: none; }
