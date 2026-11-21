@@ -21,6 +21,7 @@ import { pushStatus, removePush, setupPush } from '../lib/push'
 import { LangToggle, LogoMark, TopBar, Wordmark } from '../components/TopBar'
 import { ThemePref, useTheme } from '../lib/theme'
 import Icon from '../components/Icon'
+import { ImageLightbox, isImageName, StoredImageThumb, ViewImg } from '../components/ImagePreview'
 import { BOTTOM, isTab, NAV, savedSidebar, SbMode, Tab, TABS } from '../lib/dashNav'
 import { DashSkeleton, EditorSkel, OrdersSkel } from '../components/Skeletons'
 import { Period, startUpgrade, callFn, Tier, TIER_PRICES, yearlyOff } from '../lib/billing'
@@ -1168,6 +1169,7 @@ function OrderCard(props: {
   const busy = !!printingId
   const { t } = useI18n()
   const next = NEXT[o.status]
+  const [viewImg, setViewImg] = useState<ViewImg | null>(null)
   const nextIcon = o.status === 'received' ? 'printer' : o.status === 'printing' ? 'check' : 'user'
   return (
     <article className={`card order s-${o.status}`}>
@@ -1189,7 +1191,12 @@ function OrderCard(props: {
       <ul className="files">
         {(o.order_files || []).map((f) => (
           <li key={f.id}>
-            <div className="fname">{f.file_name}</div>
+            {!o.files_deleted && isImageName(f.file_name) ? (
+              <div className="file-head">
+                <StoredImageThumb path={f.storage_path} name={f.file_name} onOpen={setViewImg} />
+                <div className="fname is-img">{f.file_name}</div>
+              </div>
+            ) : <div className="fname">{f.file_name}</div>}
             {f.item_kind === 'passport' ? (
               <div className="file-meta">
                 <span className="pill tiny pp-pill">🪪 {t('ppSheetLabel')}</span>
@@ -1227,6 +1234,7 @@ function OrderCard(props: {
           </li>
         ))}
       </ul>
+      {viewImg && <ImageLightbox src={viewImg.src} name={viewImg.name} onClose={() => setViewImg(null)} />}
       {o.files_deleted && <p className="small muted files-gone"><Icon name="trash" size={15} /> {t('filesDeleted')}</p>}
       {!o.files_deleted && expiryText && <p className="small muted files-gone"><Icon name="clock" size={15} /> {t('filesExpireAt', { time: expiryText })}</p>}
       <div className="order-actions">

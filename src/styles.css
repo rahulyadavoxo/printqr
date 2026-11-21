@@ -510,6 +510,8 @@ input:focus, select:focus { outline: none; border-color: var(--c-brand); box-sha
 .files { list-style: none; padding: 0; margin: 12px 0; }
 .files li { padding: 12px; border: 1px solid var(--c-line); border-radius: var(--r-sm); background: var(--c-surface-2); margin-top: 8px; }
 .files .fname { font-weight: 650; font-size: 15px; }
+.files .file-head { display: flex; align-items: center; gap: 12px; }
+.files .fname.is-img { flex: 1; min-width: 0; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 6px; font-size: 13px; color: var(--c-muted); }
 .file-meta b { margin-left: auto; color: var(--c-ink); font-size: 14.5px; font-variant-numeric: tabular-nums; }
 .mchip { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 6px; background: var(--c-sunken); color: var(--c-ink-2); font-weight: 700; font-size: 12.5px; }
