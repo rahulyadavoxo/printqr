@@ -5,7 +5,7 @@ import { AppDownloadBanner } from '../components/AppDownload'
 import { CSSProperties, FormEvent, lazy, ReactNode, Suspense, PointerEvent as RPointerEvent, TouchEvent as RTouchEvent, WheelEvent as RWheelEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
-import { Counter, DEFAULT_IDCARD_RATE, DEFAULT_PASSPORT_RATE, Order, OrderFile, OrderStatus, plansReady, PRO_COUNTER_LIMIT, QrDesign, QrLink, qrCodeUrl, Rates, Shop, shopIsPlus, shopIsPro, shopUrl, supabase } from '../lib/supabase'
+import { Counter, isAuthError, recoverSession, DEFAULT_IDCARD_RATE, DEFAULT_PASSPORT_RATE, Order, OrderFile, OrderStatus, plansReady, PRO_COUNTER_LIMIT, QrDesign, QrLink, qrCodeUrl, Rates, Shop, shopIsPlus, shopIsPro, shopUrl, supabase } from '../lib/supabase'
 import { fileHours, FILE_HOURS, HISTORY_DAYS, PlanTier, shopTier, tierFor } from '../lib/plans'
 import { BRAND_SWATCHES, inkOn, validHex } from '../lib/brand'
 import { DAY_ORDER, normHours, ShopHours } from '../lib/hours'
@@ -907,7 +907,11 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
   const paperRef = useRef(onPaper)
   paperRef.current = onPaper
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (retry = true): Promise<void> => {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setLoaded(true)
+      return setErr(tRef.current('errOffline'))
+    }
     const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString()
     const { data, error } = await supabase
       .from('orders')
@@ -918,6 +922,8 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
       .order('created_at', { ascending: false })
     if (error) {
       setLoaded(true)
+      // Expired login after being offline: refresh it once and load again instead of showing a raw database error.
+      if (isAuthError(error) && retry && (await recoverSession())) return load(false)
       return setErr(teRef.current(error))
     }
     const list = (data || []) as Order[]
@@ -948,10 +954,14 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
       .channel('orders-' + shop.id)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `shop_id=eq.${shop.id}` }, () => void load())
       .subscribe()
-    const timer = setInterval(load, 30000) // safety net if realtime drops
+    const timer = setInterval(() => void load(), 30000) // safety net if realtime drops
+    // Back online: refresh the login first, then load the orders again by themselves.
+    const onOnline = () => { void supabase.auth.refreshSession().catch(() => null).finally(() => void load()) }
+    window.addEventListener('online', onOnline)
     if ('Notification' in window && Notification.permission === 'default') void Notification.requestPermission()
     return () => {
       clearInterval(timer)
+      window.removeEventListener('online', onOnline)
       void supabase.removeChannel(ch)
     }
   }, [shop.id, load])

@@ -12,6 +12,35 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' }
 })
 
+/** True for errors that mean the request went out without a valid login (expired token after being offline). */
+export function isAuthError(e: unknown): boolean {
+  const m = String((e as { message?: string } | null)?.message ?? e ?? '')
+  const code = String((e as { code?: string } | null)?.code ?? '')
+  return code === '42501' || code === 'PGRST301' || code === 'PGRST303' || /permission denied for (table|relation|schema)|jwt expired|invalid jwt/i.test(m)
+}
+
+/** After an auth error: refresh the login once. true = refreshed (retry the request), false = really signed out. */
+let refreshing: Promise<boolean> | null = null
+export function recoverSession(): Promise<boolean> {
+  if (!refreshing) {
+    refreshing = (async () => {
+      try {
+        const { data, error } = await supabase.auth.refreshSession()
+        if (data.session && !error) return true
+        // Offline: keep the saved login, try again when the internet is back.
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
+        await supabase.auth.signOut({ scope: 'local' })
+        return false
+      } catch {
+        return false
+      } finally {
+        setTimeout(() => { refreshing = null }, 0)
+      }
+    })()
+  }
+  return refreshing
+}
+
 export type Rates = {
   bw_single: number
   bw_double: number

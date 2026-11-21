@@ -624,6 +624,8 @@ const en = {
   updLater: 'Use the app now (update when online)',
   updRejected: 'This update cannot be installed on this phone. Keep using the app; the next update will come by itself.',
   updRetry: 'Try again',
+  errOffline: 'No internet. Orders will load again by themselves when you are back online.',
+  errSession: 'Your login needs refreshing. Reconnecting…',
   admTitle: "Admin panel",
   admRefresh: "Refresh",
   admOverview: "Overview",
@@ -1524,6 +1526,8 @@ const hi: Record<Key, string> = {
   updLater: 'अभी ऐप चलाएँ (नेट आने पर अपडेट)',
   updRejected: 'यह अपडेट इस फ़ोन पर नहीं लग सकता। अभी पुराना ऐप चलाएँ, अगला अपडेट अपने आप आएगा।',
   updRetry: 'फिर से कोशिश करें',
+  errOffline: 'इंटरनेट नहीं है। इंटरनेट आते ही ऑर्डर अपने आप फिर से दिखेंगे।',
+  errSession: 'लॉगिन रीफ़्रेश हो रहा है। दोबारा जोड़ रहे हैं…',
   admTitle: "एडमिन पैनल",
   admRefresh: "रीफ़्रेश",
   admOverview: "एक नज़र में",
@@ -1898,6 +1902,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       const raw = errMsg(e)
       const mb = /^this shop accepts up to (\d+) mb per order/i.exec(raw.trim())
       if (mb) return t('uOrderTooBig', { mb: mb[1] })
+      if ((typeof navigator !== 'undefined' && navigator.onLine === false) || /failed to fetch|networkerror|load failed|network request failed|fetch failed/i.test(raw)) return t('errOffline')
+      if (/permission denied for (table|relation|schema)|jwt expired|invalid jwt|jwt.*(malformed|invalid)/i.test(raw)) return t('errSession')
       const k = SERVER_ERRORS[raw.trim().replace(/\.$/, '').toLowerCase()]
       return k ? t(k) : raw
     }
