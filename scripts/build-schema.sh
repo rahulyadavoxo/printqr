@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Rebuilds supabase/schema.sql = supabase/schema-base.sql (the original v1 tables) + every migration in
+# Rebuilds supabase/schema.sql = supabase/schema-base.sql (v1 + v2 + v3) + every migration from v4 in
 # version order. One file for a fresh install, always in step with the migrations.
 # Run it after adding a migration: scripts/build-schema.sh   (CI fails when schema.sql is out of date)
 set -euo pipefail
 cd "$(dirname "$0")/.."
-files=$(cd supabase/migrations && for f in *.sql; do n=$(echo "$f" | grep -oE -- '-v[0-9]+' | head -1 | tr -dc '0-9'); echo "${n:-0} $f"; done | sort -n | awk '{print $2}')
+# v2 and v3 are already part of schema-base.sql (re-running them on the newer shape fails), so start at v4.
+files=$(cd supabase/migrations && for f in *.sql; do n=$(echo "$f" | grep -oE -- '-v[0-9]+' | head -1 | tr -dc '0-9'); [ "${n:-0}" -ge 4 ] && echo "$n $f"; done | sort -n | awk '{print $2}')
 last=$(echo "$files" | tail -1 | grep -oE -- '-v[0-9]+' | tr -dc '0-9')
 {
   echo "-- PrintQR database schema for Supabase (base + every migration up to v$last)."

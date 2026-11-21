@@ -87,8 +87,10 @@ jobs:
 
       - name: Alert on failure
         if: failure()
-        run: scripts/gh-alert.sh open "Backup restore test failed" "The monthly restore test failed: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+        run: |
+          scripts/gh-alert.sh open "Backup restore test failed" "The monthly restore test failed: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
       - name: Close alert
         if: success()
-        run: scripts/gh-alert.sh close "Backup restore test failed" "Restore test passed."
+        run: |
+          scripts/gh-alert.sh close "Backup restore test failed" "Restore test passed."
