@@ -600,7 +600,7 @@ export default function Upload() {
 
       {!shop.is_open ? (
         <div className="card state-card closed-card">
-          <span className="state-icon" aria-hidden="true"><Icon name="lock" size={28} /></span>
+          <img className="closed-card-art" src={closedStandeeUrl} alt="" aria-hidden="true" width={160} height={132} />
           <h2>{t('uClosedTitle')}</h2>
           <p className="muted">{t('uClosedBody')}</p>
           {opening && (
@@ -608,6 +608,7 @@ export default function Upload() {
               ? t('uOpensToday', { time: timeLabel(opening.time, lang) })
               : t('uOpensOn', { day: dayName(opening.dow), time: timeLabel(opening.time, lang) })}</p>
           )}
+          {opening && shop.hours ? (() => { const d = normHours(shop.hours).days[String(opening.dow)]; return d ? <p className="hours-line">{timeLabel(d.open, lang)} – {timeLabel(d.close, lang)}</p> : null })() : null}
         </div>
       ) : (
         <>
