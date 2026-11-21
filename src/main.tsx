@@ -17,7 +17,12 @@ window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change',
 
 startPwa()
 // In the app, text isn't selectable/copyable by long-press (inputs still are) - see .in-app in styles.css
-if (IN_APP) document.documentElement.classList.add('in-app')
+if (IN_APP) {
+  document.documentElement.classList.add('in-app')
+  // The app screen must never zoom (pinch, double-tap or focusing a field) - lock the viewport scale too
+  document.querySelector('meta[name="viewport"]')?.setAttribute('content',
+    'width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover')
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

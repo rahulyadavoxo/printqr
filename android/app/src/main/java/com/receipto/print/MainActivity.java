@@ -143,6 +143,8 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         s.setBuiltInZoomControls(false);
         s.setDisplayZoomControls(false);
         s.setTextZoom(100);
+        s.setUseWideViewPort(false);
+        s.setLoadWithOverviewMode(false);
         s.setAllowFileAccess(false);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setSupportMultipleWindows(true); // Razorpay opens bank / 3-D Secure pages in a pop-up
@@ -556,6 +558,7 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         ps.setDomStorageEnabled(true);
         ps.setJavaScriptCanOpenWindowsAutomatically(true);
         ps.setSupportMultipleWindows(false);
+        ps.setTextZoom(100);
         ps.setUserAgentString(web.getSettings().getUserAgentString());
         CookieManager.getInstance().setAcceptThirdPartyCookies(p, true);
         p.setWebViewClient(new WebViewClient() {

@@ -1264,6 +1264,7 @@ button.ed-top-title:hover { background: var(--c-sunken); }
 }
 
 /* App: no long-press text selection / copy menu (fields stay editable and selectable) */
+html.in-app { touch-action: pan-x pan-y; overflow-x: hidden; }
 html.in-app body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 html.in-app input, html.in-app textarea, html.in-app select, html.in-app [contenteditable="true"], html.in-app .selectable {
   -webkit-user-select: text; user-select: text; -webkit-touch-callout: default;
