@@ -1,0 +1,112 @@
+name: Daily database backup (to Cloudflare R2)
+
+# Every night ~03:00 IST (and manually from Actions): dumps the Supabase database with the Supabase CLI
+# (roles, schema, data), packs it, ENCRYPTS it with BACKUP_PASSWORD, and uploads it straight to a private
+# Cloudflare R2 bucket. Uploaded files (photos/PDFs) are not included, only the database.
+#
+# The repo is public, so: nothing is saved as an Actions artifact, no data or URLs are printed to the log,
+# and the dump never leaves this job unencrypted.
+# Until all secrets are set the job only prints a notice and exits OK (no failing runs).
+#
+# Secrets: SUPABASE_DB_URL (Session pooler URI), BACKUP_PASSWORD,
+#          R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET
+# Restore: see README / steps (openssl dec -> tar -> psql roles.sql, schema.sql, data.sql).
+
+on:
+  schedule:
+    - cron: '30 21 * * *'   # 21:30 UTC = 03:00 IST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      AWS_DEFAULT_REGION: auto
+      # R2 does not need the newer AWS CLI default checksums; send them only when required
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+    steps:
+      - name: Check secrets
+        id: check
+        run: |
+          missing=""
+          [ -n "$SUPABASE_DB_URL" ] || missing="$missing SUPABASE_DB_URL"
+          [ -n "$BACKUP_PASSWORD" ] || missing="$missing BACKUP_PASSWORD"
+          [ -n "$R2_ACCOUNT_ID" ] || missing="$missing R2_ACCOUNT_ID"
+          [ -n "$AWS_ACCESS_KEY_ID" ] || missing="$missing R2_ACCESS_KEY_ID"
+          [ -n "$AWS_SECRET_ACCESS_KEY" ] || missing="$missing R2_SECRET_ACCESS_KEY"
+          [ -n "$R2_BUCKET" ] || missing="$missing R2_BUCKET"
+          if [ -n "$missing" ]; then
+            echo "::notice::Backup skipped, secrets not set yet:$missing"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: supabase/setup-cli@v1
+        if: steps.check.outputs.ready == 'true'
+        with:
+          version: 3.2.0   # pinned: v4 changes db dump flags
+
+      - name: Dump database (roles, schema, data)
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/dump"
+          cd "$RUNNER_TEMP/dump"
+          # Output goes to files only. On failure show the CLI's error with any connection string removed
+          # (GitHub also masks secret values in logs).
+          fail() {
+            echo "::error::$1"
+            sed -E 's#postgres(ql)?://[^ "]*#<db-url>#g' err.txt | tail -n 15
+            exit 1
+          }
+          : > err.txt
+          supabase db dump --remote="$SUPABASE_DB_URL" -f roles.sql --role-only > /dev/null 2>> err.txt || fail "Roles dump failed"
+          supabase db dump --remote="$SUPABASE_DB_URL" -f schema.sql > /dev/null 2>> err.txt || fail "Schema dump failed"
+          supabase db dump --remote="$SUPABASE_DB_URL" -f data.sql --data-only --use-copy > /dev/null 2>> err.txt || fail "Data dump failed"
+          rm -f err.txt
+          touch roles.sql   # may be empty when there are no custom roles
+          for f in schema.sql data.sql; do
+            [ -s "$f" ] || { echo "::error::$f is empty"; exit 1; }
+          done
+          echo "Dump OK"
+
+      - name: Pack and encrypt
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          NAME="printqr-db-$(TZ=Asia/Kolkata date +%Y-%m-%d_%H%M).tar.gz.enc"
+          tar -czf - -C dump roles.sql schema.sql data.sql \
+            | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:BACKUP_PASSWORD -out "$NAME"
+          rm -rf dump
+          # Self-check: the file decrypts and the archive is readable
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:BACKUP_PASSWORD -in "$NAME" | tar -tzf - > /dev/null
+          echo "NAME=$NAME" >> "$GITHUB_ENV"
+          echo "Encrypted OK ($(du -h "$NAME" | cut -f1))"
+
+      - name: Upload to R2
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          aws s3 cp "$NAME" "s3://$R2_BUCKET/db/$NAME" \
+            --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com" --only-show-errors \
+            || { echo "::error::Upload to R2 failed (check R2 keys / bucket name)"; exit 1; }
+          rm -f "$NAME"
+          echo "Uploaded OK: db/$NAME"
