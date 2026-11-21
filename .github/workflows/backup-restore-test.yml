@@ -1,0 +1,94 @@
+name: Backup restore test
+
+# Proves the backups can really be restored. Monthly (1st, ~04:00 IST) and manually from Actions.
+# Downloads the NEWEST backup from R2, decrypts it (.gpg, or older .enc files), restores it into a throw-away
+# local Supabase inside this job (roles, schema, data) and checks the main tables came back with rows.
+# Nothing touches the live database. Logs are public: only OK / EMPTY per table and the time taken are printed.
+# A failure opens a GitHub "alert" issue.
+
+on:
+  schedule:
+    - cron: '30 22 1 * *'   # 22:30 UTC on the 1st = 04:00 IST on the 2nd
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      AWS_DEFAULT_REGION: auto
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
+        with:
+          version: latest
+
+      - name: Download newest backup
+        run: |
+          set -euo pipefail
+          for v in BACKUP_PASSWORD R2_ACCOUNT_ID AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY R2_BUCKET; do
+            [ -n "${!v}" ] || { echo "::error::Secret for $v is missing"; exit 1; }
+          done
+          EP="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+          NAME=$(aws s3 ls "s3://$R2_BUCKET/db/" --endpoint-url "$EP" | awk '{print $4}' | grep -E '^printqr-db-.*\.(gpg|enc)$' | sort | tail -1)
+          [ -n "$NAME" ] || { echo "::error::No backup found in the bucket"; exit 1; }
+          aws s3 cp "s3://$R2_BUCKET/db/$NAME" "$RUNNER_TEMP/$NAME" --endpoint-url "$EP" --only-show-errors
+          echo "Newest backup: $NAME"
+          echo "NAME=$NAME" >> "$GITHUB_ENV"
+
+      - name: Decrypt and unpack
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/dump" && cd "$RUNNER_TEMP"
+          case "$NAME" in
+            *.gpg) printf '%s' "$BACKUP_PASSWORD" | gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 0 --decrypt "$NAME" | tar -xzf - -C dump ;;
+            *.enc) openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:BACKUP_PASSWORD -in "$NAME" | tar -xzf - -C dump ;;
+          esac
+          rm -f "$NAME"
+          ls dump
+
+      - name: Restore into a local Supabase
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          scripts/local-supabase.sh
+          export PGPASSWORD=postgres
+          cd "$RUNNER_TEMP/dump"
+          # Supabase's documented restore order. Output goes to a file (it may contain data); only errors count.
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -X -q --single-transaction -v ON_ERROR_STOP=1 \
+            -f roles.sql -f schema.sql -c 'SET session_replication_role = replica' -f data.sql > /dev/null 2> err.txt \
+            || { echo "::error::Restore failed"; grep -E 'ERROR' err.txt | sed -E 's/(DETAIL|Key).*//' | head -5; exit 1; }
+          echo "Restored in $(( $(date +%s) - start )) seconds"
+
+      - name: Check the data came back
+        run: |
+          set -euo pipefail
+          export PGPASSWORD=postgres
+          bad=0
+          for t in auth.users public.shops public.orders public.order_files; do
+            n=$(psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -X -tA -c "select count(*) > 0 from $t" || echo f)
+            if [ "$n" = "t" ]; then echo "OK     $t"; else echo "EMPTY  $t"; bad=1; fi
+          done
+          [ "$bad" = 0 ] || { echo "::error::Some tables came back empty"; exit 1; }
+          echo "Restore test passed"
+
+      - name: Alert on failure
+        if: failure()
+        run: scripts/gh-alert.sh open "Backup restore test failed" "The monthly restore test failed: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+      - name: Close alert
+        if: success()
+        run: scripts/gh-alert.sh close "Backup restore test failed" "Restore test passed."
