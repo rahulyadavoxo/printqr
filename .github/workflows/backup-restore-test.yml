@@ -67,6 +67,10 @@ jobs:
           scripts/local-supabase.sh
           export PGPASSWORD=postgres
           cd "$RUNNER_TEMP/dump"
+          # Supabase-internal storage tables (vector/analytics buckets) are owned by
+          # supabase_storage_admin and can't be written by postgres locally; we don't use them, so skip their rows.
+          awk '/^COPY "storage"\."(buckets_vectors|vector_indexes|buckets_analytics|iceberg_[a-z_]+)"/{skip=1;next} skip&&/^\\\.$/{skip=0;next} !skip' data.sql > data.clean.sql
+          mv data.clean.sql data.sql
           # Supabase's documented restore order. Output goes to a file (it may contain data); only errors count.
           psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -X -q --single-transaction -v ON_ERROR_STOP=1 \
             -f roles.sql -f schema.sql -c 'SET session_replication_role = replica' -f data.sql > /dev/null 2> err.txt \
