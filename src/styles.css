@@ -1209,12 +1209,12 @@ button.ed-top-title:hover { background: var(--c-sunken); }
 /* Phone/tablet top bar: Supabase SQL-editor tab strip. Grey strip, current page is a white tab
    on the right that sits on the bar's bottom line (no separate big heading). */
 @media (max-width: 1023.98px) {
-  .dash .dash-bar { background: #e6e1d6; border-bottom: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .dash .dash-bar { background: #e6e1d6; border-bottom: none; backdrop-filter: none; -webkit-backdrop-filter: none; border-radius: 0 0 22px 22px; }
   .dash .dash-bar .topbar-in { min-height: 52px; padding-top: 0; padding-bottom: 0; align-items: stretch; }
   .dash .dash-bar .menu-btn { align-self: center; }
   /* Chrome-style tab: rounded top corners + concave curved feet that flow into the strip */
   .bar-tab {
-    position: relative; margin-left: auto; margin-right: 6px; margin-top: 8px; margin-bottom: -1px;
+    position: relative; margin-left: auto; margin-right: 22px; margin-top: 8px; margin-bottom: -1px;
     display: flex; align-items: center; gap: 8px; max-width: 62vw; padding: 0 18px;
     background: var(--c-bg); color: var(--c-ink); border: none; border-radius: 12px 12px 0 0;
     font-size: 15px; font-weight: 600;
