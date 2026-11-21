@@ -25,7 +25,7 @@ Customer ko shop ka WhatsApp number save nahi karna padta. Shop wala apna QR pos
 - File kholo/print, download, status badlo (Print shuru → Ready → Done), cancel
 - Hisaab: aaj, 7 din, 30 din ki kamai
 - Shop khuli/band toggle
-- Files auto-delete (1 se 48 ghante, shop choose kare) + "files abhi delete karo" button
+- Files auto-delete (plan ke hisaab se: Free 3 ghante, Pro 24 ghante, Plus 7 din; jo order abhi print nahi hua uski files kam se kam 48 ghante rehti hain) + "files abhi delete karo" button
 - Kaagaz ka stock (sheets ya reams): order Done karne pe sheets apne aap ghat-ti hain, kam hone pe banner + phone pe ek push (sab plans)
 
 ## Tech
@@ -58,7 +58,7 @@ Agar `schema.sql` pehle chala chuke ho, to **SQL Editor** mein `supabase/migrati
 
 | Plan | Price | Features |
 |---|---|---|
-| Free | ₹0 | Owner dashboard pe ads, sirf main QR queue, passport / ID card sheet nahi, files 1 ghanta, order 50 MB, history 7 din |
+| Free | ₹0 | Owner dashboard pe ads, sirf main QR queue, passport / ID card sheet nahi, files 3 ghante, order 50 MB, history 7 din |
 | Pro | ₹49/month ya ₹539/year (1 month free) | Customers ke liye no ads, 2 naye counters, passport photo sheet, ID card sheet, dynamic QR, QR card design, auto-print, files 24 ghante, order 100 MB, history 6 mahine |
 | Plus | ₹99/month ya ₹999/year | Pro ka sab kuch + kahin bhi ads nahi, unlimited counters, apna colour/logo (branding), staff logins, files 7 din, order 200 MB, history 1 saal |
 

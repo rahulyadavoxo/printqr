@@ -15,6 +15,7 @@ import { ImageLightbox, LocalImageThumb, ViewImg } from '../components/ImagePrev
 import { makeThumb, thumbPath } from '../lib/thumb'
 import PagePicker from '../components/PagePicker'
 import ReportShop from '../components/ReportShop'
+import { Turnstile } from '../components/Turnstile'
 import standeeUrl from '../assets/qr-standee.svg'
 import closedStandeeUrl from '../assets/closed-qr-standee.svg'
 
@@ -193,6 +194,23 @@ export default function Upload() {
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<Progress | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  // v25: the bot check appears only when the server asks for it (many orders from one network / shop in 10 min).
+  const [needCheck, setNeedCheck] = useState(false)
+  const [pass, setPass] = useState<string | null>(null)
+  const [checkReset, setCheckReset] = useState(0)
+  async function onCheckToken(token: string | null) {
+    if (!token) return setPass(null)
+    const r = await supabase.functions.invoke('upload-pass', { body: { token } })
+    const p = (r.data as { pass?: string } | null)?.pass
+    if (r.error || !p) {
+      setPass(null)
+      setMsg(t('uCheckFail'))
+      setCheckReset((n) => n + 1)
+      return
+    }
+    setPass(p)
+    setMsg(null)
+  }
   const [dragging, setDragging] = useState(false)
   const [combine, setCombine] = useState(true)
   const [combo, setCombo] = useState<Opts>({ copies: 1, color: true, duplex: false, binding: false, lamination: false })
@@ -466,15 +484,25 @@ export default function Upload() {
       setProgress(null)
       if (uploads.reduce((n, u) => n + u.blob.size, 0) > maxOrder) throw new Error(t('uOrderTooBig', { mb: maxMb }))
 
-      const args = { p_slug: slug, p_customer_name: name, p_note: note, p_files: uploads.map((u) => u.payload) }
-      // No CAPTCHA on orders (owner's choice, 2026-11-18). v7 IP + per-shop rate limits still apply.
+      const args: Record<string, unknown> = { p_slug: slug, p_customer_name: name, p_note: note, p_files: uploads.map((u) => u.payload) }
+      // v25: no bot check for normal customers; the server asks for one (captcha_required) only for automated-looking orders.
+      if (pass) {
+        args.p_pass = pass
+        setPass(null)
+        setCheckReset((n) => n + 1)
+      }
       let res: { data: unknown; error: { code?: string; message: string } | null } = counterId
         ? await supabase.rpc('create_order', { ...args, p_counter: counterId })
         : await supabase.rpc('create_order', args)
       // Database not updated to v2 yet: the counter argument is unknown. Send the order without it.
       if (counterId && res.error && res.error.code === 'PGRST202') res = await supabase.rpc('create_order', args)
       const { data, error } = res
+      if (error && /captcha_required/i.test(error.message || '')) {
+        setNeedCheck(true)
+        throw new Error(t('uCheckNeeded'))
+      }
       if (error) throw error
+      setNeedCheck(false)
       const order = (data as { order_id: string; access_key: string; token: number; paths: string[] }[])[0]
       // v18: the 'order ready' notification comes in the language the customer ordered in (ignored if the DB is older).
       void supabase.rpc('set_order_lang', { p_order_id: order.order_id, p_key: order.access_key, p_lang: lang === 'hi' ? 'hi' : 'en' }).then(() => {}, () => {})
@@ -861,6 +889,12 @@ export default function Upload() {
 
 
           {msg && <p className="notice error" role="alert"><Icon name="alert" size={18} /> <span>{msg}</span></p>}
+          {needCheck && (
+            <div className="card check-card">
+              <p className="small"><strong>{t('uCheckTitle')}</strong> {pass ? t('uCheckOk') : t('uCheckSub')}</p>
+              <Turnstile action="upload" onToken={(tok) => void onCheckToken(tok)} resetKey={checkReset} lang={lang} />
+            </div>
+          )}
 
           {hasItems && (
             <div className="sticky-bar">
@@ -875,7 +909,7 @@ export default function Upload() {
                     <span className="sticky-label">{t('total')} · {tn('files_one', 'files_other', uploadCount)}</span>
                     <strong>{rupees(total)}</strong>
                   </div>
-                  <button type="button" className="btn primary lg sticky-cta" onClick={submit} disabled={busy || invalid}>
+                  <button type="button" className="btn primary lg sticky-cta" onClick={submit} disabled={busy || invalid || (needCheck && !pass)}>
                     {busy ? <><span className="spinner" aria-hidden="true" />{progress?.text || t('pleaseWait')}</> : <>{t('uSend')} <Icon name="arrow" size={20} /></>}
                   </button>
                 </div>

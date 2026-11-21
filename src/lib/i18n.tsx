@@ -787,7 +787,7 @@ const en = {
   uOrderTooBig: "This shop accepts up to {mb} MB per order. Remove some files or send them in another order.",
   uOpensToday: "Opens today at {time}",
   uOpensOn: "Opens {day} at {time}",
-  uAutoDeleteH: "Your files are deleted automatically within {time}.",
+  uAutoDeleteH: "Your files are deleted automatically after printing, within {time}.",
   durH_one: "{n} hour",
   durH_other: "{n} hours",
   durD_one: "{n} day",
@@ -899,7 +899,7 @@ const en = {
   cmpNoBranding: "No PrintQR branding",
   cmpOwnBrand: "Your logo & colour",
   cmpStaff: "Staff logins",
-  cmp1h: "1 hour",
+  cmp1h: "3 hours",
   cmp24h: "24 hours",
   cmp7d: "7 days",
   cmp50mb: "50 MB",
@@ -908,7 +908,28 @@ const en = {
   cmpUnlimited: "Unlimited",
   cmp7days: "7 days",
   cmp6m: "6 months",
-  cmp1y: "1 year"
+  cmp1y: "1 year",
+  // v25: print claim, block sender, bot check only when needed, storage limits
+  dpAlreadyStarted: "Order #{token} was already started on another screen. Nothing was printed twice.",
+  blockSender: "Block sender",
+  blockConfirm: "Block orders from this customer's network at your shop? Their open orders are cancelled. You can unblock in Settings.",
+  blockNoId: "This order has no network id (older order or a reprint), so it cannot be blocked.",
+  blockDone_one: "Blocked. {n} open order was cancelled.",
+  blockDone_other: "Blocked. {n} open orders were cancelled.",
+  blockedCount_one: "{n} blocked sender.",
+  blockedCount_other: "{n} blocked senders.",
+  unblockAll: "Unblock all",
+  unblockConfirm: "Unblock every blocked sender?",
+  unblockDone: "All senders unblocked.",
+  uCheckNeeded: "Many orders came from here just now. Please complete the quick check below, then tap Send again.",
+  uCheckTitle: "Quick check.",
+  uCheckSub: "Confirm you are a person.",
+  uCheckOk: "Done. Tap Send now.",
+  uCheckFail: "The check did not go through. Please try it again.",
+  errSenderBlocked: "This shop is not accepting orders from your network. Please talk to the shop.",
+  errShopSpaceFull: "This shop's file space is full right now. Please ask the shop to finish or clear old orders, then try again.",
+  errServiceBusy: "Uploads are paused for a short while because the service is very busy. Please try again later.",
+  errTooManyAttempts: "This order could not be sent. Please start a new order."
 }
 
 export type Key = keyof typeof en
@@ -1689,7 +1710,7 @@ const hi: Record<Key, string> = {
   uOrderTooBig: "यह दुकान एक ऑर्डर में {mb} MB तक लेती है। कुछ फ़ाइलें हटाएँ या दूसरे ऑर्डर में भेजें।",
   uOpensToday: "आज {time} बजे खुलेगी",
   uOpensOn: "{day} को {time} बजे खुलेगी",
-  uAutoDeleteH: "आपकी फ़ाइलें {time} के अंदर अपने आप डिलीट हो जाती हैं।",
+  uAutoDeleteH: "प्रिंट के बाद आपकी फ़ाइलें {time} के अंदर अपने आप डिलीट हो जाती हैं।",
   durH_one: "{n} घंटे",
   durH_other: "{n} घंटे",
   durD_one: "{n} दिन",
@@ -1801,7 +1822,7 @@ const hi: Record<Key, string> = {
   cmpNoBranding: "PrintQR ब्रांडिंग नहीं",
   cmpOwnBrand: "आपका लोगो और रंग",
   cmpStaff: "स्टाफ़ लॉगिन",
-  cmp1h: "1 घंटा",
+  cmp1h: "3 घंटे",
   cmp24h: "24 घंटे",
   cmp7d: "7 दिन",
   cmp50mb: "50 MB",
@@ -1810,7 +1831,27 @@ const hi: Record<Key, string> = {
   cmpUnlimited: "असीमित",
   cmp7days: "7 दिन",
   cmp6m: "6 महीने",
-  cmp1y: "1 साल"
+  cmp1y: "1 साल",
+  dpAlreadyStarted: "ऑर्डर #{token} दूसरी स्क्रीन पर पहले ही शुरू हो चुका है। कुछ भी दो बार प्रिंट नहीं हुआ।",
+  blockSender: "भेजने वाले को ब्लॉक करें",
+  blockConfirm: "इस ग्राहक के नेटवर्क से आपकी दुकान पर आने वाले ऑर्डर ब्लॉक करें? उसके खुले ऑर्डर कैंसिल हो जाएँगे। सेटिंग में अनब्लॉक कर सकते हैं।",
+  blockNoId: "इस ऑर्डर का नेटवर्क आईडी नहीं है (पुराना ऑर्डर या दोबारा प्रिंट), इसलिए ब्लॉक नहीं हो सकता।",
+  blockDone_one: "ब्लॉक हो गया। {n} खुला ऑर्डर कैंसिल हुआ।",
+  blockDone_other: "ब्लॉक हो गया। {n} खुले ऑर्डर कैंसिल हुए।",
+  blockedCount_one: "{n} भेजने वाला ब्लॉक है।",
+  blockedCount_other: "{n} भेजने वाले ब्लॉक हैं।",
+  unblockAll: "सबको अनब्लॉक करें",
+  unblockConfirm: "सभी ब्लॉक किए गए लोगों को अनब्लॉक करें?",
+  unblockDone: "सभी अनब्लॉक हो गए।",
+  uCheckNeeded: "अभी यहाँ से बहुत सारे ऑर्डर आए हैं। नीचे छोटा सा चेक पूरा करें, फिर भेजें दोबारा दबाएँ।",
+  uCheckTitle: "छोटा सा चेक।",
+  uCheckSub: "बताइए कि आप इंसान हैं।",
+  uCheckOk: "हो गया। अब भेजें दबाएँ।",
+  uCheckFail: "चेक पूरा नहीं हुआ। कृपया फिर से करें।",
+  errSenderBlocked: "यह दुकान आपके नेटवर्क से ऑर्डर नहीं ले रही है। कृपया दुकान से बात करें।",
+  errShopSpaceFull: "इस दुकान की फ़ाइल जगह अभी भरी हुई है। दुकान से पुराने ऑर्डर पूरे या साफ़ करने को कहें, फिर दोबारा कोशिश करें।",
+  errServiceBusy: "सर्विस अभी बहुत व्यस्त है, इसलिए अपलोड थोड़ी देर के लिए रुके हैं। कृपया बाद में कोशिश करें।",
+  errTooManyAttempts: "यह ऑर्डर नहीं भेजा जा सका। कृपया नया ऑर्डर शुरू करें।"
 }
 
 export type Lang = 'en' | 'hi'
@@ -1844,7 +1885,11 @@ const SERVER_ERRORS: Record<string, Key> = {
   'please write what is wrong': 'errWriteReason',
   'staff login needs the plus plan': 'staffLocked',
   'up to 10 staff per shop': 'staffMax',
-  'this is your own login': 'staffSelf'
+  'this is your own login': 'staffSelf',
+  'this shop is not accepting orders from your network': 'errSenderBlocked',
+  "this shop's file space is full right now. please ask the shop to finish or clear old orders, then try again": 'errShopSpaceFull',
+  'uploads are paused for a short while because the service is very busy. please try again later': 'errServiceBusy',
+  'this order could not be sent. please start a new order': 'errTooManyAttempts'
 }
 
 type Ctx = {

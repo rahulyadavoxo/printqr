@@ -2,7 +2,7 @@ import { plansReady, Shop, shopIsPlus, shopIsPro } from './supabase'
 
 /** Plan limits (same numbers as public.plan_file_hours / plan_order_bytes / plan_history_days, v17 SQL). */
 export type PlanTier = 'free' | 'pro' | 'plus'
-export const FILE_HOURS: Record<PlanTier, number> = { free: 1, pro: 24, plus: 168 }
+export const FILE_HOURS: Record<PlanTier, number> = { free: 3, pro: 24, plus: 168 }
 export const ORDER_MB: Record<PlanTier, number> = { free: 50, pro: 100, plus: 200 }
 export const HISTORY_DAYS: Record<PlanTier, number> = { free: 7, pro: 183, plus: 365 }
 

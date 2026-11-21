@@ -1,3 +1,4 @@
+import { logOps } from '../_shared/ops.ts'
 // New-order push notification for the shop owner's phones (Android app, Firebase Cloud Messaging).
 // Called by the orders trigger from supabase/migrations/2026-11-20-v14-push.sql (pg_net) with the
 // x-cron-token header kept in private.cron_tokens (name 'push'). Deployed with --no-verify-jwt.
@@ -293,6 +294,7 @@ Deno.serve(async (req) => {
     return reply(200, { sent, removed: dead.length, project: sa.project_id, ...(lastErr ? { error: lastErr } : {}) })
   } catch (e) {
     console.error(e)
+    await logOps('push-new-order', e, 'warn')
     return reply(500, { error: 'push_failed', detail: String((e as Error)?.message || e).slice(0, 400), project: sa.project_id })
   }
 })

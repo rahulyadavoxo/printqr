@@ -1,8 +1,9 @@
 name: Daily database backup (to Cloudflare R2)
 
 # Every night ~03:00 IST (and manually from Actions): dumps the Supabase database with the Supabase CLI
-# (roles, schema, data), packs it, ENCRYPTS it with BACKUP_PASSWORD, and uploads it straight to a private
-# Cloudflare R2 bucket. Uploaded files (photos/PDFs) are not included, only the database.
+# (roles, schema, data), packs it, ENCRYPTS it with BACKUP_PASSWORD (GnuPG AES-256 with an integrity check,
+# so a damaged or changed file is detected on restore; older .enc files were openssl AES-256-CBC), and uploads
+# it straight to a private Cloudflare R2 bucket. A failure opens a GitHub "alert" issue. Uploaded files (photos/PDFs) are not included, only the database.
 #
 # The repo is public, so: nothing is saved as an Actions artifact, no data or URLs are printed to the log,
 # and the dump never leaves this job unencrypted.
@@ -19,6 +20,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: db-backup
@@ -57,7 +59,7 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
         if: steps.check.outputs.ready == 'true'
         with:
           version: 3.2.0   # pinned: v4 changes db dump flags
@@ -91,12 +93,16 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP"
-          NAME="printqr-db-$(TZ=Asia/Kolkata date +%Y-%m-%d_%H%M).tar.gz.enc"
-          tar -czf - -C dump roles.sql schema.sql data.sql \
-            | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:BACKUP_PASSWORD -out "$NAME"
+          NAME="printqr-db-$(TZ=Asia/Kolkata date +%Y-%m-%d_%H%M).tar.gz.gpg"
+          tar -czf - -C dump roles.sql schema.sql data.sql > db.tar.gz
           rm -rf dump
-          # Self-check: the file decrypts and the archive is readable
-          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:BACKUP_PASSWORD -in "$NAME" | tar -tzf - > /dev/null
+          # GnuPG symmetric AES-256: authenticated (MDC), so tampering / corruption fails the decrypt.
+          printf '%s' "$BACKUP_PASSWORD" | gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 --s2k-mode 3 --s2k-digest-algo SHA512 --s2k-count 65011712 \
+            --output "$NAME" db.tar.gz
+          rm -f db.tar.gz
+          # Self-check: the file decrypts (integrity OK) and the archive is readable
+          printf '%s' "$BACKUP_PASSWORD" | gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 0 --decrypt "$NAME" | tar -tzf - > /dev/null
           echo "NAME=$NAME" >> "$GITHUB_ENV"
           echo "Encrypted OK ($(du -h "$NAME" | cut -f1))"
 
@@ -110,3 +116,31 @@ jobs:
             || { echo "::error::Upload to R2 failed (check R2 keys / bucket name)"; exit 1; }
           rm -f "$NAME"
           echo "Uploaded OK: db/$NAME"
+
+      - name: Alert on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          curl -sSfL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/scripts/gh-alert.sh" -o gh-alert.sh && chmod +x gh-alert.sh
+          ./gh-alert.sh open "Database backup failed" "The nightly backup failed: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+      - name: Close alert
+        if: success() && steps.check.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          curl -sSfL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/scripts/gh-alert.sh" -o gh-alert.sh && chmod +x gh-alert.sh
+          ./gh-alert.sh close "Database backup failed" "Backup OK again."
+          ./gh-alert.sh close "Database backup is not set up" "Backups are running."
+
+      - name: Alert when backups are not set up
+        if: steps.check.outputs.ready != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          curl -sSfL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/scripts/gh-alert.sh" -o gh-alert.sh && chmod +x gh-alert.sh
+          ./gh-alert.sh open "Database backup is not set up" "The nightly backup is skipped because some secrets are missing (see the run log for their names): ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"

@@ -5,6 +5,7 @@
 import { Buffer } from 'node:buffer'
 import { PDFDocument } from 'npm:pdf-lib@1.17.1'
 import { corsHeaders, db, fail, HttpError, json } from '../_shared/billing.ts'
+import { logOps } from '../_shared/ops.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -77,6 +78,38 @@ async function download(path: string): Promise<Uint8Array> {
   return new Uint8Array(await r.arrayBuffer())
 }
 
+const MAX_FILE = 52428800 // 50 MB, same as create_order
+const MAX_THUMB = 200 * 1024 // phone-made thumbnails are about 10 KB (v24)
+const MAX_ATTEMPTS = 5 // finalize calls per order (v25)
+
+function storageHeaders(): Record<string, string> {
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  return { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }
+}
+
+/** Real sizes of everything stored in the order's folder (name -> bytes). */
+async function storedSizes(folder: string): Promise<Map<string, number>> {
+  const r = await fetch(`${Deno.env.get('SUPABASE_URL')}/storage/v1/object/list/uploads`, {
+    method: 'POST',
+    headers: storageHeaders(),
+    body: JSON.stringify({ prefix: folder, limit: 200, offset: 0, sortBy: { column: 'name', order: 'asc' } })
+  })
+  if (!r.ok) throw new Error(`storage list ${r.status}`)
+  const rows = (await r.json()) as { name: string; metadata?: { size?: number } | null }[]
+  const m = new Map<string, number>()
+  for (const x of rows) m.set(`${folder}/${x.name}`, Number(x.metadata?.size) || 0)
+  return m
+}
+
+async function removeObjects(paths: string[]) {
+  if (!paths.length) return
+  await fetch(`${Deno.env.get('SUPABASE_URL')}/storage/v1/object/uploads`, {
+    method: 'DELETE',
+    headers: storageHeaders(),
+    body: JSON.stringify({ prefixes: paths })
+  }).catch(() => {})
+}
+
 /** First bytes of a stored file (Range request, so big files are not downloaded twice). */
 async function head(path: string, n = 32): Promise<Uint8Array> {
   const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -146,8 +179,43 @@ Deno.serve(async (req) => {
       `orders?id=eq.${id}&access_key=eq.${key}&status=eq.uploading&select=id`)
     if (!orders[0]) throw new HttpError(404, 'not_found', 'Order not found')
 
+    // v25: each order may be finalized only a few times (every call downloads its PDFs).
+    const att = await fetch(`${Deno.env.get('SUPABASE_URL')}/rest/v1/rpc/finalize_begin`, {
+      method: 'POST', headers: storageHeaders(), body: JSON.stringify({ p_order_id: id, p_key: key })
+    })
+    if (att.ok) {
+      const n = Number(await att.json())
+      if (!n) throw new HttpError(404, 'not_found', 'Order not found')
+      if (n > MAX_ATTEMPTS) throw new HttpError(429, 'too_many_attempts', 'This order could not be sent. Please start a new order.')
+    } // before the v25 database update the function is missing: no limit
+
     const files = await db<FileRow[]>(
       `order_files?order_id=eq.${id}&select=id,storage_path,size_bytes,mime,item_kind`)
+    if (!files.length) throw new HttpError(409, 'files_incomplete', 'Some files did not upload completely. Please try again.')
+
+    // v25: the stored bytes must be what the customer declared (the order size limit is checked on those),
+    // and the small photo previews must really be small. Oversized previews are removed (the app then
+    // shows the full photo).
+    const folder = files[0].storage_path.split('/').slice(0, 2).join('/')
+    let sizes = new Map<string, number>()
+    try {
+      sizes = await storedSizes(folder)
+    } catch (e) {
+      await logOps('finalize-order', `size check skipped: ${e instanceof Error ? e.message : e}`, 'warn')
+    }
+    // Only trust the listing when it shows the order's files (fail open: never block real orders on a storage hiccup).
+    if (files.some((f) => (sizes.get(f.storage_path) || 0) > 0)) {
+      for (const f of files) {
+        const real = sizes.get(f.storage_path) || 0
+        if (real > MAX_FILE || (real > 0 && real !== Number(f.size_bytes))) {
+          throw new HttpError(422, 'bad_file', 'One of the files changed while uploading. Please send it again.')
+        }
+      }
+      const known = new Set(files.map((f) => f.storage_path))
+      const extra = [...sizes.entries()].filter(([p, n]) =>
+        !known.has(p) && (!p.endsWith('.thumb.jpg') || !known.has(p.slice(0, -'.thumb.jpg'.length)) || n > MAX_THUMB))
+      await removeObjects(extra.map(([p]) => p))
+    }
     const counts: Record<string, number> = {}
     for (const f of files) {
       if (f.item_kind === 'print' && f.mime === 'application/pdf') {
@@ -190,6 +258,7 @@ Deno.serve(async (req) => {
     const row = (JSON.parse(text) as { total: number; changed: number }[])[0]
     return json({ ok: true, counted: true, total: row ? Number(row.total) : null, changed: row?.changed ?? 0 })
   } catch (e) {
+    if (!(e instanceof HttpError) || e.status >= 500) await logOps('finalize-order', e)
     return fail(e)
   }
 })

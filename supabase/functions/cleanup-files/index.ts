@@ -1,3 +1,4 @@
+import { logOps } from '../_shared/ops.ts'
 // Deletes uploaded files after each shop's auto-delete time (same logic as scripts/cleanup.mjs).
 // Called every 15 minutes by pg_cron + pg_net (supabase/migrations/2026-11-17-v4-cleanup-cron.sql).
 // Deployed with --no-verify-jwt; the caller must send the x-cron-token header that the
@@ -66,8 +67,10 @@ Deno.serve(async (req) => {
     }
   } catch (e) {
     console.error(e)
+    await logOps('cleanup-files', e)
     return reply(500, { error: 'cleanup_failed', deleted: total, failed })
   }
+  if (failed) await logOps('cleanup-files', `${failed} order(s) could not be cleaned up`, 'warn')
   console.log(`Cleanup done: ${total} orders' files deleted, ${failed} failed.`)
   return reply(200, { ok: true, deleted: total, failed })
 })
