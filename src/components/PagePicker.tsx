@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import Icon from './Icon'
+import ZoomPan from './ZoomPan'
 import { openPdf, renderPage } from '../lib/pdf'
 import { useI18n } from '../lib/i18n'
 
@@ -76,7 +77,8 @@ export default function PagePicker({ file, total, initial, onDone, onCancel }: P
     if (!doc || !zoom) return setZoomUrl(null)
     let alive = true
     setZoomUrl(null)
-    renderPage(doc, zoom, Math.min(1400, window.innerWidth * (window.devicePixelRatio || 1))).then((u) => alive && setZoomUrl(u)).catch(() => {})
+    // Sharper than the screen so pinch-zoom stays readable
+    renderPage(doc, zoom, Math.min(2400, window.innerWidth * (window.devicePixelRatio || 1) * 2)).then((u) => alive && setZoomUrl(u)).catch(() => {})
     return () => { alive = false }
   }, [doc, zoom])
 
@@ -157,7 +159,7 @@ export default function PagePicker({ file, total, initial, onDone, onCancel }: P
             <button type="button" className="icon-btn" disabled={zoom >= total} onClick={() => setZoom(zoom + 1)} aria-label="›">›</button>
             <button type="button" className="icon-btn" onClick={() => setZoom(null)} aria-label={t('close')}><Icon name="x" size={20} /></button>
           </div>
-          {zoomUrl ? <img src={zoomUrl} alt={t('ppkPage', { n: zoom })} onClick={(e) => e.stopPropagation()} /> : <span className="pp-loading muted">…</span>}
+          {zoomUrl ? <ZoomPan src={zoomUrl} alt={t('ppkPage', { n: zoom })} className="pp-zoompan" /> : <span className="pp-loading muted">…</span>}
         </div>
       )}
     </div>

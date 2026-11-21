@@ -293,7 +293,8 @@ export function OrdersSkel() {
             </div>
             <ul className="files">
               <li>
-                <B w="70%" h={14} />
+                {/* Photo orders show a 52px thumbnail beside a one-line name (keeps the height when it loads) */}
+                <div className="file-head"><B w={52} h={52} r={11} style={{ flex: 'none' }} /><B w="62%" h={14} /></div>
                 <div className="file-meta"><B w={44} h={20} r={6} /><B w={64} h={20} r={6} /><B w={90} h={12} /><B w={40} h={14} style={{ marginLeft: 'auto' }} /></div>
                 <div className="file-actions"><B h={44} r={12} style={{ flex: '1 1 130px', width: 'auto' }} /><B h={44} r={12} style={{ flex: '1 1 130px', width: 'auto' }} /></div>
               </li>
