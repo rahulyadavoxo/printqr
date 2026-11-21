@@ -123,6 +123,7 @@ Deno.serve(async (req) => {
     const text = await res.text()
     if (!res.ok && (res.status === 404 || text.includes('PGRST202'))) {
       console.error('finalize_order_counted missing: run supabase/migrations/2026-11-19-v11-server-page-count.sql')
+      throw new HttpError(503, 'unavailable', 'Orders are temporarily unavailable. Please try again shortly.')
     }
     if (!res.ok) {
       let message = 'Could not send the order. Please try again.'
