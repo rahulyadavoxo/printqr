@@ -5,6 +5,7 @@ import { recoverySessionReady } from '../lib/recovery'
 import { useI18n } from '../lib/i18n'
 import { LogoMark, TopBar } from '../components/TopBar'
 import { ResetSkelBody } from '../components/Skeletons'
+import PasswordInput from '../components/PasswordInput'
 
 export default function ResetPassword() {
   const { t, te } = useI18n()
@@ -66,13 +67,13 @@ export default function ResetPassword() {
               <p className="muted center">{t('rpSub')}</p>
               <label className="field">
                 <span>{t('rpNew')}</span>
-                <input type="password" required minLength={8} value={password} autoComplete="new-password"
+                <PasswordInput required minLength={8} value={password} autoComplete="new-password"
                   onChange={(e) => setPassword(e.target.value)} />
                 <small className="hint">{t('passwordHint')}</small>
               </label>
               <label className="field">
                 <span>{t('rpConfirm')}</span>
-                <input type="password" required minLength={8} value={confirm} autoComplete="new-password"
+                <PasswordInput required minLength={8} value={confirm} autoComplete="new-password"
                   onChange={(e) => setConfirm(e.target.value)} />
               </label>
               {msg && <p className="notice error">{msg}</p>}

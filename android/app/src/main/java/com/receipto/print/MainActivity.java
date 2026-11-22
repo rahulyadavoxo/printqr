@@ -36,6 +36,11 @@ import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import androidx.core.content.FileProvider;
+import androidx.credentials.CreateCredentialResponse;
+import androidx.credentials.CreatePasswordRequest;
+import androidx.credentials.CredentialManager;
+import androidx.credentials.CredentialManagerCallback;
+import androidx.credentials.exceptions.CreateCredentialException;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
@@ -693,6 +698,22 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
                 WindowInsetsControllerCompat bars = WindowCompat.getInsetsController(w, w.getDecorView());
                 bars.setAppearanceLightStatusBars(!dark);
                 bars.setAppearanceLightNavigationBars(!dark);
+            });
+        }
+
+        /** Offer to save the login in Google Password Manager (app 1.5.71+). Shows the system "Save password?" sheet. */
+        @JavascriptInterface
+        public void savePassword(String id, String password) {
+            if (!trustedPage || id == null || password == null || id.isEmpty() || password.isEmpty()) return;
+            runOnUiThread(() -> {
+                try {
+                    CredentialManager cm = CredentialManager.create(MainActivity.this);
+                    cm.createCredentialAsync(MainActivity.this, new CreatePasswordRequest(id, password), null,
+                        androidx.core.content.ContextCompat.getMainExecutor(MainActivity.this), new CredentialManagerCallback<CreateCredentialResponse, CreateCredentialException>() {
+                            @Override public void onResult(CreateCredentialResponse r) { }
+                            @Override public void onError(CreateCredentialException e) { }
+                        });
+                } catch (Throwable ignored) { }
             });
         }
 

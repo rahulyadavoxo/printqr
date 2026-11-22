@@ -1648,3 +1648,11 @@ img.shop-avatar { object-fit: cover; padding: 0; }
 @media (max-width: 1023.98px) {
   .topbar:not(.dash-bar) { border-radius: 0 0 18px 18px; }
 }
+
+/* Password field: show / hide eye button inside the field */
+.pw-wrap { position: relative; display: block; }
+.pw-wrap input { padding-right: 52px; }
+.pw-eye { position: absolute; top: 0; right: 0; bottom: 0; width: 50px; display: flex; align-items: center; justify-content: center; background: transparent; border: 0; color: var(--c-muted); cursor: pointer; border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.pw-eye:hover, .pw-eye[aria-pressed="true"] { color: var(--c-ink); }
+.pw-eye:focus-visible { outline: none; box-shadow: var(--ring); }
+input[type="password"]::-ms-reveal { display: none; }

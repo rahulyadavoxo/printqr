@@ -1,4 +1,5 @@
-import { PUBLIC_BASE } from '../lib/app'
+import { PUBLIC_BASE, offerSavePassword } from '../lib/app'
+import PasswordInput from '../components/PasswordInput'
 import { FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -46,6 +47,7 @@ export default function Login() {
       if (error) throw error
       if (!data.session) throw new Error(t('codeBad'))
       void supabase.functions.invoke('send-welcome', { body: {} }).catch(() => undefined)
+      if (password) offerSavePassword(email.trim(), password)
       nav('/setup')
     } catch (e) {
       setMsg({ text: /expired|invalid|otp|token/i.test(String((e as Error)?.message)) ? t('codeBad') : te(e), error: true })
@@ -102,10 +104,12 @@ export default function Login() {
           setCooldown(60)
           return
         }
+        offerSavePassword(email.trim(), password)
         nav('/setup')
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken: captcha || undefined } })
         if (error) throw error
+        offerSavePassword(email.trim(), password)
         nav('/dashboard')
       }
     } catch (e) {
@@ -165,7 +169,7 @@ export default function Login() {
             <p className="muted center">{t('fpSub')}</p>
             <label className="field">
               <span>{t('email')}</span>
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" />
+              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} name="email" autoComplete="username" placeholder="you@example.com" />
             </label>
             <Turnstile key="reset" action="reset" onToken={setCaptcha} resetKey={captchaReset} lang={lang} />
             {msg && <p className={`notice${msg.error ? ' error' : ' success'}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
@@ -189,11 +193,11 @@ export default function Login() {
           <p className="muted center">{signup ? t('signupSub') : t('loginSub')}</p>
           <label className="field">
             <span>{t('email')}</span>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" />
+            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} name="email" autoComplete="username" placeholder="you@example.com" />
           </label>
           <label className="field">
             <span>{t('password')}</span>
-            <input type="password" required minLength={signup ? 8 : 6} value={password} onChange={(e) => setPassword(e.target.value)}
+            <PasswordInput name="password" required minLength={signup ? 8 : 6} value={password} onChange={(e) => setPassword(e.target.value)}
               autoComplete={signup ? 'new-password' : 'current-password'} />
             {signup && <small className="hint">{t('passwordHint')}</small>}
           </label>

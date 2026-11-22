@@ -29,6 +29,8 @@ export type NativeBridge = {
   notifyAllowed?: () => boolean
   // UI language for the app's own notifications and channel names (app 1.5.34+)
   setLang?: (lang: string) => void
+  // Google Password Manager save sheet (app 1.5.71+)
+  savePassword?: (id: string, password: string) => void
 }
 export function nativeBridge(): NativeBridge | undefined {
   return (window as unknown as { PQ?: NativeBridge }).PQ
@@ -36,3 +38,15 @@ export function nativeBridge(): NativeBridge | undefined {
 
 /** Any Android device: the PrintQR app or a browser on an Android phone/tablet. */
 export const ON_ANDROID = IN_APP || (typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent))
+
+/** After a successful login/signup: offer to save the email + password (app: Google Password Manager sheet; Chrome: its save prompt). */
+export function offerSavePassword(id: string, password: string) {
+  try {
+    const b = nativeBridge()
+    if (b?.savePassword) { b.savePassword(id, password); return }
+    const W = window as unknown as { PasswordCredential?: new (d: { id: string; password: string }) => Credential }
+    if (W.PasswordCredential && navigator.credentials?.store) {
+      void navigator.credentials.store(new W.PasswordCredential({ id, password })).catch(() => {})
+    }
+  } catch { /* ignore */ }
+}
