@@ -309,6 +309,10 @@ input:focus, select:focus { outline: none; border-color: var(--c-brand); box-sha
 .switch-line { margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--c-line); }
 .forgot-line { margin: -8px 0 0; text-align: right; }
 .auth-via { margin: 4px 0 14px; }
+.auth-card .google-btn.top { margin-top: 18px; }
+.auth-card .or-line.top { margin: 16px 0 6px; }
+.auth-terms { margin: 14px 0 0; font-size: 12px; line-height: 1.45; text-align: center; color: var(--c-ink-2); }
+.auth-alt { margin: 14px 0 0; text-align: center; }
 .field > .phone-input { display: flex; align-items: stretch; margin: 0; font-size: inherit; font-weight: inherit; color: inherit; }
 .phone-input .phone-cc { display: inline-flex; align-items: center; padding: 0 12px; border: 1.5px solid var(--c-line-2); border-right: none; border-radius: var(--r-sm) 0 0 var(--r-sm); background: var(--c-sunken); font-weight: 700; color: var(--c-ink-2); }
 .phone-input input { flex: 1; min-width: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; letter-spacing: .5px; }
@@ -953,6 +957,8 @@ body.no-scroll { overflow: hidden; }
 
 /* Cloudflare Turnstile bot check */
 .turnstile-box { display: flex; justify-content: center; min-height: 65px; margin: 4px 0 8px; }
+.turnstile-box.quiet { min-height: 0; margin: 0; }
+.turnstile-box.quiet:not(:empty) { margin: 8px 0 0; }
 
 /* Red log out button at the bottom of Settings */
 .btn.danger { background: var(--c-red); border-color: var(--c-red); color: #fff; }

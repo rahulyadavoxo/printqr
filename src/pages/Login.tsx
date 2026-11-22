@@ -7,7 +7,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { clearAuthUrlError, peekAuthUrlError, sendResetEmail } from '../lib/recovery'
 import { useI18n } from '../lib/i18n'
-import { LogoMark, TopBar } from '../components/TopBar'
+import { TopBar } from '../components/TopBar'
 import { isCaptchaError, Turnstile } from '../components/Turnstile'
 
 type Via = 'email' | 'phone'
@@ -29,7 +29,8 @@ function cleanMobile(v: string): string {
 
 function initialVia(param: string | null): Via {
   if (param === 'phone' || param === 'email') return param
-  try { return localStorage.getItem(VIA_KEY) === 'phone' ? 'phone' : 'email' } catch { return 'email' }
+  // Mobile number first; email only for people who picked it before (or open ?via=email / signup / forgot links).
+  try { return localStorage.getItem(VIA_KEY) === 'email' ? 'email' : 'phone' } catch { return 'phone' }
 }
 
 export default function Login() {
@@ -41,7 +42,7 @@ export default function Login() {
   )
   const [email, setEmail] = useState('')
   // Email + password, or mobile number + SMS code (one flow: a new number gets an account automatically).
-  const [via, setVia] = useState<Via>(() => initialVia(params.get('via')))
+  const [via, setVia] = useState<Via>(() => initialMode === 'forgot' ? 'email' : initialVia(params.get('via')))
   const [mobile, setMobile] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -298,7 +299,6 @@ export default function Login() {
         <TopBar />
         <main className="auth-wrap">
           <form className="card auth-card" onSubmit={phoneMode ? verifyPhoneCode : verifyCode}>
-            <div className="auth-logo"><LogoMark size={44} /></div>
             <h1 className="auth-title">{phoneMode ? t('phCodeTitle') : t('codeTitle')}</h1>
             <p className="muted center">{phoneMode ? t('phCodeSub', { phone: `+91 ${mobile.slice(0, 5)} ${mobile.slice(5)}` }) : t('codeSub', { email: email.trim() })}</p>
             <div className="field">
@@ -310,7 +310,7 @@ export default function Login() {
             </div>
             {msg && <p id="otp-msg" className={`notice${msg.error ? ' error' : ' success'}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
             <button className="btn primary block lg" disabled={busy || code.length < codeLen}>{busy ? t('pleaseWait') : t('codeVerify')}</button>
-            <Turnstile key="resend" action={phoneMode ? 'login' : 'signup'} onToken={setCaptcha} resetKey={captchaReset} lang={lang} />
+            <Turnstile key="resend" action={phoneMode ? 'login' : 'signup'} onToken={setCaptcha} resetKey={captchaReset} lang={lang} quiet />
             <p className="center small switch-line">
               {cooldown > 0 ? (
                 <span className="otp-timer" role="timer" aria-live="off">{t('codeWait', { s: mmss(cooldown) })}</span>
@@ -334,14 +334,13 @@ export default function Login() {
         <TopBar />
         <main className="auth-wrap">
           <form className="card auth-card" onSubmit={submit}>
-            <div className="auth-logo"><LogoMark size={44} /></div>
             <h1 className="auth-title">{t('fpTitle')}</h1>
             <p className="muted center">{t('fpSub')}</p>
             <label className="field">
               <span>{t('email')}</span>
               <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} name="email" autoComplete="username" placeholder="you@example.com" />
             </label>
-            <Turnstile key="reset" action="reset" onToken={setCaptcha} resetKey={captchaReset} lang={lang} />
+            <Turnstile key="reset" action="reset" onToken={setCaptcha} resetKey={captchaReset} lang={lang} quiet />
             {msg && <p className={`notice${msg.error ? ' error' : ' success'}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
             <button className="btn primary block lg" disabled={busy}>{busy ? t('pleaseWait') : t('fpSend')}</button>
             <p className="center small switch-line">
@@ -353,19 +352,31 @@ export default function Login() {
     )
   }
 
-  return (
-    <div className="auth-page">
-      <TopBar />
-      <main className="auth-wrap">
-        <form className="card auth-card" onSubmit={phoneMode ? sendPhoneCode : submit}>
-          <div className="auth-logo"><LogoMark size={44} /></div>
-          <h1 className="auth-title">{signup ? t('signupTitle') : t('loginTitle')}</h1>
-          <p className="muted center">{signup ? t('signupSub') : t('loginSub')}</p>
-          <div className="seg auth-via" role="group" aria-label={t('viaLabel')}>
-            <button type="button" className={phoneMode ? '' : 'on'} aria-pressed={!phoneMode} onClick={() => switchVia('email')}>{t('viaEmail')}</button>
-            <button type="button" className={phoneMode ? 'on' : ''} aria-pressed={phoneMode} onClick={() => switchVia('phone')}>{t('viaMobile')}</button>
-          </div>
-          {phoneMode ? (
+  const googleButton = googleAvailable() ? (
+    <>
+      <button type="button" className="btn block lg google-btn top" disabled={busy} onClick={google}>
+        <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        {t('googleBtn')}
+      </button>
+      <div className="or-line top"><span>{t('orWord')}</span></div>
+    </>
+  ) : null
+  const terms = (pre: string) => (
+    <p className="auth-terms">
+      {pre} <Link to="/legal/terms">{t('agreeTerms')}</Link>, <Link to="/legal/refund">{t('agreeRefund')}</Link> {t('agreeAnd')} <Link to="/legal/privacy">{t('agreePrivacy')}</Link>{t('agreePost')}
+    </p>
+  )
+
+  // One screen for login and signup: Google, then mobile number + OTP (a new number gets an account by itself).
+  if (phoneMode) {
+    return (
+      <div className="auth-page">
+        <TopBar />
+        <main className="auth-wrap">
+          <form className="card auth-card" onSubmit={sendPhoneCode}>
+            <h1 className="auth-title">{t('authTitle')}</h1>
+            <p className="muted center">{t('authSub')}</p>
+            {googleButton}
             <label className="field">
               <span>{t('mobileLabel')}</span>
               <span className="phone-input">
@@ -374,52 +385,60 @@ export default function Login() {
                   onChange={(e) => setMobile(cleanMobile(e.target.value))} placeholder="98765 43210" maxLength={16}
                   aria-label={`${t('mobileLabel')} (+91)`} />
               </span>
-              <small className="hint">{t('mobileHint')}</small>
+              <small className="hint">{t('mobileHintShort')}</small>
             </label>
-          ) : (
-            <>
-              <label className="field">
-                <span>{t('email')}</span>
-                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} name="email" autoComplete="username" placeholder="you@example.com" />
-              </label>
-              <label className="field">
-                <span>{t('password')}</span>
-                <PasswordInput name="password" required minLength={signup ? 8 : 6} value={password} onChange={(e) => setPassword(e.target.value)}
-                  autoComplete={signup ? 'new-password' : 'current-password'} />
-                {signup && <small className="hint">{t('passwordHint')}</small>}
-              </label>
-              {!signup && (
-                <p className="forgot-line">
-                  <button type="button" className="link small" onClick={() => switchTo('forgot')}>{t('forgotLink')}</button>
-                </p>
-              )}
-            </>
-          )}
-          <Turnstile key={mode} action={signup ? 'signup' : 'login'} onToken={setCaptcha} resetKey={captchaReset} lang={lang} />
-          {msg && <p className={`notice${msg.error ? ' error' : ''}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
-          {(signup || phoneMode) && (
-            <p className="small muted center">
-              {t('agreePre')} <Link to="/legal/terms">{t('agreeTerms')}</Link>, <Link to="/legal/refund">{t('agreeRefund')}</Link> {t('agreeAnd')} <Link to="/legal/privacy">{t('agreePrivacy')}</Link>{t('agreePost')}
+            <Turnstile key="phone" action="login" onToken={setCaptcha} resetKey={captchaReset} lang={lang} quiet />
+            {msg && <p className={`notice${msg.error ? ' error' : ''}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
+            <button className="btn primary block lg" disabled={busy}>{busy ? t('pleaseWait') : t('mobileSend')}</button>
+            <p className="auth-alt small">
+              <button type="button" className="link" onClick={() => switchVia('email')}>{t('useEmail')}</button>
+            </p>
+            {terms(t('agreeAnyPre'))}
+          </form>
+        </main>
+      </div>
+    )
+  }
+
+  // "Use email instead": the old email + password form (login / create account / forgot password).
+  return (
+    <div className="auth-page">
+      <TopBar />
+      <main className="auth-wrap">
+        <form className="card auth-card" onSubmit={submit}>
+          <h1 className="auth-title">{signup ? t('signupTitle') : t('loginTitle')}</h1>
+          <p className="muted center">{signup ? t('signupSub') : t('loginSub')}</p>
+          {googleButton}
+          <label className="field">
+            <span>{t('email')}</span>
+            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} name="email" autoComplete="username" placeholder="you@example.com" />
+          </label>
+          <label className="field">
+            <span>{t('password')}</span>
+            <PasswordInput name="password" required minLength={signup ? 8 : 6} value={password} onChange={(e) => setPassword(e.target.value)}
+              autoComplete={signup ? 'new-password' : 'current-password'} />
+            {signup && <small className="hint">{t('passwordHint')}</small>}
+          </label>
+          {!signup && (
+            <p className="forgot-line">
+              <button type="button" className="link small" onClick={() => switchTo('forgot')}>{t('forgotLink')}</button>
             </p>
           )}
+          <Turnstile key={mode} action={signup ? 'signup' : 'login'} onToken={setCaptcha} resetKey={captchaReset} lang={lang} quiet />
+          {msg && <p className={`notice${msg.error ? ' error' : ''}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
           <button className="btn primary block lg" disabled={busy}>
-            {busy ? t('pleaseWait') : phoneMode ? t('mobileSend') : signup ? t('createAccount') : t('login')}
+            {busy ? t('pleaseWait') : signup ? t('createAccount') : t('login')}
           </button>
-          {googleAvailable() && (
-            <>
-              <div className="or-line"><span>{t('orWord')}</span></div>
-              <button type="button" className="btn block lg google-btn" disabled={busy} onClick={google}>
-                <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-                {t('googleBtn')}
-              </button>
-            </>
-          )}
           <p className="center small switch-line">
             <span className="muted">{signup ? t('haveAccount') : t('noAccount')}</span>{' '}
             <button type="button" className="link" onClick={() => switchTo(signup ? 'login' : 'signup')}>
               {signup ? t('login') : t('switchSignup')}
             </button>
           </p>
+          <p className="auth-alt small">
+            <button type="button" className="link" onClick={() => switchVia('phone')}>{t('useMobile')}</button>
+          </p>
+          {terms(signup ? t('agreePre') : t('agreeAnyPre'))}
         </form>
       </main>
     </div>

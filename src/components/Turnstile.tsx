@@ -35,11 +35,13 @@ function loadScript(): Promise<void> {
 }
 
 /** Shows the check and reports its token (null when expired or failed). Bump resetKey after each use: a token works once. */
-export function Turnstile({ action, onToken, resetKey = 0, lang }: {
+export function Turnstile({ action, onToken, resetKey = 0, lang, quiet = false }: {
   action: 'upload' | 'login' | 'signup' | 'reset'
   onToken: (token: string | null) => void
   resetKey?: number
   lang?: string
+  /** Hidden unless Cloudflare needs the person to tick the box (most people never see it). */
+  quiet?: boolean
 }) {
   const box = useRef<HTMLDivElement>(null)
   const id = useRef<string | null>(null)
@@ -56,6 +58,7 @@ export function Turnstile({ action, onToken, resetKey = 0, lang }: {
           action,
           theme: 'auto',
           size: 'flexible',
+          ...(quiet ? { appearance: 'interaction-only' } : {}),
           language: lang === 'hi' ? 'hi' : 'auto',
           callback: (tok: string) => cb.current(tok),
           'expired-callback': () => cb.current(null),
@@ -68,7 +71,7 @@ export function Turnstile({ action, onToken, resetKey = 0, lang }: {
       if (id.current && window.turnstile) window.turnstile.remove(id.current)
       id.current = null
     }
-  }, [lang, action])
+  }, [lang, action, quiet])
 
   useEffect(() => {
     if (!resetKey || !id.current || !window.turnstile) return
@@ -76,7 +79,7 @@ export function Turnstile({ action, onToken, resetKey = 0, lang }: {
     window.turnstile.reset(id.current)
   }, [resetKey])
 
-  return <div ref={box} className="turnstile-box" />
+  return <div ref={box} className={quiet ? 'turnstile-box quiet' : 'turnstile-box'} />
 }
 
 /** True when the server refused because the bot check was missing or failed. */
