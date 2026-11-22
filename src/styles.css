@@ -2107,3 +2107,16 @@ input[type="password"]::-ms-reveal { display: none; }
 .adm-bnav .adm-save:disabled { opacity: .7; }
 @keyframes adm-save-in { from { transform: scale(.7); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .adm-bnav .adm-save .bnav-ic { animation: none; } }
+
+/* Admin success toast: drops from the top, leaves upward after 2s */
+.adm-toast {
+  position: fixed; top: calc(10px + env(safe-area-inset-top)); left: 50%; z-index: 1300; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px; max-width: calc(100% - 32px); padding: 11px 18px; border-radius: 999px;
+  background: var(--c-ink); color: var(--c-surface); font-size: 15px; font-weight: 700; box-shadow: var(--sh-3);
+  animation: adm-toast-in .28s cubic-bezier(0, 0, .2, 1);
+}
+.adm-toast svg { flex: none; color: var(--c-lime); }
+.adm-toast.out { animation: adm-toast-out .3s ease-in forwards; }
+@keyframes adm-toast-in { from { transform: translate(-50%, -140%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+@keyframes adm-toast-out { to { transform: translate(-50%, -140%); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .adm-toast, .adm-toast.out { animation: none; } }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactElement } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react'
 import { Navigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useSession } from '../lib/useSession'
@@ -75,6 +75,8 @@ export default function Admin() {
   const [health, setHealth] = useState<HealthData | null>(null)
   const [notifOpen, setNotifOpen] = useState(false)
   const [saveSlot, setSaveSlot] = useState<SaveSlot>(null)
+  // A new success message (even the same text, e.g. "Saved" twice) restarts the toast.
+  const toastId = useMemo(() => Math.random(), [msg])
 
   useEffect(() => {
     if (!session) return
@@ -220,7 +222,8 @@ export default function Admin() {
         <button type="button" className="btn small soft" onClick={onRefresh} disabled={refreshing} aria-busy={refreshing}>{refreshing ? '…' : t('admRefresh')}</button>
       </div>
 
-      {msg && <div className={`notice${msg.error ? ' error' : ''}`} role="status">{msg.text}</div>}
+      {msg?.error && <div className="notice error" role="alert">{msg.text}</div>}
+      {msg && !msg.error && <AdminToast key={msg.text + toastId} text={msg.text} onDone={() => setMsg((m) => (m && !m.error ? null : m))} />}
 
       <nav className="tabs admin-tabs" aria-label={t('admTitle')}>
         {ADMIN_TABS.map((x) => (
@@ -442,6 +445,22 @@ function AdminNotifications({ h, onClose }: { h: HealthData; onClose: () => void
         </div>
         <div className="small muted adm-notif-foot">{t('admHealthChecked', { d: when(h.checked_at) })}</div>
       </div>
+    </div>
+  )
+}
+
+/** Success message: slides down from the top like a notification, goes back up after 2 seconds. Errors stay as a notice. */
+function AdminToast({ text, onDone }: { text: string; onDone: () => void }) {
+  const [leaving, setLeaving] = useState(false)
+  useEffect(() => {
+    const a = window.setTimeout(() => setLeaving(true), 2000)
+    const b = window.setTimeout(onDone, 2300)
+    return () => { window.clearTimeout(a); window.clearTimeout(b) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return (
+    <div className={`adm-toast no-print${leaving ? ' out' : ''}`} role="status" aria-live="polite">
+      <Icon name="check" size={18} /><span>{text}</span>
     </div>
   )
 }
