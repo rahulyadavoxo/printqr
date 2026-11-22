@@ -1748,3 +1748,59 @@ input[type="password"]::-ms-reveal { display: none; }
 .lx-g { width:100%; height:52px; border:1.5px solid var(--lx-line); background:var(--lx-card); color:var(--lx-ink); border-radius:14px; font:inherit; font-weight:700; font-size:15px; display:flex; align-items:center; justify-content:center; gap:10px; cursor:pointer; }
 .lx .auth-terms { text-align:center; font-size:12px; color:var(--lx-muted); line-height:1.6; margin:18px 10px 8px; font-weight:500; }
 .lx .auth-terms a { color:var(--lx-lime-d); font-weight:700; }
+
+/* =====================================================================
+   Admin page (components/AdminShell.tsx). Computer keeps the normal top bar + tab row.
+   Phone/tablet: app-style bar (back, title, refresh) like the Dashboard strip, bottom bar
+   (Overview, Shops, Orders in the centre, Users, More) and a "More" sheet for the rest.
+   ===================================================================== */
+.adm-d { display: contents; }
+.adm-bar, .adm-bnav, .adm-sheet-back { display: none; }
+@media (max-width: 1023.98px) {
+  .admin-app .adm-d, .admin-app .admin-head, .admin-app .admin-tabs { display: none; }
+  .admin-app .adm-bar { display: block; background: #e6e1d6; border-bottom: none; backdrop-filter: none; -webkit-backdrop-filter: none; border-radius: 0 0 12px 12px; }
+  [data-theme="dark"] .admin-app .adm-bar { background: #070b09; }
+  .adm-bar .topbar-in { justify-content: flex-start; min-height: 52px; padding-top: 0; padding-bottom: 0; gap: 6px; }
+  .adm-bar-title { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 750; }
+  .adm-bar-title svg { flex: none; color: var(--c-lime-600); }
+  .adm-bar-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .adm-refresh { margin-left: 0; margin-right: -6px; }
+  .adm-refresh:disabled { opacity: 1; cursor: default; }
+  .adm-refresh.is-busy svg { animation: adm-spin .8s linear infinite; }
+  @keyframes adm-spin { to { transform: rotate(360deg); } }
+  .admin-app .page { padding-top: 6px; }
+  .admin-app .admin-sec:first-of-type { margin-top: 14px; }
+  .admin-app.has-bnav .page { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
+  .admin-app .adm-bnav { display: flex; }
+  .admin-app .adm-sheet-back { display: flex; }
+  /* Overview: two cards per row, income and storage full width */
+  .admin-app .stats { grid-template-columns: 1fr 1fr; grid-auto-flow: row dense; gap: 10px; }
+  .admin-app .stats .stat { margin: 0; padding: 16px; min-width: 0; }
+  .admin-app .stats .stat-wide { grid-column: 1 / -1; }
+  .admin-app .stat-label, .admin-app .stat-sub { overflow-wrap: anywhere; }
+  :root:has(.admin-app.has-bnav) .update-note, :root:has(.admin-app.has-bnav) .update-toast { bottom: calc(102px + env(safe-area-inset-bottom)); }
+}
+.adm-sheet-back {
+  position: fixed; inset: 0; z-index: 60; align-items: flex-end; justify-content: center;
+  background: rgba(10, 12, 16, .42); animation: cf-fade .18s ease-out;
+}
+.adm-sheet {
+  width: 100%; max-width: 560px; display: grid; gap: 4px; padding: 10px 12px calc(16px + env(safe-area-inset-bottom));
+  background: var(--c-surface); border-radius: 22px 22px 0 0; box-shadow: 0 -10px 30px rgba(11, 18, 16, .2);
+  animation: adm-up .22s cubic-bezier(0, 0, .2, 1);
+}
+.adm-sheet-grab { justify-self: center; width: 40px; height: 4px; border-radius: 2px; background: var(--c-line-2); margin: 2px 0 8px; }
+.adm-sheet-item {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 8px 10px; border: none; border-radius: 14px;
+  background: none; color: var(--c-ink); font: inherit; font-size: 15px; font-weight: 650; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.adm-sheet-item > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-sheet-item > svg { color: var(--c-faint); }
+.adm-sheet-item:active, .adm-sheet-item:hover { background: var(--c-sunken); }
+.adm-sheet-item.on { background: var(--c-sunken); }
+.adm-sheet-ic { flex: none; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; background: var(--c-sunken); color: var(--c-ink-2); }
+.adm-sheet-item.on .adm-sheet-ic { background: var(--c-lime); color: #0b1210; }
+.adm-sheet-foot { display: flex; justify-content: center; padding-top: 10px; margin-top: 6px; border-top: 1px solid var(--c-line); }
+@keyframes adm-up { from { transform: translateY(100%); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .adm-sheet, .adm-sheet-back { animation: none; } }
+@media print { .adm-bar, .adm-bnav, .adm-sheet-back { display: none !important; } }

@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useSession } from '../lib/useSession'
 import { Key, useI18n } from '../lib/i18n'
-import { TopBar } from '../components/TopBar'
+import { ADMIN_TABS, ADMIN_TAB_KEYS, AdminShell, type AdminTab } from '../components/AdminShell'
 import { callFn } from '../lib/billing'
 import { AdminOrders, AdminPayments, AdminSettings, AdminSpam, AdminUsers, fmtBytes, fmtDate } from './AdminTabs'
 import { AdminSkelBody, AdminSkeleton, SkelList, SkelLog, SkelStats } from '../components/Skeletons'
@@ -44,18 +44,12 @@ function paidTier(s: { is_pro: boolean; plan?: string | null }): Tier | null {
 
 const PAGE = 50
 
-const TAB_KEYS: Record<Tab, Key> = {
-  overview: 'admOverview', shops: 'admShops', users: 'admUsers', orders: 'admOrders', payments: 'admPayments',
-  spam: 'admSpam', settings: 'admSettings', log: 'admLog'
-}
 const LOG_KEYS: Record<string, Key> = {
   pro_given: 'admLogProGiven', pro_removed: 'admLogProRemoved', blocked: 'admLogBlocked', unblocked: 'admLogUnblocked',
   qr_reset: 'admLogQrReset', shop_edited: 'admLogShopEdited', settings: 'admLogSettings', ip_blocked: 'admLogIpBlocked',
   ip_unblocked: 'admLogIpUnblocked', report_resolved: 'admLogReport', user_disabled: 'admLogUserDisabled',
   user_enabled: 'admLogUserEnabled', reset_sent: 'admLogResetSent', sub_cancelled: 'admLogSubCancelled', files_deleted: 'admLogFilesDeleted'
 }
-type Tab = 'overview' | 'shops' | 'users' | 'orders' | 'payments' | 'spam' | 'settings' | 'log'
-const TABS: Tab[] = ['overview', 'shops', 'users', 'orders', 'payments', 'spam', 'settings', 'log']
 
 
 export default function Admin() {
@@ -75,7 +69,7 @@ export default function Admin() {
   const [tierPick, setTierPick] = useState<Record<string, Tier>>({})
   const [reason, setReason] = useState<Record<string, string>>({})
   const [names, setNames] = useState<Record<string, string>>({})
-  const [tab, setTab] = useState<Tab>('overview')
+  const [tab, setTab] = useState<AdminTab>('overview')
 
   useEffect(() => {
     if (!session) return
@@ -181,14 +175,13 @@ export default function Admin() {
   if (loading) return <AdminSkeleton />
   if (!session) return <Navigate to="/login" replace />
 
-  const shell = (body: ReactElement) => (
-    <div className="app-page">
-      <TopBar to="/dashboard" wide />
-      <main className="page">{body}</main>
-    </div>
+  const shell = (body: ReactElement, nav = false) => (
+    nav
+      ? <AdminShell tab={tab} onTab={setTab} onRefresh={onRefresh} refreshing={refreshing}>{body}</AdminShell>
+      : <AdminShell>{body}</AdminShell>
   )
 
-  if (allowed === null) return shell(<AdminSkelBody />)
+  if (allowed === null) return shell(<AdminSkelBody />, true)
   if (!allowed) return shell(<div className="card"><h2>{t('admNoAccess')}</h2><p className="muted">{t('admNoAccessHint')}</p></div>)
 
   // Before v19 SQL the pro_* counts include Plus and plus_* are missing (then all is priced as Pro).
@@ -207,8 +200,8 @@ export default function Admin() {
       {msg && <div className={`notice${msg.error ? ' error' : ''}`} role="status">{msg.text}</div>}
 
       <nav className="tabs admin-tabs" aria-label={t('admTitle')}>
-        {TABS.map((x) => (
-          <button type="button" key={x} className={tab === x ? 'on' : ''} aria-current={tab === x ? 'page' : undefined} onClick={() => setTab(x)}>{t(TAB_KEYS[x])}</button>
+        {ADMIN_TABS.map((x) => (
+          <button type="button" key={x} className={tab === x ? 'on' : ''} aria-current={tab === x ? 'page' : undefined} onClick={() => setTab(x)}>{t(ADMIN_TAB_KEYS[x])}</button>
         ))}
       </nav>
 
@@ -216,7 +209,7 @@ export default function Admin() {
       <h2 className="admin-sec">{t('admOverview')}</h2>
       {!ov ? <SkelStats n={8} /> : (
         <div className="stats">
-          <div className="card stat accent">
+          <div className="card stat accent stat-wide">
             <div className="small stat-label">{t('admMrr')}</div>
             <div className="big-num">₹{mrr.toLocaleString('en-IN')}</div>
             <div className="small stat-sub">{t('admPaidLine', { m: ov.pro_monthly + (ov.plus_monthly ?? 0), y: ov.pro_yearly + (ov.plus_yearly ?? 0) })}</div>
@@ -236,7 +229,7 @@ export default function Admin() {
             <div className="big-num">{ov.orders_today}</div>
             <div className="small stat-sub">{t('admOrdersLine', { w: ov.orders_week, a: ov.orders_total })}</div>
           </div>
-          <div className="card stat">
+          <div className="card stat stat-wide">
             <div className="small stat-label">{t('admStorage')}</div>
             <div className="big-num">{fmtBytes(ov.storage_bytes)}</div>
             <div className="small stat-sub">{t('admStorageLine', { n: ov.files_waiting })}</div>
@@ -376,6 +369,6 @@ export default function Admin() {
         </div>
       )}
       </>)}
-    </>
+    </>, true
   )
 }

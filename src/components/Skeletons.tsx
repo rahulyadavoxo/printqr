@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { LogoMark, TopBar } from './TopBar'
 import Icon from './Icon'
 import BarStory from './BarStory'
+import { AdminShell } from './AdminShell'
 import { Key, useI18n } from '../lib/i18n'
 import { IN_APP, ON_ANDROID } from '../lib/app'
 import { BOTTOM, isTab, NAV, savedSidebar, Tab, TABS } from '../lib/dashNav'
@@ -197,7 +198,7 @@ export function SkelStats({ n = 4 }: { n?: number }) {
   return (
     <div className="stats skeleton-wrap" aria-busy="true">
       {Array.from({ length: n }, (_, i) => (
-        <div key={i} className="card stat skel-stat">
+        <div key={i} className={`card stat skel-stat${i === 0 || i === 4 ? " stat-wide" : ""}`}>
           <div className="skel skel-line w40" />
           <div className="skel skel-num" />
           <div className="skel skel-line w60" />
@@ -267,10 +268,7 @@ export function AdminSkelBody() {
 
 export function AdminSkeleton() {
   return (
-    <div className="app-page">
-      <TopBar to="/dashboard" wide />
-      <main className="page"><AdminSkelBody /></main>
-    </div>
+    <AdminShell tab="overview"><AdminSkelBody /></AdminShell>
   )
 }
 
