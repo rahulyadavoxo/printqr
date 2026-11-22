@@ -5,7 +5,7 @@ import { useSession } from '../lib/useSession'
 import { Key, useI18n } from '../lib/i18n'
 import { ADMIN_TABS, ADMIN_TAB_KEYS, AdminShell, type AdminTab } from '../components/AdminShell'
 import { callFn } from '../lib/billing'
-import { AdminOrders, AdminPayments, AdminSettings, AdminSpam, AdminUsers, fmtBytes, fmtDate } from './AdminTabs'
+import { AdminOrders, AdminPayments, AdminSettings, AdminSpam, AdminUsers, fmtBytes, fmtDate, type SaveSlot } from './AdminTabs'
 import { AdminSkelBody, AdminSkeleton, SkelList, SkelLog, SkelStats } from '../components/Skeletons'
 import { ask as askConfirm } from '../components/ConfirmHost'
 import { setupPush } from '../lib/push'
@@ -74,6 +74,7 @@ export default function Admin() {
   const [tab, setTab] = useState<AdminTab>('overview')
   const [health, setHealth] = useState<HealthData | null>(null)
   const [notifOpen, setNotifOpen] = useState(false)
+  const [saveSlot, setSaveSlot] = useState<SaveSlot>(null)
 
   useEffect(() => {
     if (!session) return
@@ -191,7 +192,7 @@ export default function Admin() {
   const bell = health ? { count: alertCount, onClick: () => { setNotifOpen(true); void loadHealth() } } : undefined
   const shell = (body: ReactElement, nav = false) => (
     nav
-      ? <AdminShell tab={tab} onTab={setTab} onRefresh={onRefresh} refreshing={refreshing} bell={bell}>
+      ? <AdminShell tab={tab} onTab={setTab} onRefresh={onRefresh} refreshing={refreshing} bell={bell} save={saveSlot}>
           {body}
           {notifOpen && health && <AdminNotifications h={health} onClose={() => setNotifOpen(false)} />}
         </AdminShell>
@@ -376,7 +377,7 @@ export default function Admin() {
       {tab === 'orders' && <AdminOrders key={refreshKey} onMsg={setMsg} />}
       {tab === 'payments' && <AdminPayments key={refreshKey} onMsg={setMsg} />}
       {tab === 'spam' && <AdminSpam key={refreshKey} onMsg={setMsg} onChanged={loadLog} />}
-      {tab === 'settings' && <AdminSettings onMsg={setMsg} />}
+      {tab === 'settings' && <AdminSettings onMsg={setMsg} onSaveSlot={setSaveSlot} />}
 
       {tab === 'log' && (<>
       <h2 className="admin-sec">{t('admLog')}</h2>

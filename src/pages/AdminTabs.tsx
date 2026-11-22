@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useI18n } from '../lib/i18n'
 import { callFn } from '../lib/billing'
@@ -402,17 +402,31 @@ export function AdminSpam({ onMsg, onChanged }: { onMsg: Msg; onChanged: () => v
 
 /* ---------------- Settings ---------------- */
 
-export function AdminSettings({ onMsg }: { onMsg: Msg }) {
+/** Save button in the admin bottom bar: shown in place of the tab's icon only while the tab has unsaved changes. */
+export type SaveSlot = { run: () => void; busy: boolean } | null
+
+export function AdminSettings({ onMsg, onSaveSlot }: { onMsg: Msg; onSaveSlot?: (slot: SaveSlot) => void }) {
   const { t, teRaw } = useI18n()
   const [s, setS] = useState<AppSettings | null>(null)
+  const [orig, setOrig] = useState<AppSettings | null>(null)
   const [busy, setBusy] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
 
   useEffect(() => {
     supabase.rpc('get_app_settings').then(({ data, error }) => {
       if (error) onMsg({ text: teRaw(error), error: true })
-      setS({ ...DEFAULT_SETTINGS, ...((data as Partial<AppSettings>) || {}) })
+      const v = { ...DEFAULT_SETTINGS, ...((data as Partial<AppSettings>) || {}) }
+      setS(v)
+      setOrig(v)
     })
   }, [onMsg, teRaw])
+
+  const dirty = !!s && !!orig && JSON.stringify(s) !== JSON.stringify(orig)
+  useEffect(() => {
+    // requestSubmit keeps the form's own checks (e.g. version pattern) and the maintenance confirm.
+    onSaveSlot?.(dirty ? { run: () => formRef.current?.requestSubmit(), busy } : null)
+  }, [dirty, busy, onSaveSlot])
+  useEffect(() => () => onSaveSlot?.(null), [onSaveSlot])
 
   if (!s) return <SkelForm n={5} />
   const set = (patch: Partial<AppSettings>) => setS({ ...s, ...patch })
@@ -427,12 +441,13 @@ export function AdminSettings({ onMsg }: { onMsg: Msg }) {
     if (error) { onMsg({ text: teRaw(error), error: true }); return }
     const next = { ...DEFAULT_SETTINGS, ...(data as Partial<AppSettings>) }
     setS(next)
+    setOrig(next)
     setAppSettingsCache(next)
     onMsg({ text: t('saved') })
   }
 
   return (
-    <form className="card admin-settings" onSubmit={save}>
+    <form ref={formRef} className="card admin-settings" onSubmit={save}>
       <h2 className="admin-sec">{t('admSettings')}</h2>
 
       <label htmlFor="set-ann">{t('admAnnouncement')}</label>
