@@ -21,6 +21,18 @@ export default function Setup() {
   const [busy, setBusy] = useState(false)
   const [checking, setChecking] = useState(true)
   const [msg, setMsg] = useState<string | null>(null)
+  const [leaving, setLeaving] = useState(false)
+
+  async function switchAccount() {
+    setLeaving(true)
+    // Slow net must not trap the user here: cap the server sign-out, then clear the local session anyway.
+    const done = await Promise.race([
+      supabase.auth.signOut().then(() => true, () => false),
+      new Promise<boolean>((r) => setTimeout(() => r(false), 1500))
+    ])
+    if (!done) await supabase.auth.signOut({ scope: 'local' }).catch(() => {})
+    nav('/login', { replace: true })
+  }
 
   useEffect(() => {
     if (loading) return
@@ -113,6 +125,13 @@ export default function Setup() {
           </label>
           {msg && <p className="notice error" role="alert">{msg}</p>}
           <button className="btn primary block lg" disabled={busy}>{busy ? t('creating') : t('createShop')}</button>
+          {/* Way out of setup (Back would bounce Login -> Dashboard -> Setup while signed in): sign out, then Login. */}
+          <p className="center small switch-line">
+            <span className="muted">{session?.user.email}</span>{' '}
+            <button type="button" className="link" disabled={busy || leaving} onClick={switchAccount}>
+              {leaving ? t('setupLeaving') : t('setupOtherAccount')}
+            </button>
+          </p>
         </form>
       </main>
     </div>
