@@ -711,9 +711,20 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
                     cm.createCredentialAsync(MainActivity.this, new CreatePasswordRequest(id, password), null,
                         androidx.core.content.ContextCompat.getMainExecutor(MainActivity.this), new CredentialManagerCallback<CreateCredentialResponse, CreateCredentialException>() {
                             @Override public void onResult(CreateCredentialResponse r) { }
-                            @Override public void onError(CreateCredentialException e) { }
+                            @Override public void onError(CreateCredentialException e) {
+                                // User tapped "Not now" -> silent. Anything else: say why, so it can be fixed (e.g. no password manager turned on).
+                                if (e instanceof androidx.credentials.exceptions.CreateCredentialCancellationException) return;
+                                boolean hi = PushService.hi(MainActivity.this);
+                                String why = e instanceof androidx.credentials.exceptions.CreateCredentialNoCreateOptionException
+                                    || e instanceof androidx.credentials.exceptions.CreateCredentialProviderConfigurationException
+                                    ? (hi ? "पासवर्ड सेव नहीं हुआ: फ़ोन Settings में Google Password Manager चालू करें" : "Password not saved: turn on Google Password Manager in phone Settings")
+                                    : (hi ? "पासवर्ड सेव नहीं हुआ" : "Password not saved") + " (" + e.getType() + ")";
+                                Toast.makeText(MainActivity.this, why, Toast.LENGTH_LONG).show();
+                            }
                         });
-                } catch (Throwable ignored) { }
+                } catch (Throwable t) {
+                    Toast.makeText(MainActivity.this, "Password save error: " + t.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+                }
             });
         }
 
