@@ -58,7 +58,8 @@ jobs:
           cd supabase/migrations
           if [ "$EVENT" = "workflow_dispatch" ]; then
             if [ "$INPUT_FILES" = "all" ]; then
-              list=$(ls *.sql)
+              # v2/v3 are already in schema-base.sql and fail on the newer shape, so "all" starts at v4.
+              list=$(for f in *.sql; do n=$(echo "$f" | grep -oE -- '-v[0-9]+' | head -1 | tr -dc '0-9'); [ "${n:-0}" -ge 4 ] && echo "$f"; done)
             else
               list="$INPUT_FILES"
             fi

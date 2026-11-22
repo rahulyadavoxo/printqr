@@ -47,7 +47,7 @@ Customer ko shop ka WhatsApp number save nahi karna padta. Shop wala apna QR pos
 5. **Project Settings → API** se copy karo: Project URL, `anon` public key, `service_role` key.
 
 ### 1b. Purane database ka upgrade (v2: counters, passport photo, forgot password)
-Agar `schema.sql` pehle chala chuke ho, to **SQL Editor** mein `supabase/migrations/2026-11-17-v2.sql` ka poora content paste karke **Run** karo. Ye file kitni bhi baar chala sakte ho.
+Agar `schema.sql` pehle chala chuke ho, to **SQL Editor** mein `supabase/migrations/2026-11-17-v2.sql` ka poora content paste karke **Run** karo. Ye file kitni bhi baar chala sakte ho, lekin sirf purane (v2 se pehle wale) database par. Naya `schema.sql` mein v2 aur v3 pehle se hain, unhe dobara mat chalao (workflow ka `all` bhi v4 se shuru hota hai).
 
 ### 1c. Plans (v3: Free + Pro, Razorpay subscriptions)
 1. **SQL Editor** mein `supabase/migrations/2026-11-17-v3-plans.sql` paste karke **Run** karo (v2 ke baad). Isse pehle app purane tarike se chalta hai (koi ads/lock nahi).

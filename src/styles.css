@@ -853,7 +853,7 @@ body.no-scroll { overflow: hidden; }
   .dash.sb-hover .drawer { width: 300px; }
   .dash.sb-hover .drawer .drawer-label, .dash.sb-hover .drawer .drawer-title, .dash.sb-hover .drawer .drawer-item span { opacity: 1 !important; }
   .dash.sb-hover .drawer .drawer-foot { opacity: 1 !important; pointer-events: auto !important; height: auto !important; padding: 14px 16px 16px !important; border-top: 1px solid var(--c-line) !important; }
-  .dash.sb-hover .dash-main { margin-left: 324px; }
+  .dash.sb-hover .dash-main, .dash.sb-hover .dash-bar { margin-left: 324px; }
 }
 @media print {
   .drawer, .drawer-scrim, .dash-bar { display: none !important; }
@@ -1671,7 +1671,7 @@ img.shop-avatar { object-fit: cover; padding: 0; }
 .set-back { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 10px -4px; padding: 6px 8px 6px 2px; border: none; background: none; font: inherit; font-size: 16px; font-weight: 700; color: var(--c-ink-2); cursor: pointer; border-radius: var(--r-sm); }
 
 /* App-style confirm popup (ConfirmHost) - replaces the raw browser confirm() box */
-.cf-back { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(8, 12, 10, .45); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); animation: cf-fade .15s ease-out; }
+.cf-back { position: fixed; inset: 0; z-index: 1500; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(8, 12, 10, .45); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); animation: cf-fade .15s ease-out; }
 .cf-box { width: 100%; max-width: 360px; background: var(--c-surface); color: var(--c-ink); border-radius: 22px; padding: 22px 20px 18px; box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .45); text-align: center; animation: cf-pop .18s cubic-bezier(.2, .9, .3, 1.2); }
 .cf-icon { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: var(--c-brand-50); color: var(--c-brand-700); margin-bottom: 12px; }
 .cf-icon.is-danger { background: var(--c-red-bg); color: var(--c-red-ink); }

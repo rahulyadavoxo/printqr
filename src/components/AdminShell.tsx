@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Key, useI18n } from '../lib/i18n'
 import Icon from './Icon'
 import { LangToggle, TopBar } from './TopBar'
+import { setTopColor } from '../lib/theme'
 
 /* Admin page frame. Computer: the normal top bar + tab row (inside the page).
    Phone/tablet (< 1024px): app-style bar (back, title, refresh) and a bottom bar like the Dashboard,
@@ -27,6 +28,14 @@ export function AdminShell({ children, tab, onTab, onRefresh, refreshing = false
   const { t } = useI18n()
   const nav = useNavigate()
   const [more, setMore] = useState(false)
+  // Phone/tablet: status bar (app) and browser bar match the grey admin top bar, like the Dashboard.
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023.98px)')
+    const sync = () => setTopColor(mq.matches ? { light: '#e6e1d6', dark: '#070b09' } : null)
+    sync()
+    mq.addEventListener?.('change', sync)
+    return () => { mq.removeEventListener?.('change', sync); setTopColor(null) }
+  }, [])
   useEffect(() => {
     if (!more) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMore(false) }

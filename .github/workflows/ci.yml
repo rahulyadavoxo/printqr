@@ -1,10 +1,14 @@
 name: CI
 
-# Runs on every pull request (and can be required in branch protection for main):
+# Runs on every pull request and on main pushes that touch supabase/ or scripts/ (and can be required in branch protection for main):
 #  - web: type check + production build
 #  - sql: fresh install on a throw-away local Supabase (schema.sql + every migration, twice)
 on:
   pull_request:
+  # Work goes straight to main, so also check database files on those pushes.
+  push:
+    branches: [main]
+    paths: ['supabase/**', 'scripts/**', '.github/workflows/ci.yml']
   workflow_dispatch:
 
 permissions:
