@@ -10,20 +10,39 @@ export type AppSettings = {
   min_app_version: string | null
   free_counter_limit: number
   login_design: LoginDesign
+  /** Per platform (v28); a missing key uses login_design. */
+  login_designs: Partial<Record<LoginPlatform, LoginDesign>>
 }
 
 export type LoginDesign = 'classic' | 'modern'
+/** app = Android app, mweb = website on a phone, web = website on a computer, desktop = Windows app. */
+export type LoginPlatform = 'app' | 'mweb' | 'web' | 'desktop'
+export const LOGIN_PLATFORMS: LoginPlatform[] = ['app', 'mweb', 'web', 'desktop']
+
+export function currentLoginPlatform(): LoginPlatform {
+  const w = window as unknown as { PQ?: unknown; PQDesktop?: unknown }
+  if (w.PQ || location.hostname === 'appassets.androidplatform.net') return 'app'
+  if (w.PQDesktop || /electron/i.test(navigator.userAgent)) return 'desktop'
+  const phone = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent) || window.matchMedia?.('(max-width: 760px)').matches
+  return phone ? 'mweb' : 'web'
+}
+
+/** The login design for this device: its platform's choice, else the general one. */
+export function loginDesignFor(s: AppSettings, p: LoginPlatform = currentLoginPlatform()): LoginDesign {
+  const v = s.login_designs?.[p]
+  return v === 'modern' || v === 'classic' ? v : s.login_design === 'modern' ? 'modern' : 'classic'
+}
 const LD_KEY = 'pq_login_design'
 /** Last known login design, so the login page does not flash the other design while settings load. */
 function storedDesign(): LoginDesign {
   try { return localStorage.getItem(LD_KEY) === 'modern' ? 'modern' : 'classic' } catch { return 'classic' }
 }
 function remember(s: AppSettings) {
-  try { localStorage.setItem(LD_KEY, s.login_design === 'modern' ? 'modern' : 'classic') } catch { /* private mode */ }
+  try { localStorage.setItem(LD_KEY, loginDesignFor(s)) } catch { /* private mode */ }
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  announcement: null, announcement_hi: null, maintenance: false, maintenance_msg: null, min_app_version: null, free_counter_limit: 0, login_design: storedDesign()
+  announcement: null, announcement_hi: null, maintenance: false, maintenance_msg: null, min_app_version: null, free_counter_limit: 0, login_design: storedDesign(), login_designs: {}
 }
 
 let cache: AppSettings | null = null

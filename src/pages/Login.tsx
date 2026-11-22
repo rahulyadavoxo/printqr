@@ -9,7 +9,7 @@ import { clearAuthUrlError, peekAuthUrlError, sendResetEmail } from '../lib/reco
 import { useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
 import { isCaptchaError, Turnstile } from '../components/Turnstile'
-import { useAppSettings } from '../lib/appSettings'
+import { loginDesignFor, useAppSettings } from '../lib/appSettings'
 
 type Via = 'email' | 'phone'
 type PhoneKind = 'signup' | 'reset'
@@ -34,7 +34,7 @@ export default function Login() {
   // Admin picks the design (Settings > Login page design); ?design=modern|classic previews one.
   const settings = useAppSettings()
   const designParam = params.get('design')
-  const modern = designParam ? designParam === 'modern' : settings.login_design === 'modern'
+  const modern = designParam ? designParam === 'modern' : loginDesignFor(settings) === 'modern'
   const [fullName, setFullName] = useState('')
   const initialMode = params.get('mode')
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(
