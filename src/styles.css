@@ -2100,3 +2100,10 @@ input[type="password"]::-ms-reveal { display: none; }
   .adm-notif-back { align-items: flex-end; justify-content: center; padding: 0; }
   .adm-notif { max-width: 560px; border-radius: 22px 22px 0 0; max-height: 80dvh; padding-bottom: env(safe-area-inset-bottom); }
 }
+
+/* Admin bottom bar: Save in place of the open tab's button while it has unsaved changes */
+.adm-bnav .adm-save .bnav-ic { background: var(--c-lime); color: #0b1210; animation: adm-save-in .2s ease-out; }
+.adm-bnav .adm-save .bnav-lbl { font-weight: 800; }
+.adm-bnav .adm-save:disabled { opacity: .7; }
+@keyframes adm-save-in { from { transform: scale(.7); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .adm-bnav .adm-save .bnav-ic { animation: none; } }

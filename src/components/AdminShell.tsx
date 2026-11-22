@@ -22,10 +22,12 @@ const ICONS: Record<AdminTab, string> = {
 const BOTTOM: AdminTab[] = ['overview', 'shops', 'orders', 'users']
 const MORE: AdminTab[] = ['payments', 'spam', 'settings', 'log']
 
-export function AdminShell({ children, tab, onTab, onRefresh, refreshing = false, bell }: {
+export function AdminShell({ children, tab, onTab, onRefresh, refreshing = false, bell, save }: {
   children: ReactNode; tab?: AdminTab; onTab?: (t: AdminTab) => void; onRefresh?: () => void; refreshing?: boolean
   /** v30: health alerts bell left of refresh; count = open problems */
   bell?: { count: number; onClick: () => void }
+  /** The open tab has unsaved changes: its bottom-bar button (or More, for More tabs) turns into Save. */
+  save?: { run: () => void; busy: boolean } | null
 }) {
   const { t } = useI18n()
   const nav = useNavigate()
@@ -46,6 +48,13 @@ export function AdminShell({ children, tab, onTab, onRefresh, refreshing = false
   }, [more])
   const pick = (x: AdminTab) => { setMore(false); onTab?.(x); window.scrollTo(0, 0) }
   const moreOn = !!tab && MORE.includes(tab)
+  const saveBtn = (key: string) => (
+    <button key={key} type="button" className={`bnav-item adm-save on${key === 'orders' ? ' bnav-main' : ''}`}
+      onClick={() => save?.run()} disabled={save?.busy} aria-busy={save?.busy}>
+      <span className="bnav-ic"><Icon name="check" size={key === 'orders' ? 26 : 22} /></span>
+      <span className="bnav-lbl">{save?.busy ? '…' : t('save')}</span>
+    </button>
+  )
 
   return (
     <div className={`app-page admin-app${tab ? ' has-bnav' : ''}`}>
@@ -75,17 +84,17 @@ export function AdminShell({ children, tab, onTab, onRefresh, refreshing = false
 
       {tab && (
         <nav className="bnav adm-bnav no-print" aria-label={t('admTitle')}>
-          {BOTTOM.map((id) => (
+          {BOTTOM.map((id) => (save && tab === id) ? saveBtn(id) : (
             <button key={id} type="button" className={`bnav-item${id === 'orders' ? ' bnav-main' : ''}${tab === id ? ' on' : ''}`}
               aria-current={tab === id ? 'page' : undefined} onClick={() => pick(id)}>
               <span className="bnav-ic"><Icon name={ICONS[id]} size={id === 'orders' ? 26 : 22} /></span>
               <span className="bnav-lbl">{t(ADMIN_TAB_KEYS[id])}</span>
             </button>
           ))}
-          <button type="button" className={`bnav-item${moreOn ? ' on' : ''}`} aria-expanded={more} onClick={() => setMore(true)}>
+          {save && moreOn ? saveBtn('more') : <button type="button" className={`bnav-item${moreOn ? ' on' : ''}`} aria-expanded={more} onClick={() => setMore(true)}>
             <span className="bnav-ic"><Icon name="menu" size={22} /></span>
             <span className="bnav-lbl">{t('admNavMore')}</span>
-          </button>
+          </button>}
         </nav>
       )}
 
