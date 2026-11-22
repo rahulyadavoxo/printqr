@@ -46,4 +46,6 @@ jobs:
       - run: supabase functions deploy send-email --no-verify-jwt --project-ref "$PROJECT_REF" --yes
       - run: supabase functions deploy send-welcome --project-ref "$PROJECT_REF" --yes
       # Auth "Send SMS" hook: mobile OTP through SMSGate (an Android phone with a SIM)
+      # v30: health check every 15 min from pg_cron, push to admins
+      - run: supabase functions deploy health-check --no-verify-jwt --project-ref "$PROJECT_REF" --yes
       - run: supabase functions deploy send-sms --no-verify-jwt --project-ref "$PROJECT_REF" --yes

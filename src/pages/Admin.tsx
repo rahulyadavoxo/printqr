@@ -8,6 +8,7 @@ import { callFn } from '../lib/billing'
 import { AdminOrders, AdminPayments, AdminSettings, AdminSpam, AdminUsers, fmtBytes, fmtDate } from './AdminTabs'
 import { AdminSkelBody, AdminSkeleton, SkelList, SkelLog, SkelStats } from '../components/Skeletons'
 import { ask as askConfirm } from '../components/ConfirmHost'
+import { setupPush } from '../lib/push'
 
 /* Admin panel. The page only hides itself; the real check is is_admin() inside every admin_* SQL function. */
 
@@ -99,6 +100,7 @@ export default function Admin() {
     if (!allowed) return
     loadOverview()
     loadLog()
+    setupPush() // v30: this phone / browser gets health alerts for admins
   }, [allowed, loadOverview, loadLog])
 
   useEffect(() => {
@@ -207,6 +209,7 @@ export default function Admin() {
 
       {tab === 'overview' && (<>
       <h2 className="admin-sec">{t('admOverview')}</h2>
+      <AdminHealth refreshKey={refreshKey} />
       {!ov ? <SkelStats n={8} /> : (
         <div className="stats">
           <div className="card stat accent stat-wide">
@@ -370,5 +373,34 @@ export default function Admin() {
       )}
       </>)}
     </>, true
+  )
+}
+
+type HealthAlert = { key: string; title: string; detail: string; opened_at: string; last_seen: string; closed_at: string | null }
+
+/** v30: problems found by the 15-minute health check (pg_cron -> health-check). Admins also get them as push. */
+function AdminHealth({ refreshKey }: { refreshKey: number }) {
+  const { t, lang } = useI18n()
+  const [h, setH] = useState<{ checked_at: string | null; alerts: HealthAlert[] } | null | 'none'>(null)
+  useEffect(() => {
+    supabase.rpc('admin_alerts').then(({ data, error }) => setH(error ? 'none' : (data as { checked_at: string | null; alerts: HealthAlert[] })), () => setH('none'))
+  }, [refreshKey])
+  if (h === null || h === 'none') return null // before v30 SQL: nothing to show
+  const when = (s: string | null) => s ? new Date(s).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
+  const open = h.alerts.filter((a) => !a.closed_at)
+  const fixed = h.alerts.filter((a) => a.closed_at)
+  const stale = !h.checked_at || Date.now() - new Date(h.checked_at).getTime() > 45 * 60 * 1000
+  return (
+    <div className={`card${open.length || stale ? ' warn' : ''}`} style={{ marginBottom: 12 }}>
+      <div className="small stat-label">{t('admHealth')}</div>
+      <p style={{ margin: '4px 0' }}><b>{open.length ? t('admHealthBad', { n: open.length }) : stale ? t('admHealthStale') : t('admHealthOk')}</b></p>
+      {open.map((a) => (
+        <p key={a.key} className="small" style={{ margin: '6px 0' }}>⚠️ <b>{a.title}</b> · {t('admHealthSince', { d: when(a.opened_at) })}<br /><span className="muted">{a.detail}</span></p>
+      ))}
+      {fixed.map((a) => (
+        <p key={a.key + a.closed_at} className="small muted" style={{ margin: '4px 0' }}>✅ {a.title} · {t('admHealthFixed', { d: when(a.closed_at) })}</p>
+      ))}
+      <div className="small muted">{t('admHealthChecked', { d: when(h.checked_at) })}</div>
+    </div>
   )
 }
