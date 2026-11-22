@@ -11,6 +11,7 @@ import { TopBar } from '../components/TopBar'
 import { isCaptchaError, Turnstile } from '../components/Turnstile'
 
 type Via = 'email' | 'phone'
+type PhoneKind = 'signup' | 'reset'
 const INDIAN_MOBILE = /^[6-9]\d{9}$/
 
 /** Resend countdown as m:ss ("0:42"). */
@@ -38,6 +39,8 @@ export default function Login() {
   // Which code the code step checks: 'phone' only after an SMS OTP was sent from the Email / Mobile box.
   const [via, setVia] = useState<Via>('email')
   const [mobile, setMobile] = useState('')
+  // What the SMS code is for: a new account (password already typed) or "forgot password".
+  const [phoneKind, setPhoneKind] = useState<PhoneKind>('signup')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   // Signup step 2: the 6-digit code from the email (proves the email is real).
@@ -53,6 +56,8 @@ export default function Login() {
     return e ? { text: e, error: true } : null
   })
   const nav = useNavigate()
+  // A 10-digit mobile number typed in the Email / Mobile box (no @ or letters).
+  const idIsPhone = !/[@a-z]/i.test(email) && INDIAN_MOBILE.test(cleanMobile(email))
 
   useEffect(() => clearAuthUrlError(), [])
 
@@ -148,11 +153,16 @@ export default function Login() {
     if (!codeStep || via !== 'phone') stopOtpAutoRead()
   }, [codeStep, via])
 
-  async function sendPhoneCode(e?: FormEvent, num?: string) {
-    e?.preventDefault()
-    const resend = !e
+  /**
+   * SMS code for a mobile number. 'signup': creates the account with the typed password (Supabase sends the
+   * confirmation code). 'reset': forgot password, signs in by code (only existing numbers) so a new password can be set.
+   * No number = resend for the code step.
+   */
+  async function sendPhoneCode(num?: string, kind?: PhoneKind) {
+    const resend = !num
     if (resend && cooldown > 0) return
     const number = num ?? mobile
+    const k = kind ?? phoneKind
     if (!INDIAN_MOBILE.test(number)) {
       setMsg({ text: t('phBad'), error: true })
       return
@@ -165,13 +175,27 @@ export default function Login() {
       setCode(c)
       void verifyPhoneRef.current(undefined, c)
     })
+    const phone = `+91${number}`
+    const captchaToken = captcha || undefined
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        phone: `+91${number}`,
-        options: { captchaToken: captcha || undefined, shouldCreateUser: true }
-      })
-      if (error) throw error
-      if (num) { setMobile(num); setVia('phone') }
+      if (k === 'signup' && !resend) {
+        const { data, error } = await supabase.auth.signUp({ phone, password, options: { captchaToken } })
+        if (error) throw error
+        if (data.session) {
+          // Phone confirmation switched off in Supabase: the account is ready already.
+          stopOtpAutoRead()
+          offerSavePassword(phone, password)
+          nav('/setup')
+          return
+        }
+      } else if (k === 'signup') {
+        const { error } = await supabase.auth.resend({ type: 'sms', phone, options: { captchaToken } })
+        if (error) throw error
+      } else {
+        const { error } = await supabase.auth.signInWithOtp({ phone, options: { captchaToken, shouldCreateUser: false } })
+        if (error) throw error
+      }
+      if (!resend) { setMobile(number); setPhoneKind(k); setVia('phone') }
       if (resend) { setMsg({ text: t('phCodeResent'), error: false }); setCode('') }
       else { setCode(''); setCodeStep(true) }
       setCooldown(60)
@@ -196,10 +220,12 @@ export default function Login() {
       const { data, error } = await supabase.auth.verifyOtp({ phone: `+91${mobile}`, token, type: 'sms' })
       if (error) throw error
       if (!data.session) throw new Error(t('phCodeBad'))
-      // A number seen for the first time just got its account: shop setup. Others: dashboard
-      // (both pages send the user to the right place anyway).
-      const created = Date.parse(data.user?.created_at || '')
-      nav(Number.isFinite(created) && Date.now() - created < 10 * 60 * 1000 ? '/setup' : '/dashboard')
+      if (phoneKind === 'reset') {
+        nav('/reset')
+      } else {
+        offerSavePassword(`+91${mobile}`, password)
+        nav('/setup')
+      }
     } catch (err) {
       setMsg({ text: phoneErr(err, true), error: true })
       codeFailed()
@@ -218,6 +244,12 @@ export default function Login() {
 
   async function submit(e: FormEvent) {
     e.preventDefault()
+    // Email or a 10-digit mobile number in the same box. A number never gets a password check by email.
+    const number = idIsPhone ? cleanMobile(email) : ''
+    if (idIsPhone && mode !== 'login') {
+      await sendPhoneCode(number, mode === 'signup' ? 'signup' : 'reset')
+      return
+    }
     setBusy(true)
     setMsg(null)
     try {
@@ -245,13 +277,15 @@ export default function Login() {
         offerSavePassword(email.trim(), password)
         nav('/setup')
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken: captcha || undefined } })
+        const creds = idIsPhone ? { phone: `+91${number}`, password } : { email, password }
+        const { error } = await supabase.auth.signInWithPassword({ ...creds, options: { captchaToken: captcha || undefined } })
         if (error) throw error
-        offerSavePassword(email.trim(), password)
+        offerSavePassword(idIsPhone ? `+91${number}` : email.trim(), password)
         nav('/dashboard')
       }
     } catch (e) {
-      setMsg({ text: isCaptchaError(e) ? t('captchaFail') : te(e), error: true })
+      const bad = /invalid login credentials/i.test(String((e as Error)?.message || ''))
+      setMsg({ text: isCaptchaError(e) ? t('captchaFail') : idIsPhone && bad ? t('phNoPass') : te(e), error: true })
     } finally {
       setBusy(false)
       setCaptchaReset((n) => n + 1)
@@ -305,7 +339,7 @@ export default function Login() {
               {cooldown > 0 ? (
                 <span className="otp-timer" role="timer" aria-live="off">{t('codeWait', { s: mmss(cooldown) })}</span>
               ) : (
-                <button type="button" className="link" disabled={busy} onClick={phoneMode ? () => sendPhoneCode() : resendCode}>
+                <button type="button" className="link" disabled={busy} onClick={phoneMode ? () => { void sendPhoneCode() } : resendCode}>
                   {t('codeResend')}
                 </button>
               )}
@@ -325,14 +359,15 @@ export default function Login() {
         <main className="auth-wrap">
           <form className="card auth-card" onSubmit={submit}>
             <h1 className="auth-title">{t('fpTitle')}</h1>
-            <p className="muted center">{t('fpSub')}</p>
+            <p className="muted center">{t('fpSubAny')}</p>
             <label className="field">
-              <span>{t('email')}</span>
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} name="email" autoComplete="username" placeholder="you@example.com" />
+              <span>{t('idLabel')}</span>
+              <input type="text" inputMode={idIsPhone ? 'tel' : 'email'} required value={email} onChange={(e) => setEmail(e.target.value)} name="email"
+                autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder={t('idPlaceholder')} />
             </label>
             <Turnstile key="reset" action="reset" onToken={setCaptcha} resetKey={captchaReset} lang={lang} quiet />
             {msg && <p className={`notice${msg.error ? ' error' : ' success'}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
-            <button className="btn primary block lg" disabled={busy}>{busy ? t('pleaseWait') : t('fpSend')}</button>
+            <button className="btn primary block lg" disabled={busy}>{busy ? t('pleaseWait') : idIsPhone ? t('mobileSend') : t('fpSend')}</button>
             <p className="center small switch-line">
               <button type="button" className="link" onClick={() => switchTo('login')}>{t('fpBack')}</button>
             </p>
@@ -357,15 +392,12 @@ export default function Login() {
     </p>
   )
 
-  // A 10-digit mobile number typed in the Email / Mobile box: no password, an OTP is sent instead.
-  const idIsPhone = !/[@a-z]/i.test(email) && INDIAN_MOBILE.test(cleanMobile(email))
-
   // One box for email or mobile: email + password, or a mobile number that gets an OTP (new number = new account).
   return (
     <div className="auth-page">
       <TopBar />
       <main className="auth-wrap">
-        <form className="card auth-card" onSubmit={idIsPhone ? (e) => sendPhoneCode(e, cleanMobile(email)) : submit}>
+        <form className="card auth-card" onSubmit={submit}>
           <h1 className="auth-title">{signup ? t('signupTitle') : t('loginTitle')}</h1>
           <p className="muted center">{signup ? t('signupSub') : t('loginSub')}</p>
           {googleButton}
@@ -373,17 +405,15 @@ export default function Login() {
             <span>{t('idLabel')}</span>
             <input type="text" inputMode={idIsPhone ? 'tel' : 'email'} required value={email} onChange={(e) => setEmail(e.target.value)} name="email"
               autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder={t('idPlaceholder')} />
-            {idIsPhone && <small className="hint">{t('mobileHintShort')}</small>}
+            {signup && idIsPhone && <small className="hint">{t('mobileHintShort')}</small>}
           </label>
-          {!idIsPhone && (
-            <label className="field">
-              <span>{t('password')}</span>
-              <PasswordInput name="password" required minLength={signup ? 8 : 6} value={password} onChange={(e) => setPassword(e.target.value)}
-                autoComplete={signup ? 'new-password' : 'current-password'} />
-              {signup && <small className="hint">{t('passwordHint')}</small>}
-            </label>
-          )}
-          {!signup && !idIsPhone && (
+          <label className="field">
+            <span>{t('password')}</span>
+            <PasswordInput name="password" required minLength={signup ? 8 : 6} value={password} onChange={(e) => setPassword(e.target.value)}
+              autoComplete={signup ? 'new-password' : 'current-password'} />
+            {signup && <small className="hint">{t('passwordHint')}</small>}
+          </label>
+          {!signup && (
             <p className="forgot-line">
               <button type="button" className="link small" onClick={() => switchTo('forgot')}>{t('forgotLink')}</button>
             </p>
@@ -391,7 +421,7 @@ export default function Login() {
           <Turnstile key={mode} action={signup ? 'signup' : 'login'} onToken={setCaptcha} resetKey={captchaReset} lang={lang} quiet />
           {msg && <p className={`notice${msg.error ? ' error' : ''}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
           <button className="btn primary block lg" disabled={busy}>
-            {busy ? t('pleaseWait') : idIsPhone ? t('mobileSend') : signup ? t('createAccount') : t('login')}
+            {busy ? t('pleaseWait') : signup ? t('createAccount') : t('login')}
           </button>
           <p className="center small switch-line">
             <span className="muted">{signup ? t('haveAccount') : t('noAccount')}</span>{' '}
