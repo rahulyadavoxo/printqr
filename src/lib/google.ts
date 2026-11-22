@@ -26,7 +26,9 @@ function nativeIdToken(nonceHash: string): Promise<string> {
     W.__pqGoogle = (token, err) => {
       delete W.__pqGoogle
       if (token) resolve(token)
-      else reject(new Error(err || 'google'))
+      // Sheet closed / back pressed: Android reports it in several ways ("[16] Cancelled by user",
+      // GetCredentialCancellationException, "canceled"). Treat all as a quiet cancel, not an error.
+      else reject(new Error(/cancel|\[16\]|user.?(closed|dismiss)/i.test(err || '') ? 'cancel' : (err || 'google')))
     }
     try { nativeBridge()!.googleSignIn!(GOOGLE_CLIENT_ID, nonceHash) } catch (e) { delete W.__pqGoogle; reject(e) }
   })
