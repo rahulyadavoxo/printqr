@@ -553,7 +553,7 @@ export default function Login() {
             </div>
           </header>
           <main className="lx-sheet">{lxForm}</main>
-          <div style={{ height: 28 }} />
+          <div className="lx-end" />
         </div>
       </div>
     )
