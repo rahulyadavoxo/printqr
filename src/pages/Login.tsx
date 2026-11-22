@@ -285,7 +285,7 @@ export default function Login() {
       }
     } catch (e) {
       const bad = /invalid login credentials/i.test(String((e as Error)?.message || ''))
-      setMsg({ text: isCaptchaError(e) ? t('captchaFail') : idIsPhone && bad ? t('phNoPass') : te(e), error: true })
+      setMsg({ text: isCaptchaError(e) ? t('captchaFail') : idIsPhone && bad ? t('phNoPass') : bad ? t('badOrNew') : te(e), error: true })
     } finally {
       setBusy(false)
       setCaptchaReset((n) => n + 1)
@@ -407,21 +407,21 @@ export default function Login() {
               autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder={t('idPlaceholder')} />
             {signup && idIsPhone && <small className="hint">{t('mobileHintShort')}</small>}
           </label>
-          <label className="field">
-            <span>{t('password')}</span>
-            <PasswordInput name="password" required minLength={signup ? 8 : 6} value={password} onChange={(e) => setPassword(e.target.value)}
-              autoComplete={signup ? 'new-password' : 'current-password'} />
+          <div className="field">
+            <div className="field-head">
+              <label htmlFor="login-password">{t('password')}</label>
+              {!signup && (
+                <button type="button" className="forgot-link" onClick={() => switchTo('forgot')}>{t('forgotLink')}</button>
+              )}
+            </div>
+            <PasswordInput id="login-password" name="password" required minLength={signup ? 8 : 6} value={password} onChange={(e) => setPassword(e.target.value)}
+              autoComplete={signup ? 'new-password' : 'current-password'} placeholder="••••••••" />
             {signup && <small className="hint">{t('passwordHint')}</small>}
-          </label>
-          {!signup && (
-            <p className="forgot-line">
-              <button type="button" className="link small" onClick={() => switchTo('forgot')}>{t('forgotLink')}</button>
-            </p>
-          )}
+          </div>
           <Turnstile key={mode} action={signup ? 'signup' : 'login'} onToken={setCaptcha} resetKey={captchaReset} lang={lang} quiet />
           {msg && <p className={`notice${msg.error ? ' error' : ''}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
           <button className="btn primary block lg" disabled={busy}>
-            {busy ? t('pleaseWait') : signup ? t('createAccount') : t('login')}
+            {busy ? t('pleaseWait') : signup ? t('createAccount') : t('signInUp')}
           </button>
           <p className="center small switch-line">
             <span className="muted">{signup ? t('haveAccount') : t('noAccount')}</span>{' '}

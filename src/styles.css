@@ -308,6 +308,11 @@ input:focus, select:focus { outline: none; border-color: var(--c-brand); box-sha
 .auth-card .btn.block.lg { margin-top: 18px; }
 .switch-line { margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--c-line); }
 .forgot-line { margin: -8px 0 0; text-align: right; }
+.field-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.field-head > label { font-size: var(--fs-sm); font-weight: 650; color: var(--c-ink-2); }
+.forgot-link { background: none; border: none; padding: 6px 0 6px 8px; margin: -6px 0; font: inherit; font-size: var(--fs-sm); font-weight: 600; color: var(--c-muted); cursor: pointer; border-radius: var(--r-xs); }
+.forgot-link:hover { color: var(--c-ink-2); }
+.forgot-link:focus-visible { outline: none; box-shadow: var(--ring); }
 .auth-via { margin: 4px 0 14px; }
 .auth-card .google-btn.top { margin-top: 18px; }
 .auth-card .or-line.top { margin: 16px 0 6px; }
