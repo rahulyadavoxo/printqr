@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useI18n } from '../lib/i18n'
 import { callFn } from '../lib/billing'
-import { AppSettings, DEFAULT_SETTINGS, LOGIN_PLATFORMS, LoginPlatform, loginDesignFor, setAppSettingsCache } from '../lib/appSettings'
+import { AppSettings, DEFAULT_SETTINGS, LOGIN_PLATFORMS, LoginDesign, LoginPlatform, loginDesignFor, setAppSettingsCache } from '../lib/appSettings'
 import type { Key } from '../lib/i18n'
 
 const LOGIN_PLATFORM_LABEL: Record<LoginPlatform, Key> = { app: 'admLoginApp', mweb: 'admLoginMweb', web: 'admLoginWeb', desktop: 'admLoginDesktop' }
@@ -456,9 +456,12 @@ export function AdminSettings({ onMsg }: { onMsg: Msg }) {
         <div key={p}>
           <label htmlFor={`set-login-${p}`}>{t(LOGIN_PLATFORM_LABEL[p])}</label>
           <select id={`set-login-${p}`} value={loginDesignFor(s, p)}
-            onChange={(e) => set({ login_designs: { ...s.login_designs, [p]: e.target.value === 'modern' ? 'modern' : 'classic' } })}>
+            onChange={(e) => set({ login_designs: { ...s.login_designs, [p]: e.target.value as LoginDesign } })}>
             <option value="classic">{t('admLoginClassic')}</option>
             <option value="modern">{t('admLoginModern')}</option>
+            <option value="split">{t('admLoginSplit')}</option>
+            <option value="bento">{t('admLoginBento')}</option>
+            <option value="bentofull">{t('admLoginBentoFull')}</option>
           </select>
         </div>
       ))}

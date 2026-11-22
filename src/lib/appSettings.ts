@@ -14,7 +14,11 @@ export type AppSettings = {
   login_designs: Partial<Record<LoginPlatform, LoginDesign>>
 }
 
-export type LoginDesign = 'classic' | 'modern'
+/** classic = old card, modern = lime phone card, split = lime brand panel + card, bento = card + tiles,
+ *  bentofull = full-screen tiles. The desktop ones stack into one column on narrow screens. */
+export const LOGIN_DESIGNS = ['classic', 'modern', 'split', 'bento', 'bentofull'] as const
+export type LoginDesign = typeof LOGIN_DESIGNS[number]
+const isDesign = (v: unknown): v is LoginDesign => (LOGIN_DESIGNS as readonly unknown[]).includes(v)
 /** app = Android app, mweb = website on a phone, web = website on a computer, desktop = Windows app. */
 export type LoginPlatform = 'app' | 'mweb' | 'web' | 'desktop'
 export const LOGIN_PLATFORMS: LoginPlatform[] = ['app', 'mweb', 'web', 'desktop']
@@ -30,12 +34,12 @@ export function currentLoginPlatform(): LoginPlatform {
 /** The login design for this device: its platform's choice, else the general one. */
 export function loginDesignFor(s: AppSettings, p: LoginPlatform = currentLoginPlatform()): LoginDesign {
   const v = s.login_designs?.[p]
-  return v === 'modern' || v === 'classic' ? v : s.login_design === 'modern' ? 'modern' : 'classic'
+  return isDesign(v) ? v : isDesign(s.login_design) ? s.login_design : 'classic'
 }
 const LD_KEY = 'pq_login_design'
 /** Last known login design, so the login page does not flash the other design while settings load. */
 function storedDesign(): LoginDesign {
-  try { return localStorage.getItem(LD_KEY) === 'modern' ? 'modern' : 'classic' } catch { return 'classic' }
+  try { const v = localStorage.getItem(LD_KEY); return isDesign(v) ? v : 'classic' } catch { return 'classic' }
 }
 function remember(s: AppSettings) {
   try { localStorage.setItem(LD_KEY, loginDesignFor(s)) } catch { /* private mode */ }

@@ -2,14 +2,14 @@ import { PUBLIC_BASE, offerSavePassword, pickSavedPassword, startOtpAutoRead } f
 import PasswordInput from '../components/PasswordInput'
 import OtpInput, { EMAIL_OTP_LENGTH, EMAIL_OTP_MAX, SMS_OTP_LENGTH } from '../components/OtpInput'
 import { googleAvailable, signInWithGoogle } from '../lib/google'
-import { FormEvent, useEffect, useRef, useState } from 'react'
+import { CSSProperties, FormEvent, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { clearAuthUrlError, peekAuthUrlError, sendResetEmail } from '../lib/recovery'
 import { useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
 import { isCaptchaError, Turnstile } from '../components/Turnstile'
-import { loginDesignFor, useAppSettings } from '../lib/appSettings'
+import { LOGIN_DESIGNS, LoginDesign, loginDesignFor, useAppSettings } from '../lib/appSettings'
 
 type Via = 'email' | 'phone'
 type PhoneKind = 'signup' | 'reset'
@@ -34,7 +34,7 @@ export default function Login() {
   // Admin picks the design (Settings > Login page design); ?design=modern|classic previews one.
   const settings = useAppSettings()
   const designParam = params.get('design')
-  const modern = designParam ? designParam === 'modern' : loginDesignFor(settings) === 'modern'
+  const design: LoginDesign = designParam && (LOGIN_DESIGNS as readonly string[]).includes(designParam) ? designParam as LoginDesign : loginDesignFor(settings)
   const [fullName, setFullName] = useState('')
   const initialMode = params.get('mode')
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(
@@ -398,67 +398,161 @@ export default function Login() {
     </p>
   )
 
-  if (modern) {
+  const qrSvg = (
+    <svg viewBox="0 0 7 7" shapeRendering="crispEdges" aria-hidden="true"><g fill="#0d1210"><rect x="0" y="0" width="3" height="3"/><rect x="4" y="0" width="3" height="3"/><rect x="0" y="4" width="3" height="3"/><rect x="4" y="4" width="1" height="1"/><rect x="6" y="5" width="1" height="2"/><rect x="5" y="6" width="1" height="1"/></g><g fill="#fff"><rect x=".7" y=".7" width="1.6" height="1.6"/><rect x="4.7" y=".7" width="1.6" height="1.6"/><rect x=".7" y="4.7" width="1.6" height="1.6"/></g></svg>
+  )
+  const lxLogo = <div className="lx-logo"><i>P</i><div><b>print</b><small>BY RECEIPTO</small></div></div>
+  const lxLang = (
+    <div className="lx-lang" role="group" aria-label={t('language')}>
+      <button type="button" aria-pressed={lang === 'en'} onClick={() => setLang('en')}>EN</button>
+      <button type="button" aria-pressed={lang === 'hi'} onClick={() => setLang('hi')} lang="hi">हि</button>
+    </div>
+  )
+  // "Scan. Upload. Print." word by word (the desktop designs highlight one word at a time).
+  const pitchWords = t('lxPitch').split(' ').flatMap((w, i) => [
+    i ? ' ' : null,
+    <span key={i} className="w" style={{ ['--i' as string]: i } as CSSProperties}>{w}</span>
+  ])
+  const lxForm = (
+    <>
+      <div className="lx-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={!signup} onClick={() => switchTo('login')}>{t('signInUp')}</button>
+        <button type="button" role="tab" aria-selected={signup} onClick={() => switchTo('signup')}>{t('lxTabUp')}</button>
+      </div>
+      <h1 className="lx-title">{signup ? t('signupTitle') : t('loginTitle')}</h1>
+      <p className="lx-sub">{signup ? t('lxSubUp') : t('lxSubIn')}</p>
+      <form onSubmit={submit}>
+        {signup && (
+          <label className="lx-field">
+            <span>{t('lxName')}</span>
+            <input type="text" required autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder={t('lxNamePh')} maxLength={80} />
+          </label>
+        )}
+        <label className="lx-field">
+          <span>{t('idLabel')}</span>
+          <input type="text" inputMode={idIsPhone ? 'tel' : 'email'} required value={email} onChange={(e) => setEmail(e.target.value)} name="email"
+            autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder={t('idPlaceholder')} />
+          {signup && idIsPhone && <small className="hint">{t('mobileHintShort')}</small>}
+        </label>
+        <div className="lx-field">
+          <div className="lx-row">
+            <label htmlFor="lx-password">{t('password')}</label>
+            {!signup && <button type="button" className="lx-forgot" onClick={() => switchTo('forgot')}>{t('forgotLink')}</button>}
+          </div>
+          <PasswordInput id="lx-password" name="password" required minLength={signup ? 8 : 6} value={password} onChange={(e) => setPassword(e.target.value)}
+            autoComplete={signup ? 'new-password' : 'current-password'} placeholder={signup ? t('lxPwPh') : '••••••••'} />
+        </div>
+        <Turnstile key={mode} action={signup ? 'signup' : 'login'} onToken={setCaptcha} resetKey={captchaReset} lang={lang} quiet />
+        {msg && <p className={`notice${msg.error ? ' error' : ''}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
+        <button className="lx-cta" disabled={busy}>{busy ? t('pleaseWait') : signup ? t('createAccount') : t('signInUp')}</button>
+      </form>
+      {googleAvailable() && (
+        <>
+          <div className="lx-or">{t('orWord')}</div>
+          <button type="button" className="lx-g" disabled={busy} onClick={google}>
+            <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            {t('googleBtn')}
+          </button>
+        </>
+      )}
+      {terms(signup ? t('agreePre') : t('agreeAnyPre'))}
+    </>
+  )
+  // Illustration tiles of the "bento" designs (sample numbers, decoration only).
+  const bentoTiles = (
+    <>
+      <div className="lxb-t lxb-t1">
+        <div><h2>{pitchWords}</h2>{design === 'bentofull' && <p>{t('lxPitchFull')}</p>}</div>
+        {qrSvg}
+      </div>
+      <div className="lxb-t lxb-t2">
+        <h3>{t('lxBOrders')}</h3>
+        <div className="n">24<small>+18%</small></div>
+        <div className="bars"><i /><i /><i /><i /><i /><i /><i /></div>
+      </div>
+      <div className="lxb-t lxb-t3">
+        <h3>{t('lxBQueue')}</h3>
+        <div className="qs">
+          <div className="q"><div className="ic">PDF</div><div><b>Notes_Unit3.pdf</b><span>12 pages · B/W</span></div><em>{t('lxJPrint')}</em></div>
+          <div className="q"><div className="ic">JPG</div><div><b>Passport_photo.jpg</b><span>4 copies · Colour</span></div><em className="w">{t('lxJQueue')}</em></div>
+          <div className="q"><div className="ic">DOC</div><div><b>Resume_Rahul.docx</b><span>2 pages · B/W</span></div><em className="w">{t('lxJQueue')}</em></div>
+          {design === 'bentofull' && <div className="q"><div className="ic">PDF</div><div><b>Form_Aadhaar.pdf</b><span>1 page · B/W</span></div><em className="w">{t('lxJQueue')}</em></div>}
+        </div>
+      </div>
+      <div className="lxb-t lxb-t4">
+        <div><h3>{t('lxBColl')}</h3><div className="n">₹1,240</div><p>{t('lxBUpi')}</p></div>
+        <span className="upi">UPI</span>
+        {design === 'bentofull' && <div className="pay"><span>₹48 · Rahul</span><span>₹120 · Anjali</span><span>₹30 · Sumit</span></div>}
+      </div>
+    </>
+  )
+
+  if (design === 'split') {
+    return (
+      <div className="lx lxd lxd-split">
+        <aside className="lxs-brand">
+          {lxLogo}
+          <div className="lxs-copy">
+            <h2>{pitchWords}</h2>
+            <p>{t('lxPitch2')}</p>
+            <ul className="lxs-pts"><li>{t('lxP1')}</li><li>{t('lxP2')}</li><li>{t('lxP3')}</li></ul>
+          </div>
+          <div className="lxs-foot">© Receipto</div>
+          <div className="lxs-receipt" aria-hidden="true">
+            <div className="rh"><b>print</b><span>#1024</span></div>
+            <div className="l" /><div className="l s" /><div className="l" /><div className="l s" />
+            <div className="tot"><span>{t('lxTotal')}</span><b>₹48</b></div>
+            <div className="chip">{t('lxPrinted')}</div>
+            {qrSvg}
+          </div>
+        </aside>
+        <section className="lxs-side">
+          <div className="lxs-bar">{lxLang}</div>
+          <div className="lxd-center"><main className="lxd-card">{lxForm}</main></div>
+        </section>
+      </div>
+    )
+  }
+
+  if (design === 'bento') {
+    return (
+      <div className="lx lxd lxd-bento">
+        <div className="lxb-page">
+          <nav className="lxd-nav">{lxLogo}{lxLang}</nav>
+          <div className="lxb-grid">
+            <main className="lxd-card">{lxForm}</main>
+            <aside className="lxb-bento" aria-hidden="true">{bentoTiles}</aside>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (design === 'bentofull') {
+    return (
+      <div className="lx lxd lxd-bentofull">
+        <section className="lxf-left">
+          <nav className="lxd-nav">{lxLogo}{lxLang}</nav>
+          <div className="lxd-center"><main className="lxf-sheet">{lxForm}</main></div>
+        </section>
+        <aside className="lxf-right" aria-hidden="true"><div className="lxb-bento">{bentoTiles}</div></aside>
+      </div>
+    )
+  }
+
+  if (design === 'modern') {
     return (
       <div className="lx">
         <div className="lx-wrap">
           <header className="lx-hero">
-            <div className="lx-top">
-              <div className="lx-logo"><i>P</i><div><b>print</b><small>BY RECEIPTO</small></div></div>
-              <div className="lx-lang" role="group" aria-label={t('language')}>
-                <button type="button" aria-pressed={lang === 'en'} onClick={() => setLang('en')}>EN</button>
-                <button type="button" aria-pressed={lang === 'hi'} onClick={() => setLang('hi')} lang="hi">हि</button>
-              </div>
-            </div>
+            <div className="lx-top">{lxLogo}{lxLang}</div>
             <div className="lx-pitch"><h2>{t('lxPitch')}</h2><p>{t('lxPitch2')}</p></div>
             <div className="lx-receipt" aria-hidden="true">
               <div className="l" /><div className="l s" />
-              <svg viewBox="0 0 7 7" shapeRendering="crispEdges"><g fill="#0d1210"><rect x="0" y="0" width="3" height="3"/><rect x="4" y="0" width="3" height="3"/><rect x="0" y="4" width="3" height="3"/><rect x="4" y="4" width="1" height="1"/><rect x="6" y="5" width="1" height="2"/><rect x="5" y="6" width="1" height="1"/></g><g fill="#fff"><rect x=".7" y=".7" width="1.6" height="1.6"/><rect x="4.7" y=".7" width="1.6" height="1.6"/><rect x=".7" y="4.7" width="1.6" height="1.6"/></g></svg>
+              {qrSvg}
             </div>
           </header>
-          <main className="lx-sheet">
-            <div className="lx-tabs" role="tablist">
-              <button type="button" role="tab" aria-selected={!signup} onClick={() => switchTo('login')}>{t('signInUp')}</button>
-              <button type="button" role="tab" aria-selected={signup} onClick={() => switchTo('signup')}>{t('lxTabUp')}</button>
-            </div>
-            <h1>{signup ? t('signupTitle') : t('loginTitle')}</h1>
-            <p className="lx-sub">{signup ? t('lxSubUp') : t('lxSubIn')}</p>
-            <form onSubmit={submit}>
-              {signup && (
-                <label className="lx-field">
-                  <span>{t('lxName')}</span>
-                  <input type="text" required autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder={t('lxNamePh')} maxLength={80} />
-                </label>
-              )}
-              <label className="lx-field">
-                <span>{t('idLabel')}</span>
-                <input type="text" inputMode={idIsPhone ? 'tel' : 'email'} required value={email} onChange={(e) => setEmail(e.target.value)} name="email"
-                  autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder={t('idPlaceholder')} />
-                {signup && idIsPhone && <small className="hint">{t('mobileHintShort')}</small>}
-              </label>
-              <div className="lx-field">
-                <div className="lx-row">
-                  <label htmlFor="lx-password">{t('password')}</label>
-                  {!signup && <button type="button" className="lx-forgot" onClick={() => switchTo('forgot')}>{t('forgotLink')}</button>}
-                </div>
-                <PasswordInput id="lx-password" name="password" required minLength={signup ? 8 : 6} value={password} onChange={(e) => setPassword(e.target.value)}
-                  autoComplete={signup ? 'new-password' : 'current-password'} placeholder={signup ? t('lxPwPh') : '••••••••'} />
-              </div>
-              <Turnstile key={mode} action={signup ? 'signup' : 'login'} onToken={setCaptcha} resetKey={captchaReset} lang={lang} quiet />
-              {msg && <p className={`notice${msg.error ? ' error' : ''}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
-              <button className="lx-cta" disabled={busy}>{busy ? t('pleaseWait') : signup ? t('createAccount') : t('signInUp')}</button>
-            </form>
-            {googleAvailable() && (
-              <>
-                <div className="lx-or">{t('orWord')}</div>
-                <button type="button" className="lx-g" disabled={busy} onClick={google}>
-                  <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-                  {t('googleBtn')}
-                </button>
-              </>
-            )}
-            {terms(signup ? t('agreePre') : t('agreeAnyPre'))}
-          </main>
+          <main className="lx-sheet">{lxForm}</main>
           <div style={{ height: 28 }} />
         </div>
       </div>
