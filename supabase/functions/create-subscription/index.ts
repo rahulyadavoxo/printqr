@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
     const tier = (body.tier || 'pro') as Tier
     if (tier !== 'pro' && tier !== 'plus') throw new HttpError(400, 'bad_tier', 'Choose Pro or Plus')
 
-    const { shop, email } = await ownerShop(req)
+    const { shop, email, phone } = await ownerShop(req)
     // Plus needs the v16 database update (plan 'plus' allowed); check before any money moves.
     if (tier === 'plus') {
       await db('rpc/pro_counter_limit', { method: 'POST', body: '{}' }).catch(() => {
@@ -45,7 +45,8 @@ Deno.serve(async (req) => {
       quantity: 1,
       customer_notify: 1,
       ...(start_at ? { start_at } : {}),
-      notes: { shop_id: shop.id, period, tier, app: 'printqr', ...(email ? { email } : {}) }
+      // No Razorpay customer is created here: email / phone only go in the notes (either may be missing).
+      notes: { shop_id: shop.id, period, tier, app: 'printqr', ...(email ? { email } : {}), ...(phone ? { phone } : {}) }
     })
 
     // Remember the pending subscription only when the shop is not already Pro on another one.

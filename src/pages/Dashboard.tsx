@@ -1,4 +1,4 @@
-import { nativeBridge, IN_APP, ON_ANDROID } from '../lib/app'
+import { accountPhone, nativeBridge, IN_APP, ON_ANDROID } from '../lib/app'
 import { setTopColor } from '../lib/theme'
 import BarStory from '../components/BarStory'
 import { AppDownloadBanner } from '../components/AppDownload'
@@ -820,7 +820,7 @@ export default function Dashboard() {
             {appVer && <p className="app-version">PrintQR {appVer}{pushStatus() ? ' · push: ' + pushStatus() : ''}</p>}
           </>
         )}
-        {tab === 'plan' && <PlanTab shop={shop} email={session?.user.email} onChanged={loadShop} />}
+        {tab === 'plan' && <PlanTab shop={shop} email={session?.user.email || undefined} contact={accountPhone(session?.user)} onChanged={loadShop} />}
       </div>
 
       {bottomNav && (
@@ -2590,7 +2590,7 @@ function PlanCompare({ current }: { current: PlanTier }) {
 
 const ENDED = ['cancelled', 'completed', 'expired']
 
-function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onChanged: () => Promise<void> | void }) {
+function PlanTab({ shop, email, contact, onChanged }: { shop: Shop; email?: string; contact?: string; onChanged: () => Promise<void> | void }) {
   const { t, te, lang } = useI18n()
   const [busy, setBusy] = useState<string | null>(null)
   const [period, setPeriod] = useState<Period>('yearly')
@@ -2629,7 +2629,7 @@ function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onCha
     setMsg(null)
     try {
       const desc = `PrintQR ${tier === 'plus' ? 'Plus' : 'Pro'} · ${period === 'yearly' ? t('planYearly') : t('planMonthly')}`
-      const ok = await startUpgrade(period, { email, description: desc }, tier)
+      const ok = await startUpgrade(period, { email, contact, description: desc }, tier)
       if (ok) {
         setMsg({ text: t('planActivated'), error: false })
         await onChanged()

@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { DEFAULT_RATES, supabase } from '../lib/supabase'
 import { useSession } from '../lib/useSession'
+import { accountLabel } from '../lib/app'
 import { useI18n } from '../lib/i18n'
 import { LogoMark, TopBar } from '../components/TopBar'
 import { SetupSkeleton } from '../components/Skeletons'
@@ -49,6 +50,9 @@ export default function Setup() {
           if (!e2 && st) nav('/dashboard', { replace: true })
           else {
             setChecking(false)
+            // Mobile-number login: the poster phone starts as that number (the owner can change it).
+            const d = String(session.user.phone || '').replace(/[^\d]/g, '')
+            if (d.length === 12 && d.startsWith('91')) setPhone((p) => p || d.slice(2))
             // New owner: one welcome mail from our Gmail (the server sends it only once, only after email is confirmed).
             void supabase.functions.invoke('send-welcome', { body: {} }).catch(() => undefined)
           }
@@ -127,7 +131,7 @@ export default function Setup() {
           <button className="btn primary block lg" disabled={busy}>{busy ? t('creating') : t('createShop')}</button>
           {/* Way out of setup (Back would bounce Login -> Dashboard -> Setup while signed in): sign out, then Login. */}
           <p className="center small switch-line">
-            <span className="muted">{session?.user.email}</span>{' '}
+            <span className="muted">{accountLabel(session?.user)}</span>{' '}
             <button type="button" className="link" disabled={busy || leaving} onClick={switchAccount}>
               {leaving ? t('setupLeaving') : t('setupOtherAccount')}
             </button>

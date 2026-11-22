@@ -47,6 +47,7 @@ function Search({ value, onChange, onSubmit, placeholder }: { value: string; onC
 /* ---------------- Users ---------------- */
 
 type UserRow = {
+  // email: the login's email, or "+91..." for mobile-number accounts (v26)
   user_id: string; email: string | null; created_at: string; last_sign_in_at: string | null
   confirmed: boolean; banned: boolean; shop_id: string | null; shop_name: string | null; is_admin: boolean
 }
@@ -107,7 +108,8 @@ export function AdminUsers({ onMsg }: { onMsg: Msg }) {
               </div>
               {!u.is_admin && (
                 <div className="admin-row">
-                  <button type="button" className="btn small soft" disabled={busy === u.user_id} onClick={() => act(u, 'send_reset')}>{t('admSendReset')}</button>
+                  {/* Mobile-number (OTP) accounts have no email and no password to reset. */}
+                  {u.email?.includes('@') && <button type="button" className="btn small soft" disabled={busy === u.user_id} onClick={() => act(u, 'send_reset')}>{t('admSendReset')}</button>}
                   {u.banned
                     ? <button type="button" className="btn small" disabled={busy === u.user_id} onClick={() => act(u, 'enable_user')}>{t('admEnableUser')}</button>
                     : <button type="button" className="btn small danger-outline" disabled={busy === u.user_id} onClick={() => act(u, 'disable_user')}>{t('admDisableUser')}</button>}

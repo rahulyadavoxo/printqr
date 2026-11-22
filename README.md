@@ -168,3 +168,17 @@ Signup, password reset aur baaki saare Auth mail `supabase/functions/send-email`
 Welcome mail `supabase/functions/send-welcome` bhejta hai. Email confirm hone ke baad naya owner jab Setup page pe aata hai, tab ek hi baar mail jata hai (flag `app_metadata.welcome_sent` mein rehta hai). Iske liye bhi wahi GMAIL_* secrets use hote hain.
 
 Agar refresh token kabhi badla, to use Render aur Supabase dono jagah update karna hoga.
+
+## Mobile OTP login (SMSGate)
+
+Login / signup page pe **Email / Mobile** switch hai. Mobile chuno → +91 ke baad 10 digit number → **OTP bhejo** → SMS mein aaya 6 digit code daalo. Naya number ho to account apne aap ban jata hai (phir Setup page), purana ho to seedha Dashboard. SMS `supabase/functions/send-sms` (Supabase ka "Send SMS" hook) ek spare Android phone se bhejta hai, jisme **SMS Gateway for Android (SMSGate)** app chal raha ho. Koi SMS company / DLT nahi, SIM ka apna SMS pack use hota hai. Sirf Indian mobile numbers (+91, 6-9 se shuru) pe SMS jata hai. Message: `PrintQR code: 123456. Do not share. किसी को न बताएं।` (52 akshar, ek SMS).
+
+Ek baar ka setup (isi order mein; jab tak (c) aur (d) nahi hote, Mobile wala button "Mobile login abhi chalu nahi hai" ya "SMS nahi bhej paaye" dikhata hai, email / Google login waise hi chalte hain):
+
+a. **SMSGate phone:** spare Android phone (SIM ke saath, SMS pack active) mein Play Store / GitHub se "SMS Gateway for Android" (docs.sms-gate.app) install karo → SMS permission do → **Cloud server** ON karo → **Start** (Start Service) dabao. App jo **username** aur **password** dikhata hai, wo copy kar lo. Phone ko charger aur internet pe rakho, aur app ke liye battery optimisation band kar do, warna OTP late aayega.
+b. **Secrets:** `supabase secrets set SMSGATE_USERNAME=... SMSGATE_PASSWORD=... --project-ref asqgdgzxkdksoikmffmd` (ya Supabase → Edge Functions → Secrets). Apna SMSGate server ho to `SMSGATE_URL` bhi daal sakte ho (default `https://api.sms-gate.app/3rdparty/v1/messages`). `send-sms` function `main` pe push hote hi "Deploy Supabase Edge Functions" workflow se deploy ho jata hai.
+c. **Phone provider:** Supabase → Authentication → Sign In / Providers → **Phone** → Enable karo (phone signup bhi allowed rakho). Agar dashboard SMS provider (Twilio waghera) chunne ko bole, to koi bhi chun lo; hook ON hone par SMS hamara hook hi bhejta hai. Yahin **SMS OTP Expiry** dikhe to use 300-600 second kar do (phone se SMS kabhi 1-2 minute late aata hai).
+d. **Hook:** Supabase → Authentication → Hooks → **Send SMS** → HTTPS → URL `https://asqgdgzxkdksoikmffmd.supabase.co/functions/v1/send-sms` → **Generate secret** → copy karke Secrets mein `SEND_SMS_HOOK_SECRET` naam se daalo (poora `v1,whsec_...`) → hook Enable karke Save.
+e. **Rate limits:** Supabase → Authentication → Rate Limits mein "SMS messages per hour" (default 30, poore project ke liye) apne SIM pack ke hisaab se rakho, jaise 50-100. Ek number pe naya code 60 second baad hi milta hai (app mein bhi 60 second ka timer hai). Bot check (Turnstile) mobile OTP pe bhi lagta hai.
+
+Test: Mobile tab → apna number → OTP bhejo. SMS na aaye to Supabase → Edge Functions → `send-sms` → Logs dekho (number aadha chhupa hota hai, OTP kabhi log nahi hota) aur SMSGate app ka Messages tab. Fail hone par alert `ops_events` mein bhi jata hai (Health check workflow).

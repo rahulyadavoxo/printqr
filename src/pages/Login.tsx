@@ -9,6 +9,23 @@ import { useI18n } from '../lib/i18n'
 import { LogoMark, TopBar } from '../components/TopBar'
 import { isCaptchaError, Turnstile } from '../components/Turnstile'
 
+type Via = 'email' | 'phone'
+const VIA_KEY = 'pq-login-via'
+const INDIAN_MOBILE = /^[6-9]\d{9}$/
+
+/** Keeps the 10-digit number; a pasted "+91 98765 43210" or "098765 43210" works too. */
+function cleanMobile(v: string): string {
+  let d = v.replace(/\D/g, '')
+  if (d.length > 10 && d.startsWith('91')) d = d.slice(2)
+  else if (d.length === 11 && d.startsWith('0')) d = d.slice(1)
+  return d.slice(0, 10)
+}
+
+function initialVia(param: string | null): Via {
+  if (param === 'phone' || param === 'email') return param
+  try { return localStorage.getItem(VIA_KEY) === 'phone' ? 'phone' : 'email' } catch { return 'email' }
+}
+
 export default function Login() {
   const [params] = useSearchParams()
   const { t, te, lang } = useI18n()
@@ -17,6 +34,9 @@ export default function Login() {
     initialMode === 'signup' ? 'signup' : initialMode === 'forgot' ? 'forgot' : 'login'
   )
   const [email, setEmail] = useState('')
+  // Email + password, or mobile number + SMS code (one flow: a new number gets an account automatically).
+  const [via, setVia] = useState<Via>(() => initialVia(params.get('via')))
+  const [mobile, setMobile] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   // Signup step 2: the 6-digit code from the email (proves the email is real).
@@ -78,6 +98,70 @@ export default function Login() {
     } finally {
       setBusy(false)
       setCaptchaReset((n) => n + 1)
+    }
+  }
+
+  /** Friendly text for the mobile flow's errors (Supabase Auth codes, then its messages). */
+  function phoneErr(e: unknown, verifying = false): string {
+    if (isCaptchaError(e)) return t('captchaFail')
+    const code = String((e as { code?: string } | null)?.code || '')
+    const status = Number((e as { status?: number } | null)?.status || 0)
+    const m = String((e as Error | null)?.message || '')
+    if (verifying && (code === 'otp_expired' || /expired|invalid|otp|token/i.test(m))) return t('phCodeBad')
+    const wait = /after (\d+) seconds?/i.exec(m)
+    if (wait) return t('phWait', { s: wait[1] })
+    if (code === 'over_sms_send_rate_limit' || code === 'over_request_rate_limit' || status === 429 || /rate limit/i.test(m)) return t('phRate')
+    if (code === 'phone_provider_disabled' || code === 'sms_provider_disabled' || /unsupported phone provider|phone.*(disabled|not enabled)|signups not allowed for otp/i.test(m)) return t('phOff')
+    if (code === 'validation_failed' && /phone/i.test(m)) return t('phBad')
+    if (/invalid phone|phone number.*(invalid|format)/i.test(m)) return t('phBad')
+    if (code === 'sms_send_failed' || code.startsWith('hook_') || /sms|hook|provider/i.test(m)) return t('phSendFail')
+    return te(e)
+  }
+
+  async function sendPhoneCode(e?: FormEvent) {
+    e?.preventDefault()
+    const resend = !e
+    if (resend && cooldown > 0) return
+    if (!INDIAN_MOBILE.test(mobile)) {
+      setMsg({ text: t('phBad'), error: true })
+      return
+    }
+    setBusy(true)
+    setMsg(null)
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: `+91${mobile}`,
+        options: { captchaToken: captcha || undefined, shouldCreateUser: true }
+      })
+      if (error) throw error
+      try { localStorage.setItem(VIA_KEY, 'phone') } catch { /* ignore */ }
+      if (resend) setMsg({ text: t('phCodeResent'), error: false })
+      else { setCode(''); setCodeStep(true) }
+      setCooldown(60)
+    } catch (err) {
+      setMsg({ text: phoneErr(err), error: true })
+    } finally {
+      setBusy(false)
+      setCaptchaReset((n) => n + 1)
+    }
+  }
+
+  async function verifyPhoneCode(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setMsg(null)
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({ phone: `+91${mobile}`, token: code.replace(/\s/g, ''), type: 'sms' })
+      if (error) throw error
+      if (!data.session) throw new Error(t('phCodeBad'))
+      // A number seen for the first time just got its account: shop setup. Others: dashboard
+      // (both pages send the user to the right place anyway).
+      const created = Date.parse(data.user?.created_at || '')
+      nav(Number.isFinite(created) && Date.now() - created < 10 * 60 * 1000 ? '/setup' : '/dashboard')
+    } catch (err) {
+      setMsg({ text: phoneErr(err, true), error: true })
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -150,16 +234,23 @@ export default function Login() {
     setMode(m)
     setMsg(null)
   }
+  const phoneMode = via === 'phone'
+  const switchVia = (v: Via) => {
+    if (v === via) return
+    setVia(v)
+    setMsg(null)
+    try { localStorage.setItem(VIA_KEY, v) } catch { /* ignore */ }
+  }
 
   if (codeStep) {
     return (
       <div className="auth-page">
         <TopBar />
         <main className="auth-wrap">
-          <form className="card auth-card" onSubmit={verifyCode}>
+          <form className="card auth-card" onSubmit={phoneMode ? verifyPhoneCode : verifyCode}>
             <div className="auth-logo"><LogoMark size={44} /></div>
-            <h1 className="auth-title">{t('codeTitle')}</h1>
-            <p className="muted center">{t('codeSub', { email: email.trim() })}</p>
+            <h1 className="auth-title">{phoneMode ? t('phCodeTitle') : t('codeTitle')}</h1>
+            <p className="muted center">{phoneMode ? t('phCodeSub', { phone: `+91 ${mobile.slice(0, 5)} ${mobile.slice(5)}` }) : t('codeSub', { email: email.trim() })}</p>
             <label className="field">
               <span>{t('codeLabel')}</span>
               <input type="text" inputMode="numeric" autoComplete="one-time-code" required minLength={6} maxLength={10}
@@ -168,13 +259,13 @@ export default function Login() {
             </label>
             {msg && <p className={`notice${msg.error ? ' error' : ' success'}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
             <button className="btn primary block lg" disabled={busy || code.replace(/\s/g, '').length < 6}>{busy ? t('pleaseWait') : t('codeVerify')}</button>
-            <Turnstile key="resend" action="signup" onToken={setCaptcha} resetKey={captchaReset} lang={lang} />
+            <Turnstile key="resend" action={phoneMode ? 'login' : 'signup'} onToken={setCaptcha} resetKey={captchaReset} lang={lang} />
             <p className="center small switch-line">
-              <button type="button" className="link" disabled={busy || cooldown > 0} onClick={resendCode}>
+              <button type="button" className="link" disabled={busy || cooldown > 0} onClick={phoneMode ? () => sendPhoneCode() : resendCode}>
                 {cooldown > 0 ? t('codeWait', { s: cooldown }) : t('codeResend')}
               </button>
               {' · '}
-              <button type="button" className="link" onClick={() => { setCodeStep(false); setMsg(null) }}>{t('codeChangeEmail')}</button>
+              <button type="button" className="link" onClick={() => { setCodeStep(false); setMsg(null) }}>{phoneMode ? t('phChange') : t('codeChangeEmail')}</button>
             </p>
           </form>
         </main>
@@ -211,34 +302,53 @@ export default function Login() {
     <div className="auth-page">
       <TopBar />
       <main className="auth-wrap">
-        <form className="card auth-card" onSubmit={submit}>
+        <form className="card auth-card" onSubmit={phoneMode ? sendPhoneCode : submit}>
           <div className="auth-logo"><LogoMark size={44} /></div>
           <h1 className="auth-title">{signup ? t('signupTitle') : t('loginTitle')}</h1>
           <p className="muted center">{signup ? t('signupSub') : t('loginSub')}</p>
-          <label className="field">
-            <span>{t('email')}</span>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} name="email" autoComplete="username" placeholder="you@example.com" />
-          </label>
-          <label className="field">
-            <span>{t('password')}</span>
-            <PasswordInput name="password" required minLength={signup ? 8 : 6} value={password} onChange={(e) => setPassword(e.target.value)}
-              autoComplete={signup ? 'new-password' : 'current-password'} />
-            {signup && <small className="hint">{t('passwordHint')}</small>}
-          </label>
-          {!signup && (
-            <p className="forgot-line">
-              <button type="button" className="link small" onClick={() => switchTo('forgot')}>{t('forgotLink')}</button>
-            </p>
+          <div className="seg auth-via" role="group" aria-label={t('viaLabel')}>
+            <button type="button" className={phoneMode ? '' : 'on'} aria-pressed={!phoneMode} onClick={() => switchVia('email')}>{t('viaEmail')}</button>
+            <button type="button" className={phoneMode ? 'on' : ''} aria-pressed={phoneMode} onClick={() => switchVia('phone')}>{t('viaMobile')}</button>
+          </div>
+          {phoneMode ? (
+            <label className="field">
+              <span>{t('mobileLabel')}</span>
+              <span className="phone-input">
+                <span className="phone-cc" aria-hidden="true">+91</span>
+                <input type="tel" inputMode="numeric" required autoComplete="tel-national" name="mobile" value={mobile}
+                  onChange={(e) => setMobile(cleanMobile(e.target.value))} placeholder="98765 43210" maxLength={16}
+                  aria-label={`${t('mobileLabel')} (+91)`} />
+              </span>
+              <small className="hint">{t('mobileHint')}</small>
+            </label>
+          ) : (
+            <>
+              <label className="field">
+                <span>{t('email')}</span>
+                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} name="email" autoComplete="username" placeholder="you@example.com" />
+              </label>
+              <label className="field">
+                <span>{t('password')}</span>
+                <PasswordInput name="password" required minLength={signup ? 8 : 6} value={password} onChange={(e) => setPassword(e.target.value)}
+                  autoComplete={signup ? 'new-password' : 'current-password'} />
+                {signup && <small className="hint">{t('passwordHint')}</small>}
+              </label>
+              {!signup && (
+                <p className="forgot-line">
+                  <button type="button" className="link small" onClick={() => switchTo('forgot')}>{t('forgotLink')}</button>
+                </p>
+              )}
+            </>
           )}
           <Turnstile key={mode} action={signup ? 'signup' : 'login'} onToken={setCaptcha} resetKey={captchaReset} lang={lang} />
           {msg && <p className={`notice${msg.error ? ' error' : ''}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
-          {signup && (
+          {(signup || phoneMode) && (
             <p className="small muted center">
               {t('agreePre')} <Link to="/legal/terms">{t('agreeTerms')}</Link>, <Link to="/legal/refund">{t('agreeRefund')}</Link> {t('agreeAnd')} <Link to="/legal/privacy">{t('agreePrivacy')}</Link>{t('agreePost')}
             </p>
           )}
           <button className="btn primary block lg" disabled={busy}>
-            {busy ? t('pleaseWait') : signup ? t('createAccount') : t('login')}
+            {busy ? t('pleaseWait') : phoneMode ? t('mobileSend') : signup ? t('createAccount') : t('login')}
           </button>
           {googleAvailable() && (
             <>

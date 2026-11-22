@@ -23,7 +23,9 @@ Deno.serve(async (req) => {
     const me = await fetch(`${URL_}/auth/v1/user`, { headers: { apikey: Deno.env.get('SUPABASE_ANON_KEY') || KEY, Authorization: auth } })
     if (!me.ok) return reply({ error: 'not_logged_in' }, 401)
     const user = (await me.json()) as { id: string; email?: string; email_confirmed_at?: string | null; app_metadata?: Record<string, unknown> }
-    if (!user.email || !user.email_confirmed_at) return reply({ ok: false, reason: 'not_confirmed' })
+    // Mobile-number (OTP) accounts have no email: nothing to send.
+    if (!user.email) return reply({ ok: false, reason: 'no_email' })
+    if (!user.email_confirmed_at) return reply({ ok: false, reason: 'not_confirmed' })
     if (user.app_metadata?.welcome_sent) return reply({ ok: true, already: true })
 
     // Mark first so two tabs never send twice.

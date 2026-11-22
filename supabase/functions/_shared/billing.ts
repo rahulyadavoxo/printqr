@@ -100,14 +100,15 @@ export function isPro(s: ShopRow): boolean {
 }
 
 /** The logged-in owner's shop, from the caller's JWT. */
-export async function ownerShop(req: Request): Promise<{ shop: ShopRow; email: string | null }> {
+/** email is null for mobile-number (OTP) accounts; phone is then set (E.164, e.g. +919876543210). */
+export async function ownerShop(req: Request): Promise<{ shop: ShopRow; email: string | null; phone: string | null }> {
   const auth = req.headers.get('Authorization') || ''
   if (!auth.toLowerCase().startsWith('bearer ')) throw new HttpError(401, 'not_logged_in', 'Please log in again')
   const res = await fetch(`${env('SUPABASE_URL')}/auth/v1/user`, {
     headers: { apikey: Deno.env.get('SUPABASE_ANON_KEY') || env('SUPABASE_SERVICE_ROLE_KEY'), Authorization: auth }
   })
   if (!res.ok) throw new HttpError(401, 'not_logged_in', 'Please log in again')
-  const user = (await res.json()) as { id?: string; email?: string }
+  const user = (await res.json()) as { id?: string; email?: string; phone?: string }
   if (!user.id) throw new HttpError(401, 'not_logged_in', 'Please log in again')
   let rows: ShopRow[]
   try {
@@ -120,7 +121,8 @@ export async function ownerShop(req: Request): Promise<{ shop: ShopRow; email: s
     throw e
   }
   if (!rows[0]) throw new HttpError(404, 'no_shop', 'Shop not found')
-  return { shop: rows[0], email: user.email || null }
+  const phone = user.phone ? (user.phone.startsWith('+') ? user.phone : `+${user.phone}`) : null
+  return { shop: rows[0], email: user.email || null, phone }
 }
 
 /* ---------------- Razorpay ---------------- */

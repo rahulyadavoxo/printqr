@@ -64,3 +64,18 @@ export function pickSavedPassword(fill: (id: string, password: string) => void):
   try { b.getPassword() } catch { /* ignore */ }
   return () => { if (W.__pqFill === fill) delete W.__pqFill }
 }
+
+/** What identifies a login on screen: the email, or the mobile number for OTP accounts ("+91 98765 43210"). */
+export function accountLabel(u?: { email?: string | null; phone?: string | null } | null): string {
+  if (!u) return ''
+  if (u.email) return u.email
+  const d = String(u.phone || '').replace(/[^\d]/g, '')
+  if (d.length === 12 && d.startsWith('91')) return `+91 ${d.slice(2, 7)} ${d.slice(7)}`
+  return d ? `+${d}` : ''
+}
+
+/** E.164 phone of an OTP account ("+919876543210"), or undefined. */
+export function accountPhone(u?: { phone?: string | null } | null): string | undefined {
+  const d = String(u?.phone || '').replace(/[^\d]/g, '')
+  return d ? `+${d}` : undefined
+}

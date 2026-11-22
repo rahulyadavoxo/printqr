@@ -283,6 +283,10 @@ input:focus, select:focus { outline: none; border-color: var(--c-brand); box-sha
 .auth-card .btn.block.lg { margin-top: 18px; }
 .switch-line { margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--c-line); }
 .forgot-line { margin: -8px 0 0; text-align: right; }
+.auth-via { margin: 4px 0 14px; }
+.field > .phone-input { display: flex; align-items: stretch; margin: 0; font-size: inherit; font-weight: inherit; color: inherit; }
+.phone-input .phone-cc { display: inline-flex; align-items: center; padding: 0 12px; border: 1.5px solid var(--c-line-2); border-right: none; border-radius: var(--r-sm) 0 0 var(--r-sm); background: var(--c-sunken); font-weight: 700; color: var(--c-ink-2); }
+.phone-input input { flex: 1; min-width: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; letter-spacing: .5px; }
 .step-chip { display: block; width: fit-content; margin: 0 auto 10px; background: var(--c-accent-50); color: var(--c-accent-ink); border: 1px solid #f6d58b; font-size: 12.5px; font-weight: 700; padding: 4px 12px; border-radius: var(--r-pill); text-align: center; }
 
 /* ===================================================================

@@ -86,10 +86,10 @@ export async function callFn<T>(name: string, body: Record<string, unknown> = {}
  * Full upgrade flow: create the subscription, open Razorpay Checkout, verify the payment.
  * Resolves true when Pro is on, false when the owner closed the checkout.
  */
-export async function startUpgrade(period: Period, opts: { email?: string; description: string }, tier: Tier = 'pro'): Promise<boolean> {
+export async function startUpgrade(period: Period, opts: { email?: string; contact?: string; description: string }, tier: Tier = 'pro'): Promise<boolean> {
   const { subscription_id, key_id } = await callFn<{ subscription_id: string; key_id: string }>('create-subscription', { period, tier })
   const bridge = nativeBridge()
-  if (IN_APP && bridge?.razorpay) return nativeCheckout((json: string) => bridge.razorpay!(json), { key: key_id, subscription_id, description: opts.description, email: opts.email })
+  if (IN_APP && bridge?.razorpay) return nativeCheckout((json: string) => bridge.razorpay!(json), { key: key_id, subscription_id, description: opts.description, email: opts.email, contact: opts.contact })
   await loadRazorpay()
   if (!window.Razorpay) throw Object.assign(new Error('checkout_load_failed'), { code: 'checkout_load_failed' })
   const Razorpay = window.Razorpay
@@ -100,7 +100,7 @@ export async function startUpgrade(period: Period, opts: { email?: string; descr
       name: 'PrintQR',
       description: opts.description,
       image: `${window.location.origin}${import.meta.env.BASE_URL}icon-192.png`,
-      prefill: opts.email ? { email: opts.email } : undefined,
+      prefill: prefill(opts),
       theme: { color: '#3f6212' },
       handler: (r) => {
         callFn('verify-payment', { ...r }).then(() => resolve(true), reject)
@@ -109,6 +109,14 @@ export async function startUpgrade(period: Period, opts: { email?: string; descr
     })
     rz.open()
   })
+}
+
+/** Razorpay prefill: the owner's email, or the mobile number for OTP accounts (no email). */
+function prefill(o: { email?: string; contact?: string }): { email?: string; contact?: string } | undefined {
+  const p: { email?: string; contact?: string } = {}
+  if (o.email) p.email = o.email
+  if (o.contact) p.contact = o.contact
+  return p.email || p.contact ? p : undefined
 }
 
 type NativeResult = { razorpay_payment_id?: string; razorpay_subscription_id?: string; razorpay_signature?: string }
@@ -122,7 +130,7 @@ declare global {
 /** Android app: opens Razorpay's native checkout (UPI apps, cards, net banking) through the app bridge. */
 function nativeCheckout(
   open: (json: string) => void,
-  o: { key: string; subscription_id: string; description: string; email?: string }
+  o: { key: string; subscription_id: string; description: string; email?: string; contact?: string }
 ): Promise<boolean> {
   return new Promise<boolean>((resolve, reject) => {
     window.__pqRzpDone = (r) => {
@@ -146,7 +154,7 @@ function nativeCheckout(
         name: 'PrintQR',
         description: o.description,
         image: `${PUBLIC_BASE}icon-192.png`, // else Razorpay shows the account's own (Receipto) logo
-        prefill: o.email ? { email: o.email } : undefined,
+        prefill: prefill(o),
         theme: { color: '#3f6212' }
       })
     )
