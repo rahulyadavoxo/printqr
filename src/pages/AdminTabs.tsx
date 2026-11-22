@@ -5,6 +5,7 @@ import { callFn } from '../lib/billing'
 import { AppSettings, DEFAULT_SETTINGS, setAppSettingsCache } from '../lib/appSettings'
 import { rupees } from '../lib/pricing'
 import { SkelForm, SkelList, SkelLog, SkelStats } from '../components/Skeletons'
+import { ask as askConfirm } from '../components/ConfirmHost'
 
 /* Admin panel tabs: Users, Orders, Payments, Spam watch, Settings. Every RPC checks is_admin() in SQL;
    the admin-action Edge Function checks public.admins too. */
@@ -71,7 +72,7 @@ export function AdminUsers({ onMsg }: { onMsg: Msg }) {
 
   const act = async (u: UserRow, action: 'disable_user' | 'enable_user' | 'send_reset') => {
     const ask = action === 'disable_user' ? t('admDisableAsk', { email: u.email || '' }) : action === 'send_reset' ? t('admResetAsk', { email: u.email || '' }) : null
-    if (ask && !window.confirm(ask)) return
+    if (ask && !await askConfirm(ask)) return
     setBusy(u.user_id)
     onMsg(null)
     try {
@@ -149,7 +150,7 @@ export function AdminOrders({ onMsg }: { onMsg: Msg }) {
   useEffect(() => { setRows(null); load(query, filter, 0) }, [query, filter, load])
 
   const delFiles = async (o: OrderRow) => {
-    if (!window.confirm(t('admDelFilesAsk', { n: o.token, shop: o.shop_name }))) return
+    if (!await askConfirm(t('admDelFilesAsk', { n: o.token, shop: o.shop_name }))) return
     setBusy(o.id)
     onMsg(null)
     try {
@@ -220,7 +221,7 @@ export function AdminPayments({ onMsg }: { onMsg: Msg }) {
   useEffect(() => { load() }, [load])
 
   const cancel = async (s: Sub) => {
-    if (!window.confirm(t('admCancelSubAsk', { name: s.name }))) return
+    if (!await askConfirm(t('admCancelSubAsk', { name: s.name }))) return
     setBusy(s.shop_id)
     onMsg(null)
     try {
@@ -307,7 +308,7 @@ export function AdminSpam({ onMsg, onChanged }: { onMsg: Msg; onChanged: () => v
   useEffect(() => { load() }, [load])
 
   const run = async (fn: () => PromiseLike<{ error: unknown }>, ask?: string) => {
-    if (ask && !window.confirm(ask)) return
+    if (ask && !await askConfirm(ask)) return
     setBusy(true)
     onMsg(null)
     const { error } = await fn()
@@ -412,7 +413,7 @@ export function AdminSettings({ onMsg }: { onMsg: Msg }) {
 
   const save = async (e: FormEvent) => {
     e.preventDefault()
-    if (s.maintenance && !window.confirm(t('admMaintAsk'))) return
+    if (s.maintenance && !await askConfirm(t('admMaintAsk'))) return
     setBusy(true)
     onMsg(null)
     const { data, error } = await supabase.rpc('admin_set_settings', { p: s })

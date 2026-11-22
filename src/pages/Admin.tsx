@@ -7,6 +7,7 @@ import { TopBar } from '../components/TopBar'
 import { callFn } from '../lib/billing'
 import { AdminOrders, AdminPayments, AdminSettings, AdminSpam, AdminUsers, fmtBytes, fmtDate } from './AdminTabs'
 import { AdminSkelBody, AdminSkeleton, SkelList, SkelLog, SkelStats } from '../components/Skeletons'
+import { ask as askConfirm } from '../components/ConfirmHost'
 
 /* Admin panel. The page only hides itself; the real check is is_admin() inside every admin_* SQL function. */
 
@@ -126,7 +127,7 @@ export default function Admin() {
   }
 
   const setPro = async (s: ShopRow, d: number) => {
-    if (d === 0 && !window.confirm(s.paid ? t('admRemoveProPaid', { name: s.name }) : t('admRemoveProAsk', { name: s.name }))) return
+    if (d === 0 && !await askConfirm(s.paid ? t('admRemoveProPaid', { name: s.name }) : t('admRemoveProAsk', { name: s.name }))) return
     setBusy(s.id)
     setMsg(null)
     // No pick: the server keeps the shop's current plan (Plus stays Plus). p_tier only when the admin chose one.
@@ -142,7 +143,7 @@ export default function Admin() {
   }
 
   const setBlocked = async (s: ShopRow, block: boolean) => {
-    if (block && !window.confirm(t('admBlockAsk', { name: s.name }))) return
+    if (block && !await askConfirm(t('admBlockAsk', { name: s.name }))) return
     setBusy(s.id)
     setMsg(null)
     const { error } = await supabase.rpc('admin_set_blocked', { p_shop: s.id, p_blocked: block, p_reason: reason[s.id] || null })
@@ -155,7 +156,7 @@ export default function Admin() {
   const shopTool = async (s: ShopRow, kind: 'qr' | 'name' | 'logo' | 'cancel') => {
     const ask = kind === 'qr' ? t('admResetQrAsk', { name: s.name }) : kind === 'logo' ? t('admRemoveLogoAsk', { name: s.name })
       : kind === 'cancel' ? t('admCancelSubAsk', { name: s.name }) : null
-    if (ask && !window.confirm(ask)) return
+    if (ask && !(await askConfirm(ask))) return
     if (kind === 'name' && !(names[s.id] || '').trim()) return
     setBusy(s.id)
     setMsg(null)

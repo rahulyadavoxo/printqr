@@ -9,6 +9,7 @@ import { FilterControls, Slider } from './FilterScreen'
 import SignPad, { loadSigns, saveSigns, SIGN_COLORS, Swatches } from './SignPad'
 import ExportSheet from './ExportSheet'
 import Sheet from './Sheet'
+import { ask as askConfirm } from '../../components/ConfirmHost'
 
 export const PREV = 1600
 const COLORS = ['#111111', '#ffffff', '#e11d48', '#f97316', '#facc15', '#16a34a', '#2563eb', '#7c3aed']
@@ -604,8 +605,8 @@ export default function EditScreen(api: EditApi) {
                 {signs.map((src, i) => (
                   <div key={i} className="ed-sign-item">
                     <button type="button" className="ed-sign-thumb" onClick={() => placeSign(src)} aria-label={t('edSignUse')}><img src={src} alt="" /></button>
-                    <button type="button" className="ed-sign-x" aria-label={t('edDelete')} onClick={() => {
-                      if (!confirm(t('edSignDeleteQ'))) return
+                    <button type="button" className="ed-sign-x" aria-label={t('edDelete')} onClick={async () => {
+                      if (!await askConfirm(t('edSignDeleteQ'))) return
                       const l = signs.filter((_, k) => k !== i)
                       setSigns(l)
                       saveSigns(l)

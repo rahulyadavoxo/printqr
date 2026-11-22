@@ -1629,3 +1629,15 @@ img.shop-avatar { object-fit: cover; padding: 0; }
 .set-val { font-size: 14px; color: var(--c-muted, var(--c-ink-2)); }
 .set-logout { margin-top: 22px; width: 100%; min-height: 54px; display: flex; align-items: center; justify-content: center; gap: 8px; font: inherit; font-size: 16px; font-weight: 700; color: var(--c-red-ink); cursor: pointer; }
 .set-back { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 10px -4px; padding: 6px 8px 6px 2px; border: none; background: none; font: inherit; font-size: 16px; font-weight: 700; color: var(--c-ink-2); cursor: pointer; border-radius: var(--r-sm); }
+
+/* App-style confirm popup (ConfirmHost) - replaces the raw browser confirm() box */
+.cf-back { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(8, 12, 10, .45); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); animation: cf-fade .15s ease-out; }
+.cf-box { width: 100%; max-width: 360px; background: var(--c-surface); color: var(--c-ink); border-radius: 22px; padding: 22px 20px 18px; box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .45); text-align: center; animation: cf-pop .18s cubic-bezier(.2, .9, .3, 1.2); }
+.cf-icon { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: var(--c-brand-50); color: var(--c-brand-700); margin-bottom: 12px; }
+.cf-icon.is-danger { background: var(--c-red-bg); color: var(--c-red-ink); }
+.cf-msg { margin: 0 0 18px; font-size: 16px; line-height: 1.45; font-weight: 600; white-space: pre-line; }
+.cf-row { display: flex; gap: 10px; }
+.cf-row .btn { flex: 1; min-height: 48px; border-radius: 14px; }
+@keyframes cf-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes cf-pop { from { opacity: 0; transform: scale(.94) } to { opacity: 1; transform: none } }
+@media (prefers-reduced-motion: reduce) { .cf-back, .cf-box { animation: none; } }

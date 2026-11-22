@@ -4,6 +4,7 @@ import { isConfigured, supabase } from './lib/supabase'
 import { useI18n } from './lib/i18n'
 import { TopBar } from './components/TopBar'
 import UpdateGate from './components/UpdateGate'
+import ConfirmHost from './components/ConfirmHost'
 import AppNotices from './components/AppNotices'
 import { RouteSkeleton } from './components/Skeletons'
 import Home from './pages/Home'
@@ -48,6 +49,7 @@ export default function App() {
   return (
     <UpdateGate>
     <AppNotices />
+    <ConfirmHost />
     <Suspense fallback={<RouteSkeleton />}>
     <Routes>
       <Route path="/" element={<Home />} />

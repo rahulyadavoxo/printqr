@@ -13,6 +13,7 @@ import FilterScreen from './FilterScreen'
 import { detectQuad, fullQuad } from './imgproc'
 import { deleteRecent, fileToCanvas, listRecents, openPdfSource, PDF_PREVIEW, Recent, releaseAllPdfSources, renderPdfPage, withSource } from './io'
 import { makeCanvas } from './imgproc'
+import { ask as askConfirm } from '../../components/ConfirmHost'
 
 type Screen = 'start' | 'crop' | 'filter' | 'edit'
 type Target = { mode: 'new' } | { mode: 'retake'; id: string }
@@ -211,7 +212,7 @@ export default function Editor() {
   const qPages = queue.map((id) => pages.find((p) => p.id === id)).filter((p): p is Page => !!p)
 
   // ---- crop / filter flow
-  function cropBack() {
+  async function cropBack() {
     if (single) {
       if (single.oldPage) {
         const o = single.oldPage
@@ -222,7 +223,7 @@ export default function Editor() {
       setScreen('edit')
       return
     }
-    if (!confirm(t('edDiscardNewQ'))) return
+    if (!await askConfirm(t('edDiscardNewQ'))) return
     const drop = new Set(queue)
     queue.forEach(forgetPage)
     const left = pages.filter((p) => !drop.has(p.id))
@@ -285,7 +286,7 @@ export default function Editor() {
         <EditScreen pages={pages} cur={Math.min(cur, pages.length - 1)} setCur={setCur} meta={meta} setMeta={setMeta} docId={docId}
           upd={upd} pushUndo={pushUndo} undo={undo}
           applyToAll={(fn) => setPages((ps) => ps.map((p) => ({ ...p, ...fn(p) })))}
-          onClose={() => { if (confirm(t('edDiscardQ'))) reset() }}
+          onClose={async () => { if (await askConfirm(t('edDiscardQ'))) reset() }}
           onCrop={(id) => {
             const p = pages.find((x) => x.id === id)
             if (!p) return
@@ -295,8 +296,8 @@ export default function Editor() {
           }}
           onRetake={(id) => pick('camera', { mode: 'retake', id })}
           onAdd={(k) => pick(k)}
-          onDelete={(id) => {
-            if (!confirm(t('edDeletePageQ'))) return
+          onDelete={async (id) => {
+            if (!await askConfirm(t('edDeletePageQ'))) return
             forgetPage(id)
             const left = pages.filter((p) => p.id !== id)
             setPages(left)
@@ -343,7 +344,7 @@ export default function Editor() {
                   <span className="muted">{t('edPagesCount', { n: r.pages.length })} · {new Date(r.at).toLocaleDateString()}</span>
                 </button>
                 <button type="button" className="ed-recent-del" aria-label={t('edDelete')} onClick={async () => {
-                  if (!confirm(t('edDeleteRecentQ'))) return
+                  if (!await askConfirm(t('edDeleteRecentQ'))) return
                   await deleteRecent(r.id)
                   refreshRecents()
                 }}><Icon name="trash" size={16} /></button>
