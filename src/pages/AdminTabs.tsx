@@ -448,6 +448,13 @@ export function AdminSettings({ onMsg }: { onMsg: Msg }) {
       <input id="set-minv" type="text" inputMode="decimal" pattern="\d+\.\d+\.\d+" placeholder="1.5.19" value={s.min_app_version || ''} onChange={(e) => set({ min_app_version: e.target.value.trim() })} />
       <p className="small muted">{t('admMinVersionHint')}</p>
 
+      <label htmlFor="set-login">{t('admLoginDesign')}</label>
+      <select id="set-login" value={s.login_design} onChange={(e) => set({ login_design: e.target.value === 'modern' ? 'modern' : 'classic' })}>
+        <option value="classic">{t('admLoginClassic')}</option>
+        <option value="modern">{t('admLoginModern')}</option>
+      </select>
+      <p className="small muted">{t('admLoginDesignHint')}</p>
+
       <label htmlFor="set-fcl">{t('admFreeCounters')}</label>
       <input id="set-fcl" type="number" min={0} max={20} value={s.free_counter_limit} onChange={(e) => set({ free_counter_limit: Math.max(0, Math.min(20, Math.floor(Number(e.target.value) || 0))) })} />
       <p className="small muted">{t('admPricesHint', { m: '₹49', y: '₹539' })}</p>

@@ -9,6 +9,7 @@ import { clearAuthUrlError, peekAuthUrlError, sendResetEmail } from '../lib/reco
 import { useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
 import { isCaptchaError, Turnstile } from '../components/Turnstile'
+import { useAppSettings } from '../lib/appSettings'
 
 type Via = 'email' | 'phone'
 type PhoneKind = 'signup' | 'reset'
@@ -29,7 +30,12 @@ function cleanMobile(v: string): string {
 
 export default function Login() {
   const [params] = useSearchParams()
-  const { t, te, lang } = useI18n()
+  const { t, te, lang, setLang } = useI18n()
+  // Admin picks the design (Settings > Login page design); ?design=modern|classic previews one.
+  const settings = useAppSettings()
+  const designParam = params.get('design')
+  const modern = designParam ? designParam === 'modern' : settings.login_design === 'modern'
+  const [fullName, setFullName] = useState('')
   const initialMode = params.get('mode')
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(
     initialMode === 'signup' ? 'signup' : initialMode === 'forgot' ? 'forgot' : 'login'
@@ -179,7 +185,7 @@ export default function Login() {
     const captchaToken = captcha || undefined
     try {
       if (k === 'signup' && !resend) {
-        const { data, error } = await supabase.auth.signUp({ phone, password, options: { captchaToken } })
+        const { data, error } = await supabase.auth.signUp({ phone, password, options: { captchaToken, data: fullName.trim() ? { full_name: fullName.trim() } : undefined } })
         if (error) throw error
         if (data.session) {
           // Phone confirmation switched off in Supabase: the account is ready already.
@@ -263,7 +269,7 @@ export default function Login() {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: PUBLIC_BASE, captchaToken: captcha || undefined }
+          options: { emailRedirectTo: PUBLIC_BASE, captchaToken: captcha || undefined, data: fullName.trim() ? { full_name: fullName.trim() } : undefined }
         })
         if (error) throw error
         if (!data.session) {
@@ -391,6 +397,73 @@ export default function Login() {
       {pre} <Link to="/legal/terms">{t('agreeTerms')}</Link>, <Link to="/legal/refund">{t('agreeRefund')}</Link> {t('agreeAnd')} <Link to="/legal/privacy">{t('agreePrivacy')}</Link>{t('agreePost')}
     </p>
   )
+
+  if (modern) {
+    return (
+      <div className="lx">
+        <div className="lx-wrap">
+          <header className="lx-hero">
+            <div className="lx-top">
+              <div className="lx-logo"><i>P</i><div><b>print</b><small>BY RECEIPTO</small></div></div>
+              <div className="lx-lang" role="group" aria-label={t('language')}>
+                <button type="button" aria-pressed={lang === 'en'} onClick={() => setLang('en')}>EN</button>
+                <button type="button" aria-pressed={lang === 'hi'} onClick={() => setLang('hi')} lang="hi">हि</button>
+              </div>
+            </div>
+            <div className="lx-pitch"><h2>{t('lxPitch')}</h2><p>{t('lxPitch2')}</p></div>
+            <div className="lx-receipt" aria-hidden="true">
+              <div className="l" /><div className="l s" />
+              <svg viewBox="0 0 7 7" shapeRendering="crispEdges"><g fill="#0d1210"><rect x="0" y="0" width="3" height="3"/><rect x="4" y="0" width="3" height="3"/><rect x="0" y="4" width="3" height="3"/><rect x="4" y="4" width="1" height="1"/><rect x="6" y="5" width="1" height="2"/><rect x="5" y="6" width="1" height="1"/></g><g fill="#fff"><rect x=".7" y=".7" width="1.6" height="1.6"/><rect x="4.7" y=".7" width="1.6" height="1.6"/><rect x=".7" y="4.7" width="1.6" height="1.6"/></g></svg>
+            </div>
+          </header>
+          <main className="lx-sheet">
+            <div className="lx-tabs" role="tablist">
+              <button type="button" role="tab" aria-selected={!signup} onClick={() => switchTo('login')}>{t('signInUp')}</button>
+              <button type="button" role="tab" aria-selected={signup} onClick={() => switchTo('signup')}>{t('lxTabUp')}</button>
+            </div>
+            <h1>{signup ? t('signupTitle') : t('loginTitle')}</h1>
+            <p className="lx-sub">{signup ? t('lxSubUp') : t('lxSubIn')}</p>
+            <form onSubmit={submit}>
+              {signup && (
+                <label className="lx-field">
+                  <span>{t('lxName')}</span>
+                  <input type="text" required autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder={t('lxNamePh')} maxLength={80} />
+                </label>
+              )}
+              <label className="lx-field">
+                <span>{t('idLabel')}</span>
+                <input type="text" inputMode={idIsPhone ? 'tel' : 'email'} required value={email} onChange={(e) => setEmail(e.target.value)} name="email"
+                  autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder={t('idPlaceholder')} />
+                {signup && idIsPhone && <small className="hint">{t('mobileHintShort')}</small>}
+              </label>
+              <div className="lx-field">
+                <div className="lx-row">
+                  <label htmlFor="lx-password">{t('password')}</label>
+                  {!signup && <button type="button" className="lx-forgot" onClick={() => switchTo('forgot')}>{t('forgotLink')}</button>}
+                </div>
+                <PasswordInput id="lx-password" name="password" required minLength={signup ? 8 : 6} value={password} onChange={(e) => setPassword(e.target.value)}
+                  autoComplete={signup ? 'new-password' : 'current-password'} placeholder={signup ? t('lxPwPh') : '••••••••'} />
+              </div>
+              <Turnstile key={mode} action={signup ? 'signup' : 'login'} onToken={setCaptcha} resetKey={captchaReset} lang={lang} quiet />
+              {msg && <p className={`notice${msg.error ? ' error' : ''}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
+              <button className="lx-cta" disabled={busy}>{busy ? t('pleaseWait') : signup ? t('createAccount') : t('signInUp')}</button>
+            </form>
+            {googleAvailable() && (
+              <>
+                <div className="lx-or">{t('orWord')}</div>
+                <button type="button" className="lx-g" disabled={busy} onClick={google}>
+                  <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+                  {t('googleBtn')}
+                </button>
+              </>
+            )}
+            {terms(signup ? t('agreePre') : t('agreeAnyPre'))}
+          </main>
+          <div style={{ height: 28 }} />
+        </div>
+      </div>
+    )
+  }
 
   // One box for email or mobile: email + password, or a mobile number that gets an OTP (new number = new account).
   return (

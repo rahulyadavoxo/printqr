@@ -9,10 +9,21 @@ export type AppSettings = {
   maintenance_msg: string | null
   min_app_version: string | null
   free_counter_limit: number
+  login_design: LoginDesign
+}
+
+export type LoginDesign = 'classic' | 'modern'
+const LD_KEY = 'pq_login_design'
+/** Last known login design, so the login page does not flash the other design while settings load. */
+function storedDesign(): LoginDesign {
+  try { return localStorage.getItem(LD_KEY) === 'modern' ? 'modern' : 'classic' } catch { return 'classic' }
+}
+function remember(s: AppSettings) {
+  try { localStorage.setItem(LD_KEY, s.login_design === 'modern' ? 'modern' : 'classic') } catch { /* private mode */ }
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  announcement: null, announcement_hi: null, maintenance: false, maintenance_msg: null, min_app_version: null, free_counter_limit: 0
+  announcement: null, announcement_hi: null, maintenance: false, maintenance_msg: null, min_app_version: null, free_counter_limit: 0, login_design: storedDesign()
 }
 
 let cache: AppSettings | null = null
@@ -26,6 +37,7 @@ export function loadAppSettings(force = false): Promise<AppSettings> {
     // Before the v13 database update the function does not exist: keep the defaults.
     const s = !error && data ? { ...DEFAULT_SETTINGS, ...(data as Partial<AppSettings>) } : DEFAULT_SETTINGS
     cache = s
+    remember(s)
     pending = null
     listeners.forEach((l) => l(s))
     return s
@@ -38,6 +50,7 @@ export function loadAppSettings(force = false): Promise<AppSettings> {
 
 export function setAppSettingsCache(s: AppSettings) {
   cache = s
+  remember(s)
   listeners.forEach((l) => l(s))
 }
 
