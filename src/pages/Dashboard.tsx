@@ -636,6 +636,8 @@ export default function Dashboard() {
   const current = TABS.find((x) => x.id === tab) || TABS[0]
   // Only below 1024px: at desktop width the bar is hidden (.m-only), so the drawer must keep every tab.
   const bottomNav = ON_ANDROID && !staff && narrow
+  // Android phone: Settings is a grouped list; ?s=<key> opens one section as its own page (back button returns).
+  const setSub = params.get('s')
   // In the app the bottom bar holds BOTTOM, so the drawer keeps only the rest (Rates, Plan).
   const nav_ = staff ? [{ group: 'navShop' as Key, items: ['orders' as Tab] }]
     : bottomNav ? NAV.map((g) => ({ ...g, items: g.items.filter((id) => !BOTTOM.includes(id)) })).filter((g) => g.items.length)
@@ -780,16 +782,27 @@ export default function Dashboard() {
           </Suspense>
         )}
         {tab === 'report' && <Report shop={shop} onUpgrade={goPlan} />}
-        {tab === 'settings' && (
+        {tab === 'settings' && bottomNav && !setSub && (
+          <SettingsHub plus={!ready || plus} onOpen={(k) => setParams({ tab: 'settings', s: k })} onPlan={goPlan} onLogout={logout}
+            version={appVer ? 'PrintQR ' + appVer : ''} />
+        )}
+        {tab === 'settings' && (!bottomNav || setSub) && (
           <>
-            <Settings shop={shop} onSaved={setShop} onUpgrade={goPlan} />
-            <HoursCard shop={shop} onSaved={setShop} />
-            <PaperCard shop={shop} onSaved={setShop} />
-            <BrandCard shop={shop} plus={!ready || plus} onSaved={setShop} onUpgrade={goPlan} />
-            <StaffCard shop={shop} plus={!ready || plus} onUpgrade={goPlan} />
-            <CountersCard shop={shop} counters={counters} usable={usable.length} locked={free} limit={counterLimit} needPlus={pro} v2={v2}
+            {bottomNav && (
+              <button type="button" className="set-back" onClick={() => nav(-1)}><Icon name="chevl" size={22} /> {t('tabSettings')}</button>
+            )}
+            {(!bottomNav || setSub === 'shop') && <Settings shop={shop} onSaved={setShop} onUpgrade={goPlan} />}
+            {(!bottomNav || setSub === 'hours') && <HoursCard shop={shop} onSaved={setShop} />}
+            {(!bottomNav || setSub === 'paper') && <PaperCard shop={shop} onSaved={setShop} />}
+            {(!bottomNav || setSub === 'brand') && <BrandCard shop={shop} plus={!ready || plus} onSaved={setShop} onUpgrade={goPlan} />}
+            {(!bottomNav || setSub === 'staff') && <StaffCard shop={shop} plus={!ready || plus} onUpgrade={goPlan} />}
+            {(!bottomNav || setSub === 'counters') && <CountersCard shop={shop} counters={counters} usable={usable.length} locked={free} limit={counterLimit} needPlus={pro} v2={v2}
               onChanged={() => loadCounters(shop.id)} onUpgrade={goPlan}
-              onShowQr={(c) => setParams({ tab: 'qr', c })} />
+              onShowQr={(c) => setParams({ tab: 'qr', c })} />}
+          </>
+        )}
+        {tab === 'settings' && !bottomNav && (
+          <>
             <button type="button" className="btn danger block lg logout-btn" onClick={logout}><Icon name="logout" size={18} /> {t('logout')}</button>
             {appVer && <p className="app-version">PrintQR {appVer}{pushStatus() ? ' · push: ' + pushStatus() : ''}</p>}
           </>
@@ -2013,6 +2026,57 @@ function Report({ shop, onUpgrade }: { shop: Shop; onUpgrade: () => void }) {
 /* ------------------------------------------------------------------ */
 
 const KEEP_OPTIONS = [1, 3, 6, 12, 24, 48, 72, 168]
+
+type SetKey = 'shop' | 'hours' | 'paper' | 'counters' | 'brand' | 'staff'
+/** Android phone Settings: grouped list (iOS-style); each row opens its section. */
+function SettingsHub({ plus, onOpen, onPlan, onLogout, version }: {
+  plus: boolean; onOpen: (k: SetKey) => void; onPlan: () => void; onLogout: () => void; version: string
+}) {
+  const { t, lang, setLang } = useI18n()
+  const { pref, setTheme } = useTheme()
+  const nav = useNavigate()
+  const themeOrder: ThemePref[] = ['light', 'dark', 'system']
+  const themeLbl: Record<ThemePref, Key> = { light: 'themeLight', dark: 'themeDark', system: 'themeAuto' }
+  const Row = ({ icon, label, value, onClick, lock }: { icon: string; label: string; value?: string; onClick: () => void; lock?: boolean }) => (
+    <button type="button" className="set-row" onClick={onClick}>
+      <span className="set-ic"><Icon name={icon} size={18} /></span>
+      <span className="set-lbl">{label}</span>
+      {lock && <span className="pro-badge">{t('planPlus')}</span>}
+      {value && <span className="set-val">{value}</span>}
+      <Icon name="chevr" size={18} />
+    </button>
+  )
+  return (
+    <div className="set-hub">
+      <div className="set-grp-lbl">{t('setGrpShop')}</div>
+      <div className="set-grp">
+        <Row icon="store" label={t('setShopDetails')} onClick={() => onOpen('shop')} />
+        <Row icon="clock" label={t('hoursTitle')} onClick={() => onOpen('hours')} />
+        <Row icon="file" label={t('paperTitle')} onClick={() => onOpen('paper')} />
+        <Row icon="qr" label={t('cTitle')} onClick={() => onOpen('counters')} />
+      </div>
+      <div className="set-grp-lbl">{t('setGrpBiz')}</div>
+      <div className="set-grp">
+        <Row icon="star" label={t('tabPlan')} onClick={onPlan} />
+        <Row icon="image" label={t('setBrand')} lock={!plus} onClick={() => onOpen('brand')} />
+        <Row icon="user" label={t('staffTitle')} lock={!plus} onClick={() => onOpen('staff')} />
+      </div>
+      <div className="set-grp-lbl">{t('setGrpPref')}</div>
+      <div className="set-grp">
+        <Row icon="type" label={t('language')} value={lang === 'hi' ? 'हिंदी' : 'English'} onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} />
+        <Row icon={pref === 'dark' ? 'moon' : pref === 'light' ? 'sun' : 'auto'} label={t('theme')} value={t(themeLbl[pref])}
+          onClick={() => setTheme(themeOrder[(themeOrder.indexOf(pref) + 1) % 3])} />
+      </div>
+      <div className="set-grp-lbl">{t('setGrpHelp')}</div>
+      <div className="set-grp">
+        <Row icon="shield" label={t('setPrivacy')} onClick={() => nav('/legal/privacy')} />
+        <Row icon="info" label={t('setTerms')} onClick={() => nav('/legal/terms')} />
+      </div>
+      <button type="button" className="set-grp set-logout" onClick={onLogout}><Icon name="logout" size={18} /> {t('logout')}</button>
+      {version && <p className="app-version">{version}</p>}
+    </div>
+  )
+}
 
 function Settings({ shop, onSaved, onUpgrade }: { shop: Shop; onSaved: (s: Shop) => void; onUpgrade: () => void }) {
   const { t, tn, te } = useI18n()
