@@ -32,9 +32,19 @@ export function currentLoginPlatform(): LoginPlatform {
 }
 
 /** The login design for this device: its platform's choice, else the general one. */
+/** Which designs each platform may use: the lime card is for phones, the 3 wide designs are for computers. */
+export const DESIGNS_FOR: Record<LoginPlatform, readonly LoginDesign[]> = {
+  app: ['classic', 'modern'],
+  mweb: ['classic', 'modern'],
+  web: ['classic', 'split', 'bento', 'bentofull'],
+  desktop: ['classic', 'split', 'bento', 'bentofull'],
+}
 export function loginDesignFor(s: AppSettings, p: LoginPlatform = currentLoginPlatform()): LoginDesign {
+  const ok = DESIGNS_FOR[p]
   const v = s.login_designs?.[p]
-  return isDesign(v) ? v : isDesign(s.login_design) ? s.login_design : 'classic'
+  if (isDesign(v) && ok.includes(v)) return v
+  if (isDesign(s.login_design) && ok.includes(s.login_design)) return s.login_design
+  return 'classic'
 }
 const LD_KEY = 'pq_login_design'
 /** Last known login design, so the login page does not flash the other design while settings load. */
