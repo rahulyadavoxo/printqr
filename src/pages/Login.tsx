@@ -1,5 +1,6 @@
 import { PUBLIC_BASE, offerSavePassword, pickSavedPassword, startOtpAutoRead } from '../lib/app'
 import PasswordInput from '../components/PasswordInput'
+import OtpInput, { EMAIL_OTP_LENGTH, EMAIL_OTP_MAX, SMS_OTP_LENGTH } from '../components/OtpInput'
 import { googleAvailable, signInWithGoogle } from '../lib/google'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
@@ -12,6 +13,11 @@ import { isCaptchaError, Turnstile } from '../components/Turnstile'
 type Via = 'email' | 'phone'
 const VIA_KEY = 'pq-login-via'
 const INDIAN_MOBILE = /^[6-9]\d{9}$/
+
+/** Resend countdown as m:ss ("0:42"). */
+function mmss(s: number): string {
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
 
 /** Keeps the 10-digit number; a pasted "+91 98765 43210" or "098765 43210" works too. */
 function cleanMobile(v: string): string {
@@ -42,6 +48,8 @@ export default function Login() {
   // Signup step 2: the 6-digit code from the email (proves the email is real).
   const [codeStep, setCodeStep] = useState(false)
   const [code, setCode] = useState('')
+  // Bumped after a wrong code: the boxes shake, clear and focus the first box.
+  const [codeShake, setCodeShake] = useState(0)
   const [cooldown, setCooldown] = useState(0)
   const [captcha, setCaptcha] = useState<string | null>(null)
   const [captchaReset, setCaptchaReset] = useState(0)
@@ -66,12 +74,23 @@ export default function Login() {
     return () => window.clearTimeout(id)
   }, [cooldown])
 
-  async function verifyCode(e: FormEvent) {
-    e.preventDefault()
+  /** A wrong code: clear the boxes, shake them and focus the first one (the error text shows too). */
+  function codeFailed() {
+    setCode('')
+    setCodeShake((n) => n + 1)
+  }
+
+  /** Email code: form submit, or the boxes filling up (onComplete). One check at a time. */
+  const verifying = useRef(false)
+  async function verifyCode(e?: FormEvent, typed?: string) {
+    e?.preventDefault()
+    const token = (typed ?? code).replace(/\s/g, '')
+    if (verifying.current || token.length < EMAIL_OTP_LENGTH) return
+    verifying.current = true
     setBusy(true)
     setMsg(null)
     try {
-      const { data, error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.replace(/\s/g, ''), type: 'email' })
+      const { data, error } = await supabase.auth.verifyOtp({ email: email.trim(), token, type: 'email' })
       if (error) throw error
       if (!data.session) throw new Error(t('codeBad'))
       void supabase.functions.invoke('send-welcome', { body: {} }).catch(() => undefined)
@@ -79,7 +98,9 @@ export default function Login() {
       nav('/setup')
     } catch (e) {
       setMsg({ text: /expired|invalid|otp|token/i.test(String((e as Error)?.message)) ? t('codeBad') : te(e), error: true })
+      codeFailed()
     } finally {
+      verifying.current = false
       setBusy(false)
     }
   }
@@ -92,6 +113,7 @@ export default function Login() {
       const { error } = await supabase.auth.resend({ type: 'signup', email: email.trim(), options: { emailRedirectTo: PUBLIC_BASE, captchaToken: captcha || undefined } })
       if (error) throw error
       setMsg({ text: t('codeResent'), error: false })
+      setCode('')
       setCooldown(60)
     } catch (e) {
       setMsg({ text: isCaptchaError(e) ? t('captchaFail') : te(e), error: true })
@@ -121,7 +143,6 @@ export default function Login() {
   // App: Google's SMS Retriever reads the OTP SMS by itself (no tap) and we verify it straight away.
   // Started just before the SMS is requested, so a fast SMS is not missed. Website / older app: no-op.
   const otpStop = useRef<(() => void) | null>(null)
-  const verifying = useRef(false)
   const verifyPhoneRef = useRef<(e?: FormEvent, autoCode?: string) => Promise<void>>(async () => {})
   function stopOtpAutoRead() {
     otpStop.current?.()
@@ -155,7 +176,7 @@ export default function Login() {
       })
       if (error) throw error
       try { localStorage.setItem(VIA_KEY, 'phone') } catch { /* ignore */ }
-      if (resend) setMsg({ text: t('phCodeResent'), error: false })
+      if (resend) { setMsg({ text: t('phCodeResent'), error: false }); setCode('') }
       else { setCode(''); setCodeStep(true) }
       setCooldown(60)
     } catch (err) {
@@ -171,7 +192,7 @@ export default function Login() {
   async function verifyPhoneCode(e?: FormEvent, autoCode?: string) {
     e?.preventDefault()
     const token = (autoCode ?? code).replace(/\s/g, '')
-    if (verifying.current || token.length < 6) return
+    if (verifying.current || token.length < SMS_OTP_LENGTH) return
     verifying.current = true
     setBusy(true)
     setMsg(null)
@@ -185,6 +206,7 @@ export default function Login() {
       nav(Number.isFinite(created) && Date.now() - created < 10 * 60 * 1000 ? '/setup' : '/dashboard')
     } catch (err) {
       setMsg({ text: phoneErr(err, true), error: true })
+      codeFailed()
     } finally {
       verifying.current = false
       setBusy(false)
@@ -270,6 +292,7 @@ export default function Login() {
   }
 
   if (codeStep) {
+    const codeLen = phoneMode ? SMS_OTP_LENGTH : EMAIL_OTP_LENGTH
     return (
       <div className="auth-page">
         <TopBar />
@@ -278,19 +301,24 @@ export default function Login() {
             <div className="auth-logo"><LogoMark size={44} /></div>
             <h1 className="auth-title">{phoneMode ? t('phCodeTitle') : t('codeTitle')}</h1>
             <p className="muted center">{phoneMode ? t('phCodeSub', { phone: `+91 ${mobile.slice(0, 5)} ${mobile.slice(5)}` }) : t('codeSub', { email: email.trim() })}</p>
-            <label className="field">
-              <span>{t('codeLabel')}</span>
-              <input type="text" inputMode="numeric" autoComplete="one-time-code" required minLength={6} maxLength={10}
-                pattern="[0-9 ]{6,10}" value={code} onChange={(e) => setCode(e.target.value.replace(/[^0-9 ]/g, ''))}
-                placeholder="123456" className="code-input" autoFocus />
-            </label>
-            {msg && <p className={`notice${msg.error ? ' error' : ' success'}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
-            <button className="btn primary block lg" disabled={busy || code.replace(/\s/g, '').length < 6}>{busy ? t('pleaseWait') : t('codeVerify')}</button>
+            <div className="field">
+              <span aria-hidden="true">{t('codeLabel')}</span>
+              <OtpInput value={code} onChange={setCode} length={codeLen} maxLength={phoneMode ? SMS_OTP_LENGTH : EMAIL_OTP_MAX}
+                onComplete={(v) => { void (phoneMode ? verifyPhoneCode(undefined, v) : verifyCode(undefined, v)) }}
+                disabled={busy} error={!!msg?.error && !code} shakeKey={codeShake} autoFocus
+                ariaLabel={t('otpAria', { n: codeLen })} ariaDescribedBy={msg ? 'otp-msg' : undefined} />
+            </div>
+            {msg && <p id="otp-msg" className={`notice${msg.error ? ' error' : ' success'}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
+            <button className="btn primary block lg" disabled={busy || code.length < codeLen}>{busy ? t('pleaseWait') : t('codeVerify')}</button>
             <Turnstile key="resend" action={phoneMode ? 'login' : 'signup'} onToken={setCaptcha} resetKey={captchaReset} lang={lang} />
             <p className="center small switch-line">
-              <button type="button" className="link" disabled={busy || cooldown > 0} onClick={phoneMode ? () => sendPhoneCode() : resendCode}>
-                {cooldown > 0 ? t('codeWait', { s: cooldown }) : t('codeResend')}
-              </button>
+              {cooldown > 0 ? (
+                <span className="otp-timer" role="timer" aria-live="off">{t('codeWait', { s: mmss(cooldown) })}</span>
+              ) : (
+                <button type="button" className="link" disabled={busy} onClick={phoneMode ? () => sendPhoneCode() : resendCode}>
+                  {t('codeResend')}
+                </button>
+              )}
               {' · '}
               <button type="button" className="link" onClick={() => { setCodeStep(false); setMsg(null) }}>{phoneMode ? t('phChange') : t('codeChangeEmail')}</button>
             </p>
