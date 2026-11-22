@@ -11,7 +11,6 @@ import { TopBar } from '../components/TopBar'
 import { isCaptchaError, Turnstile } from '../components/Turnstile'
 
 type Via = 'email' | 'phone'
-const VIA_KEY = 'pq-login-via'
 const INDIAN_MOBILE = /^[6-9]\d{9}$/
 
 /** Resend countdown as m:ss ("0:42"). */
@@ -27,12 +26,6 @@ function cleanMobile(v: string): string {
   return d.slice(0, 10)
 }
 
-function initialVia(param: string | null): Via {
-  if (param === 'phone' || param === 'email') return param
-  // Mobile number first; email only for people who picked it before (or open ?via=email / signup / forgot links).
-  try { return localStorage.getItem(VIA_KEY) === 'email' ? 'email' : 'phone' } catch { return 'phone' }
-}
-
 export default function Login() {
   const [params] = useSearchParams()
   const { t, te, lang } = useI18n()
@@ -42,7 +35,8 @@ export default function Login() {
   )
   const [email, setEmail] = useState('')
   // Email + password, or mobile number + SMS code (one flow: a new number gets an account automatically).
-  const [via, setVia] = useState<Via>(() => initialMode === 'forgot' ? 'email' : initialVia(params.get('via')))
+  // Which code the code step checks: 'phone' only after an SMS OTP was sent from the Email / Mobile box.
+  const [via, setVia] = useState<Via>('email')
   const [mobile, setMobile] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -177,7 +171,6 @@ export default function Login() {
         options: { captchaToken: captcha || undefined, shouldCreateUser: true }
       })
       if (error) throw error
-      try { localStorage.setItem(VIA_KEY, 'phone') } catch { /* ignore */ }
       if (num) { setMobile(num); setVia('phone') }
       if (resend) { setMsg({ text: t('phCodeResent'), error: false }); setCode('') }
       else { setCode(''); setCodeStep(true) }
@@ -243,6 +236,7 @@ export default function Login() {
         if (error) throw error
         if (!data.session) {
           // Email confirmation is on: ask for the code we just mailed.
+          setVia('email')
           setCode('')
           setCodeStep(true)
           setCooldown(60)
@@ -287,12 +281,6 @@ export default function Login() {
     setMsg(null)
   }
   const phoneMode = via === 'phone'
-  const switchVia = (v: Via) => {
-    if (v === via) return
-    setVia(v)
-    setMsg(null)
-    try { localStorage.setItem(VIA_KEY, v) } catch { /* ignore */ }
-  }
 
   if (codeStep) {
     const codeLen = phoneMode ? SMS_OTP_LENGTH : EMAIL_OTP_LENGTH
@@ -322,7 +310,7 @@ export default function Login() {
                 </button>
               )}
               {' · '}
-              <button type="button" className="link" onClick={() => { setCodeStep(false); setMsg(null) }}>{phoneMode ? t('phChange') : t('codeChangeEmail')}</button>
+              <button type="button" className="link" onClick={() => { if (phoneMode) setEmail(mobile); setCodeStep(false); setMsg(null) }}>{phoneMode ? t('phChange') : t('codeChangeEmail')}</button>
             </p>
           </form>
         </main>
@@ -369,43 +357,10 @@ export default function Login() {
     </p>
   )
 
-  // One screen for login and signup: Google, then mobile number + OTP (a new number gets an account by itself).
-  if (phoneMode) {
-    return (
-      <div className="auth-page">
-        <TopBar />
-        <main className="auth-wrap">
-          <form className="card auth-card" onSubmit={sendPhoneCode}>
-            <h1 className="auth-title">{t('authTitle')}</h1>
-            <p className="muted center">{t('authSub')}</p>
-            {googleButton}
-            <label className="field">
-              <span>{t('mobileLabel')}</span>
-              <span className="phone-input">
-                <span className="phone-cc" aria-hidden="true">+91</span>
-                <input type="tel" inputMode="numeric" required autoComplete="tel-national" name="mobile" value={mobile}
-                  onChange={(e) => setMobile(cleanMobile(e.target.value))} placeholder="98765 43210" maxLength={16}
-                  aria-label={`${t('mobileLabel')} (+91)`} />
-              </span>
-              <small className="hint">{t('mobileHintShort')}</small>
-            </label>
-            <Turnstile key="phone" action="login" onToken={setCaptcha} resetKey={captchaReset} lang={lang} quiet />
-            {msg && <p className={`notice${msg.error ? ' error' : ''}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
-            <button className="btn primary block lg" disabled={busy}>{busy ? t('pleaseWait') : t('mobileSend')}</button>
-            <p className="auth-alt small">
-              <button type="button" className="link" onClick={() => switchVia('email')}>{t('useEmail')}</button>
-            </p>
-            {terms(t('agreeAnyPre'))}
-          </form>
-        </main>
-      </div>
-    )
-  }
-
   // A 10-digit mobile number typed in the Email / Mobile box: no password, an OTP is sent instead.
   const idIsPhone = !/[@a-z]/i.test(email) && INDIAN_MOBILE.test(cleanMobile(email))
 
-  // "Use email instead": the old email + password form (login / create account / forgot password).
+  // One box for email or mobile: email + password, or a mobile number that gets an OTP (new number = new account).
   return (
     <div className="auth-page">
       <TopBar />
@@ -443,9 +398,6 @@ export default function Login() {
             <button type="button" className="link" onClick={() => switchTo(signup ? 'login' : 'signup')}>
               {signup ? t('login') : t('switchSignup')}
             </button>
-          </p>
-          <p className="auth-alt small">
-            <button type="button" className="link" onClick={() => switchVia('phone')}>{t('useMobile')}</button>
           </p>
           {terms(signup ? t('agreePre') : t('agreeAnyPre'))}
         </form>
