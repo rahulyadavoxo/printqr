@@ -138,7 +138,7 @@ export default function Login() {
       else return
     } catch (e) {
       const m = String((e as Error)?.message || '')
-      if (m !== 'cancel') setMsg({ text: isCaptchaError(e) ? t('captchaFail') : t('googleFail'), error: true })
+      if (m !== 'cancel') setMsg({ text: isCaptchaError(e) ? t('captchaFail') : t('googleFail') + (m && m !== 'google' ? ` (${m.slice(0, 160)})` : ''), error: true })
       setCaptchaReset((n) => n + 1)
     }
     setBusy(false)

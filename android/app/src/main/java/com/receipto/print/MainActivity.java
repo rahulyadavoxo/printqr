@@ -779,7 +779,11 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
                                 } catch (Throwable t) { googleAnswer("", t.getClass().getSimpleName()); }
                             }
                             @Override public void onError(GetCredentialException e) {
-                                googleAnswer("", e instanceof androidx.credentials.exceptions.GetCredentialCancellationException ? "cancel" : e.getType());
+                                // A real "back"/close is silent. Google also reports setup problems (wrong SHA-1, app not allowed) as a "cancel" with code 16: show those.
+                                String m = String.valueOf(e.getMessage());
+                                boolean userCancel = e instanceof androidx.credentials.exceptions.GetCredentialCancellationException
+                                    && !m.contains("16") && !m.toLowerCase().contains("reauth") && !m.toLowerCase().contains("developer");
+                                googleAnswer("", userCancel ? "cancel" : (e.getType() + ": " + m));
                             }
                         });
                 } catch (Throwable t) { googleAnswer("", t.getClass().getSimpleName()); }
