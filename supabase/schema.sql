@@ -3743,7 +3743,7 @@ grant select, update on public.app_settings to service_role;
 grant select on public.push_tokens to service_role;
 grant select on public.admins to service_role;
 
--- Admin panel: last check time + open problems + problems fixed in the last 3 days.
+-- Admin panel (bell): last check time + open problems + problems fixed in the last 30 days (max 50).
 create or replace function public.admin_alerts()
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 begin
@@ -3752,7 +3752,7 @@ begin
     'checked_at', (select health_checked_at from public.app_settings where id = 1),
     'alerts', coalesce((select jsonb_agg(jsonb_build_object('key', a.key, 'title', a.title, 'detail', a.detail,
         'opened_at', a.opened_at, 'last_seen', a.last_seen, 'closed_at', a.closed_at) order by a.closed_at nulls first, a.opened_at desc)
-      from public.ops_alerts a where a.closed_at is null or a.closed_at > now() - interval '3 days'), '[]'::jsonb)
+      from (select * from public.ops_alerts where closed_at is null or closed_at > now() - interval '30 days' order by closed_at nulls first, opened_at desc limit 50) a), '[]'::jsonb)
   );
 end $$;
 revoke all on function public.admin_alerts() from public, anon;

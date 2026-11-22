@@ -22,8 +22,10 @@ const ICONS: Record<AdminTab, string> = {
 const BOTTOM: AdminTab[] = ['overview', 'shops', 'orders', 'users']
 const MORE: AdminTab[] = ['payments', 'spam', 'settings', 'log']
 
-export function AdminShell({ children, tab, onTab, onRefresh, refreshing = false }: {
+export function AdminShell({ children, tab, onTab, onRefresh, refreshing = false, bell }: {
   children: ReactNode; tab?: AdminTab; onTab?: (t: AdminTab) => void; onRefresh?: () => void; refreshing?: boolean
+  /** v30: health alerts bell left of refresh; count = open problems */
+  bell?: { count: number; onClick: () => void }
 }) {
   const { t } = useI18n()
   const nav = useNavigate()
@@ -54,6 +56,12 @@ export function AdminShell({ children, tab, onTab, onRefresh, refreshing = false
             <Icon name="back" size={22} />
           </button>
           <div className="adm-bar-title"><Icon name="shield" size={18} /><span>{t('admTitle')}</span></div>
+          {bell && (
+            <button type="button" className="menu-btn adm-bell" onClick={bell.onClick} aria-label={t('admNotifs')}>
+              <Icon name="bell" size={21} />
+              {bell.count > 0 && <span className="adm-badge">{bell.count}</span>}
+            </button>
+          )}
           {onRefresh && (
             <button type="button" className={`menu-btn adm-refresh${refreshing ? ' is-busy' : ''}`} onClick={onRefresh}
               disabled={refreshing} aria-busy={refreshing} aria-label={t('admRefresh')}>

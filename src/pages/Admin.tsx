@@ -9,6 +9,7 @@ import { AdminOrders, AdminPayments, AdminSettings, AdminSpam, AdminUsers, fmtBy
 import { AdminSkelBody, AdminSkeleton, SkelList, SkelLog, SkelStats } from '../components/Skeletons'
 import { ask as askConfirm } from '../components/ConfirmHost'
 import { setupPush } from '../lib/push'
+import Icon from '../components/Icon'
 
 /* Admin panel. The page only hides itself; the real check is is_admin() inside every admin_* SQL function. */
 
@@ -71,6 +72,8 @@ export default function Admin() {
   const [reason, setReason] = useState<Record<string, string>>({})
   const [names, setNames] = useState<Record<string, string>>({})
   const [tab, setTab] = useState<AdminTab>('overview')
+  const [health, setHealth] = useState<HealthData | null>(null)
+  const [notifOpen, setNotifOpen] = useState(false)
 
   useEffect(() => {
     if (!session) return
@@ -91,6 +94,12 @@ export default function Admin() {
     setMore(rows.length === PAGE)
   }, [teRaw])
 
+  // v30: health alerts for the bell (before v30 SQL the call fails and the bell stays hidden)
+  const loadHealth = useCallback(async () => {
+    const { data, error } = await supabase.rpc('admin_alerts')
+    setHealth(error ? null : (data as HealthData))
+  }, [])
+
   const loadLog = useCallback(async () => {
     const { data, error } = await supabase.rpc('admin_recent_log', { p_limit: 20 })
     if (!error) setLog((data || []) as LogRow[])
@@ -100,15 +109,16 @@ export default function Admin() {
     if (!allowed) return
     loadOverview()
     loadLog()
+    loadHealth()
     setupPush() // v30: this phone / browser gets health alerts for admins
-  }, [allowed, loadOverview, loadLog])
+  }, [allowed, loadOverview, loadLog, loadHealth])
 
   useEffect(() => {
     if (!allowed) return
     loadShops(query, 0)
   }, [allowed, query, loadShops])
 
-  const refreshAll = () => Promise.all([loadOverview(), loadShops(query, 0), loadLog()])
+  const refreshAll = () => Promise.all([loadOverview(), loadShops(query, 0), loadLog(), loadHealth()])
 
   // Refresh button: clear the old notice, reload overview/shops/log, and remount the open tab
   // (Users, Orders, Payments, Spam) so it fetches fresh data too. Settings is not remounted (unsaved edits).
@@ -177,9 +187,14 @@ export default function Admin() {
   if (loading) return <AdminSkeleton />
   if (!session) return <Navigate to="/login" replace />
 
+  const alertCount = health ? health.alerts.filter((a) => !a.closed_at).length + (healthStale(health) ? 1 : 0) : 0
+  const bell = health ? { count: alertCount, onClick: () => { setNotifOpen(true); void loadHealth() } } : undefined
   const shell = (body: ReactElement, nav = false) => (
     nav
-      ? <AdminShell tab={tab} onTab={setTab} onRefresh={onRefresh} refreshing={refreshing}>{body}</AdminShell>
+      ? <AdminShell tab={tab} onTab={setTab} onRefresh={onRefresh} refreshing={refreshing} bell={bell}>
+          {body}
+          {notifOpen && health && <AdminNotifications h={health} onClose={() => setNotifOpen(false)} />}
+        </AdminShell>
       : <AdminShell>{body}</AdminShell>
   )
 
@@ -196,6 +211,11 @@ export default function Admin() {
     <>
       <div className="admin-head">
         <h1>{t('admTitle')}</h1>
+        {bell && (
+          <button type="button" className="btn small soft adm-bell-d" onClick={bell.onClick} aria-label={t('admNotifs')}>
+            <Icon name="bell" size={18} />{bell.count > 0 && <span className="adm-badge">{bell.count}</span>}
+          </button>
+        )}
         <button type="button" className="btn small soft" onClick={onRefresh} disabled={refreshing} aria-busy={refreshing}>{refreshing ? '…' : t('admRefresh')}</button>
       </div>
 
@@ -209,7 +229,6 @@ export default function Admin() {
 
       {tab === 'overview' && (<>
       <h2 className="admin-sec">{t('admOverview')}</h2>
-      <AdminHealth refreshKey={refreshKey} />
       {!ov ? <SkelStats n={8} /> : (
         <div className="stats">
           <div className="card stat accent stat-wide">
@@ -377,30 +396,51 @@ export default function Admin() {
 }
 
 type HealthAlert = { key: string; title: string; detail: string; opened_at: string; last_seen: string; closed_at: string | null }
+type HealthData = { checked_at: string | null; alerts: HealthAlert[] }
 
-/** v30: problems found by the 15-minute health check (pg_cron -> health-check). Admins also get them as push. */
-function AdminHealth({ refreshKey }: { refreshKey: number }) {
+function healthStale(h: HealthData) {
+  return !h.checked_at || Date.now() - new Date(h.checked_at).getTime() > 45 * 60 * 1000
+}
+
+/** v30: every health alert (open first, then fixed ones of the last 30 days). Opened from the bell in the top bar. */
+function AdminNotifications({ h, onClose }: { h: HealthData; onClose: () => void }) {
   const { t, lang } = useI18n()
-  const [h, setH] = useState<{ checked_at: string | null; alerts: HealthAlert[] } | null | 'none'>(null)
   useEffect(() => {
-    supabase.rpc('admin_alerts').then(({ data, error }) => setH(error ? 'none' : (data as { checked_at: string | null; alerts: HealthAlert[] })), () => setH('none'))
-  }, [refreshKey])
-  if (h === null || h === 'none') return null // before v30 SQL: nothing to show
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
   const when = (s: string | null) => s ? new Date(s).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
   const open = h.alerts.filter((a) => !a.closed_at)
   const fixed = h.alerts.filter((a) => a.closed_at)
-  const stale = !h.checked_at || Date.now() - new Date(h.checked_at).getTime() > 45 * 60 * 1000
   return (
-    <div className={`card${open.length || stale ? ' warn' : ''}`} style={{ marginBottom: 12 }}>
-      <div className="small stat-label">{t('admHealth')}</div>
-      <p style={{ margin: '4px 0' }}><b>{open.length ? t('admHealthBad', { n: open.length }) : stale ? t('admHealthStale') : t('admHealthOk')}</b></p>
-      {open.map((a) => (
-        <p key={a.key} className="small" style={{ margin: '6px 0' }}>⚠️ <b>{a.title}</b> · {t('admHealthSince', { d: when(a.opened_at) })}<br /><span className="muted">{a.detail}</span></p>
-      ))}
-      {fixed.map((a) => (
-        <p key={a.key + a.closed_at} className="small muted" style={{ margin: '4px 0' }}>✅ {a.title} · {t('admHealthFixed', { d: when(a.closed_at) })}</p>
-      ))}
-      <div className="small muted">{t('admHealthChecked', { d: when(h.checked_at) })}</div>
+    <div className="adm-notif-back no-print" onClick={onClose}>
+      <div className="adm-notif" role="dialog" aria-modal="true" aria-label={t('admNotifs')} onClick={(e) => e.stopPropagation()}>
+        <div className="adm-notif-head">
+          <b>{t('admNotifs')}</b>
+          <button type="button" className="menu-btn" onClick={onClose} aria-label={t('close')}><Icon name="x" size={20} /></button>
+        </div>
+        <p className={`adm-notif-sum${open.length || healthStale(h) ? ' bad' : ''}`}>
+          {open.length ? t('admHealthBad', { n: open.length }) : healthStale(h) ? t('admHealthStale') : t('admHealthOk')}
+        </p>
+        <div className="adm-notif-list">
+          {open.map((a) => (
+            <div key={a.key} className="adm-notif-item bad">
+              <div>⚠️ <b>{a.title}</b></div>
+              <div className="small muted">{t('admHealthSince', { d: when(a.opened_at) })}</div>
+              <div className="small">{a.detail}</div>
+            </div>
+          ))}
+          {fixed.map((a) => (
+            <div key={a.key + a.closed_at} className="adm-notif-item">
+              <div>✅ {a.title}</div>
+              <div className="small muted">{t('admHealthSince', { d: when(a.opened_at) })} · {t('admHealthFixed', { d: when(a.closed_at) })}</div>
+            </div>
+          ))}
+          {!h.alerts.length && <p className="small muted">{t('admNotifsNone')}</p>}
+        </div>
+        <div className="small muted adm-notif-foot">{t('admHealthChecked', { d: when(h.checked_at) })}</div>
+      </div>
     </div>
   )
 }
