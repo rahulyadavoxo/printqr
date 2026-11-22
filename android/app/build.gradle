@@ -55,6 +55,8 @@ dependencies {
     // Google Password Manager "Save password?" sheet after login/signup (bridge savePassword, app 1.5.71+)
     implementation 'androidx.credentials:credentials:1.3.0'
     implementation 'androidx.credentials:credentials-play-services-auth:1.3.0'
+    // Sign in with Google (native sheet; Google blocks its login page inside WebView) - bridge googleSignIn, app 1.5.74+
+    implementation 'com.google.android.libraries.identity.googleid:googleid:1.1.1'
     implementation platform('com.google.firebase:firebase-bom:33.16.0')
     implementation 'com.google.firebase:firebase-messaging'
     // Razorpay pulls old kotlin-stdlib-jdk7/jdk8; the BOM aligns them with androidx (no duplicate classes)

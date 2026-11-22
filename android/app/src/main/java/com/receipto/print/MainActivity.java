@@ -45,6 +45,9 @@ import androidx.credentials.GetCredentialResponse;
 import androidx.credentials.GetPasswordOption;
 import androidx.credentials.PasswordCredential;
 import androidx.credentials.exceptions.GetCredentialException;
+import androidx.credentials.CustomCredential;
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption;
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
 import androidx.credentials.exceptions.CreateCredentialException;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -754,6 +757,38 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
                         });
                 } catch (Throwable ignored) { }
             });
+        }
+
+        /** Sign in with Google (app 1.5.74+): Google's own account sheet, answers window.__pqGoogle(idToken, error). */
+        @JavascriptInterface
+        public void googleSignIn(String clientId, String nonceHash) {
+            if (!trustedPage || clientId == null || clientId.isEmpty()) return;
+            runOnUiThread(() -> {
+                try {
+                    GetSignInWithGoogleOption.Builder ob = new GetSignInWithGoogleOption.Builder(clientId);
+                    if (nonceHash != null && !nonceHash.isEmpty()) ob.setNonce(nonceHash);
+                    GetCredentialRequest req = new GetCredentialRequest.Builder().addCredentialOption(ob.build()).build();
+                    CredentialManager.create(MainActivity.this).getCredentialAsync(MainActivity.this, req, null,
+                        androidx.core.content.ContextCompat.getMainExecutor(MainActivity.this), new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
+                            @Override public void onResult(GetCredentialResponse r) {
+                                try {
+                                    if (r.getCredential() instanceof CustomCredential
+                                        && GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL.equals(r.getCredential().getType())) {
+                                        googleAnswer(GoogleIdTokenCredential.createFrom(r.getCredential().getData()).getIdToken(), "");
+                                    } else googleAnswer("", "type");
+                                } catch (Throwable t) { googleAnswer("", t.getClass().getSimpleName()); }
+                            }
+                            @Override public void onError(GetCredentialException e) {
+                                googleAnswer("", e instanceof androidx.credentials.exceptions.GetCredentialCancellationException ? "cancel" : e.getType());
+                            }
+                        });
+                } catch (Throwable t) { googleAnswer("", t.getClass().getSimpleName()); }
+            });
+        }
+
+        private void googleAnswer(String token, String err) {
+            if (web == null) return;
+            web.evaluateJavascript("window.__pqGoogle&&window.__pqGoogle(" + JSONObject.quote(token) + "," + JSONObject.quote(err) + ")", null);
         }
 
         /** Status bar colour to match the page's own top bar (app 1.5.47+). hex like #e6e1d6. */

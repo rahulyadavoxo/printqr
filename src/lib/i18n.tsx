@@ -90,6 +90,9 @@ const en = {
 
   // login
   loginTitle: 'Welcome back',
+  googleBtn: 'Continue with Google',
+  orWord: 'or',
+  googleFail: 'Google login did not work. Please try again.',
   loginSub: 'Log in to see your orders.',
   signupTitle: 'Register your shop',
   signupSub: 'Create an account to get your shop QR.',
@@ -1031,6 +1034,9 @@ const hi: Record<Key, string> = {
   uAgreePost: ' से सहमत होते हैं। फ़ाइलें अपने आप डिलीट हो जाती हैं।',
 
   loginTitle: 'फिर से स्वागत है',
+  googleBtn: 'Google से जारी रखें',
+  orWord: 'या',
+  googleFail: 'Google से लॉगिन नहीं हुआ। फिर से कोशिश करें।',
   loginSub: 'अपने ऑर्डर देखने के लिए लॉगिन करें।',
   signupTitle: 'अपनी दुकान रजिस्टर करें',
   signupSub: 'अपनी दुकान का QR पाने के लिए अकाउंट बनाएँ।',

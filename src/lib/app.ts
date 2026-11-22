@@ -33,6 +33,8 @@ export type NativeBridge = {
   savePassword?: (id: string, password: string) => void
   // Pick a saved login (app 1.5.73+); fills through window.__pqFill
   getPassword?: () => void
+  // Google sign-in sheet (app 1.5.74+); answers through window.__pqGoogle(idToken, error)
+  googleSignIn?: (clientId: string, nonceHash: string) => void
 }
 export function nativeBridge(): NativeBridge | undefined {
   return (window as unknown as { PQ?: NativeBridge }).PQ

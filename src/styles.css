@@ -1656,3 +1656,8 @@ img.shop-avatar { object-fit: cover; padding: 0; }
 .pw-eye:hover, .pw-eye[aria-pressed="true"] { color: var(--c-ink); }
 .pw-eye:focus-visible { outline: none; box-shadow: var(--ring); }
 input[type="password"]::-ms-reveal { display: none; }
+
+/* Login: "or" divider + Google button */
+.or-line { display: flex; align-items: center; gap: 10px; color: var(--c-ink-2); font-size: 13px; margin: 4px 0; }
+.or-line::before, .or-line::after { content: ''; flex: 1; height: 1px; background: var(--c-line-2); }
+.btn.google-btn { gap: 10px; }
