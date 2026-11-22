@@ -1,9 +1,9 @@
-import { CSSProperties } from 'react'
+import { CSSProperties, Fragment } from 'react'
 import { useLocation } from 'react-router-dom'
 import { LogoMark, TopBar } from './TopBar'
 import Icon from './Icon'
 import BarStory from './BarStory'
-import { useI18n } from '../lib/i18n'
+import { Key, useI18n } from '../lib/i18n'
 import { IN_APP, ON_ANDROID } from '../lib/app'
 import { BOTTOM, isTab, NAV, savedSidebar, Tab, TABS } from '../lib/dashNav'
 
@@ -401,6 +401,39 @@ function PlanSkel() {
   )
 }
 
+/** Android phone Settings list while loading: same groups, rows, icons and labels as SettingsHub
+ *  (labels are known already); shimmer only where shop data goes (current language / theme). */
+function SettingsHubSkel() {
+  const { t } = useI18n()
+  const groups: [Key, [string, Key, boolean?][]][] = [
+    ['setGrpShop', [['store', 'setShopDetails'], ['clock', 'hoursTitle'], ['file', 'paperTitle'], ['qr', 'cTitle']]],
+    ['setGrpBiz', [['star', 'tabPlan'], ['image', 'setBrand'], ['user', 'staffTitle']]],
+    ['setGrpPref', [['type', 'language', true], ['auto', 'theme', true]]],
+    ['setGrpHelp', [['shield', 'setPrivacy'], ['info', 'setTerms']]]
+  ]
+  return (
+    <div className="set-hub" aria-busy="true">
+      {groups.map(([g, rows]) => (
+        <Fragment key={g}>
+          <div className="set-grp-lbl">{t(g)}</div>
+          <div className="set-grp">
+            {rows.map(([icon, label, val]) => (
+              <div key={label} className="set-row">
+                <span className="set-ic"><Icon name={icon} size={18} /></span>
+                <span className="set-lbl">{t(label)}</span>
+                {val && <B w={56} h={14} />}
+                <Icon name="chevr" size={18} />
+              </div>
+            ))}
+          </div>
+        </Fragment>
+      ))}
+      <B h={54} r={18} style={{ marginTop: 22 }} />
+      <Busy />
+    </div>
+  )
+}
+
 /** Main area of one dashboard tab while it loads. */
 export function DashTabSkel({ tab }: { tab: Tab }) {
   switch (tab) {
@@ -409,7 +442,15 @@ export function DashTabSkel({ tab }: { tab: Tab }) {
     case 'qr': return <QrSkel />
     case 'edit': return <EditorSkel />
     case 'report': return <ReportSkel />
-    case 'settings': return <section aria-busy="true"><Busy /><FormCardSkel fields={5} /><FormCardSkel fields={2} /></section>
+    case 'settings': {
+      // Android phone: Settings is the grouped list (SettingsHub); ?s=<section> opens one card
+      const narrow = typeof window !== 'undefined' && window.matchMedia('(max-width: 1023.98px)').matches
+      if (ON_ANDROID && narrow) {
+        const sub = new URLSearchParams(window.location.hash.split('?')[1] || '').get('s')
+        return sub ? <section aria-busy="true"><Busy /><B w={110} h={22} style={{ margin: '6px 0 14px' }} /><FormCardSkel fields={4} /></section> : <SettingsHubSkel />
+      }
+      return <section aria-busy="true"><Busy /><FormCardSkel fields={5} /><FormCardSkel fields={2} /></section>
+    }
     case 'plan': return <PlanSkel />
   }
 }
