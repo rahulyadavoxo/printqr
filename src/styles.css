@@ -1857,7 +1857,7 @@ input[type="password"]::-ms-reveal { display: none; }
   animation:lxd-rise .7s cubic-bezier(.2,.8,.2,1) both, lxd-hl 4.5s ease-in-out infinite; animation-delay:calc(.6s + var(--i)*.18s), calc(2s + var(--i)*1.5s); }
 
 /* split: lime brand panel left, card right */
-.lxd-split { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); min-height:100vh; }
+.lxd-split { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); min-height:100vh; overflow-x:clip; } /* the card slides in from the right: no sideways scroll while it moves */
 .lxs-brand { background:#a6e22e; color:#0d1210; padding:40px 56px; display:flex; flex-direction:column; position:relative; overflow:hidden; animation:lxd-wipe 1s cubic-bezier(.7,0,.2,1) both; }
 .lxs-brand::before { content:""; position:absolute; width:420px; height:420px; border-radius:50%; background:radial-gradient(circle,rgba(255,255,255,.38),transparent 65%); left:-140px; top:-140px; animation:lxd-drift 12s ease-in-out infinite alternate; pointer-events:none; }
 .lxd-split .lx-logo { position:relative; z-index:2; animation:lxd-rise .7s cubic-bezier(.2,.8,.2,1) .5s both; }
