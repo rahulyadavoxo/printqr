@@ -297,7 +297,7 @@ export default function Editor() {
           onRetake={(id) => pick('camera', { mode: 'retake', id })}
           onAdd={(k) => pick(k)}
           onDelete={async (id) => {
-            if (!await askConfirm(t('edDeletePageQ'))) return
+            if (!await askConfirm(t('edDeletePageQ'), { icon: 'trash' })) return
             forgetPage(id)
             const left = pages.filter((p) => p.id !== id)
             setPages(left)
@@ -344,7 +344,7 @@ export default function Editor() {
                   <span className="muted">{t('edPagesCount', { n: r.pages.length })} · {new Date(r.at).toLocaleDateString()}</span>
                 </button>
                 <button type="button" className="ed-recent-del" aria-label={t('edDelete')} onClick={async () => {
-                  if (!await askConfirm(t('edDeleteRecentQ'))) return
+                  if (!await askConfirm(t('edDeleteRecentQ'), { icon: 'trash' })) return
                   await deleteRecent(r.id)
                   refreshRecents()
                 }}><Icon name="trash" size={16} /></button>

@@ -5,7 +5,7 @@ import Icon from './Icon'
 // App-style confirm popup instead of the browser's raw confirm() box
 // (which shows "The page at https://appassets... says:" in the Android app).
 // Usage: if (!(await ask(t('logoutAsk')))) return
-type Opts = { ok?: string; danger?: boolean }
+type Opts = { ok?: string; danger?: boolean; icon?: string }
 type Req = { msg: string; opts: Opts; done: (v: boolean) => void }
 
 let push: ((r: Req) => void) | null = null
@@ -42,7 +42,7 @@ export default function ConfirmHost() {
   return (
     <div className="cf-back" onClick={() => close(false)}>
       <div className="cf-box" role="alertdialog" aria-modal="true" aria-labelledby="cf-msg" onClick={(e) => e.stopPropagation()}>
-        <span className={'cf-icon' + (danger ? ' is-danger' : '')} aria-hidden="true"><Icon name={danger ? 'alert' : 'info'} size={22} /></span>
+        <span className={'cf-icon' + (danger ? ' is-danger' : '')} aria-hidden="true"><Icon name={req.opts.icon || (danger ? 'alert' : 'info')} size={22} /></span>
         <p id="cf-msg" className="cf-msg">{req.msg}</p>
         <div className="cf-row">
           <button type="button" className="btn" onClick={() => close(false)}>{t('cancel')}</button>

@@ -226,7 +226,7 @@ function ShopPhotoField({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => v
     }
   }
   async function remove() {
-    if (!await askConfirm(t('shopPhotoRemoveAsk'))) return
+    if (!await askConfirm(t('shopPhotoRemoveAsk'), { icon: 'image' })) return
     setMsg(null)
     setBusy(true)
     try {
@@ -579,7 +579,7 @@ export default function Dashboard() {
 
   const [loggingOut, setLoggingOut] = useState(false)
   async function logout() {
-    if (!await askConfirm(t('logoutAsk'))) return
+    if (!await askConfirm(t('logoutAsk'), { icon: 'logout', ok: t('logout') })) return
     setLoggingOut(true)
     // Slow net must not keep the user waiting: each step gets a time cap, then the local session is cleared anyway.
     const cap = <T,>(p: Promise<T>, ms: number) => Promise.race([p, new Promise<void>((r) => setTimeout(r, ms))])
@@ -1064,7 +1064,7 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
 
   /** v25: block the network this order came from (this shop only) and cancel its open orders. */
   async function blockSender(o: Order) {
-    if (!await askConfirm(t('blockConfirm'))) return
+    if (!await askConfirm(t('blockConfirm'), { icon: 'shield' })) return
     setErr(null)
     const { data, error } = await supabase.rpc('block_order_sender', { p_order_id: o.id })
     if (error) return setErr(te(error))
@@ -1095,7 +1095,7 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
   }
 
   async function deleteFiles(o: Order) {
-    if (!await askConfirm(t('confirmDelete', { token: o.token }))) return
+    if (!await askConfirm(t('confirmDelete', { token: o.token }), { icon: 'trash' })) return
     // v24: photos may have a small '<path>.thumb.jpg' beside them (missing ones are ignored)
     const paths = (o.order_files || []).flatMap((f) => [f.storage_path, f.storage_path + '.thumb.jpg'])
     const { error } = await supabase.storage.from('uploads').remove(paths)
@@ -1314,7 +1314,7 @@ function OrderCard(props: {
         )}
         {next && <button type="button" className={`btn primary next-${o.status}`} disabled={busy && o.status === 'received'} onClick={() => (o.status === 'received' && onStart ? onStart(o) : onStatus(o, next.to))}><Icon name={nextIcon} size={19} /> {printingId === o.id && o.status === 'received' ? t('dpPrinting') : t(next.label)}</button>}
         {['received', 'printing', 'ready'].includes(o.status) && (
-          <button type="button" className="btn danger-outline" onClick={async () => { if (await askConfirm(t('confirmCancel'))) onStatus(o, 'cancelled') }}>{t('cancel')}</button>
+          <button type="button" className="btn danger-outline" onClick={async () => { if (await askConfirm(t('confirmCancel'), { icon: 'x' })) onStatus(o, 'cancelled') }}>{t('cancel')}</button>
         )}
         {['done', 'cancelled'].includes(o.status) && !o.files_deleted && (
           <button type="button" className="btn" onClick={() => onDelete(o)}><Icon name="trash" size={17} /> {t('deleteNow')}</button>
@@ -2109,7 +2109,7 @@ function Settings({ shop, onSaved, onUpgrade }: { shop: Shop; onSaved: (s: Shop)
     supabase.rpc('blocked_sender_count', { p_shop: shop.id }).then(({ data, error }) => { if (!error) setBlocked(Number(data) || 0) }, () => {})
   }, [shop.id])
   async function unblockAll() {
-    if (!await askConfirm(t('unblockConfirm'))) return
+    if (!await askConfirm(t('unblockConfirm'), { icon: 'shield' })) return
     const { error } = await supabase.rpc('unblock_all_senders', { p_shop: shop.id })
     if (error) return setMsg({ text: te(error), error: true })
     setBlocked(0)
@@ -2382,7 +2382,7 @@ function StaffCard({ shop, plus, onUpgrade }: { shop: Shop; plus: boolean; onUpg
     void load()
   }
   async function remove(r: StaffRow) {
-    if (!await askConfirm(t('staffRemoveAsk', { email: r.email }))) return
+    if (!await askConfirm(t('staffRemoveAsk', { email: r.email }), { icon: 'user' })) return
     const { error } = await supabase.from('shop_staff').delete().eq('id', r.id)
     if (error) return setMsg({ text: te(error), error: true })
     void load()
@@ -2474,7 +2474,7 @@ function CountersCard({ shop, counters, usable, locked, limit, needPlus, v2, onC
   }
 
   async function remove(c: Counter) {
-    if (!await askConfirm(t('cConfirmDelete', { name: c.name }))) return
+    if (!await askConfirm(t('cConfirmDelete', { name: c.name }), { icon: 'trash' })) return
     void run(() => supabase.from('counters').delete().eq('id', c.id), 'cDeleted')
   }
 
@@ -2624,7 +2624,7 @@ function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onCha
 
   async function upgrade(tier: Tier) {
     // Pro -> Plus: the Pro subscription stops at once; its unused days are added to Plus as extra days (server side).
-    if (pro && tier === 'plus' && !await askConfirm(t('planUpgradeConfirm'), { danger: false })) return
+    if (pro && tier === 'plus' && !await askConfirm(t('planUpgradeConfirm'), { danger: false, icon: 'star' })) return
     setBusy(tier)
     setMsg(null)
     try {
@@ -2642,7 +2642,7 @@ function PlanTab({ shop, email, onChanged }: { shop: Shop; email?: string; onCha
   }
 
   async function cancel() {
-    if (!await askConfirm(t('planConfirmCancel', { date: until }))) return
+    if (!await askConfirm(t('planConfirmCancel', { date: until }), { icon: 'star' })) return
     setBusy('cancel')
     setMsg(null)
     try {

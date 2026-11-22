@@ -606,7 +606,7 @@ export default function EditScreen(api: EditApi) {
                   <div key={i} className="ed-sign-item">
                     <button type="button" className="ed-sign-thumb" onClick={() => placeSign(src)} aria-label={t('edSignUse')}><img src={src} alt="" /></button>
                     <button type="button" className="ed-sign-x" aria-label={t('edDelete')} onClick={async () => {
-                      if (!await askConfirm(t('edSignDeleteQ'))) return
+                      if (!await askConfirm(t('edSignDeleteQ'), { icon: 'trash' })) return
                       const l = signs.filter((_, k) => k !== i)
                       setSigns(l)
                       saveSigns(l)

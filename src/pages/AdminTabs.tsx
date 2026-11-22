@@ -150,7 +150,7 @@ export function AdminOrders({ onMsg }: { onMsg: Msg }) {
   useEffect(() => { setRows(null); load(query, filter, 0) }, [query, filter, load])
 
   const delFiles = async (o: OrderRow) => {
-    if (!await askConfirm(t('admDelFilesAsk', { n: o.token, shop: o.shop_name }))) return
+    if (!await askConfirm(t('admDelFilesAsk', { n: o.token, shop: o.shop_name }), { icon: 'trash' })) return
     setBusy(o.id)
     onMsg(null)
     try {
