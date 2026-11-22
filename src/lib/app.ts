@@ -31,6 +31,8 @@ export type NativeBridge = {
   setLang?: (lang: string) => void
   // Google Password Manager save sheet (app 1.5.71+)
   savePassword?: (id: string, password: string) => void
+  // Pick a saved login (app 1.5.73+); fills through window.__pqFill
+  getPassword?: () => void
 }
 export function nativeBridge(): NativeBridge | undefined {
   return (window as unknown as { PQ?: NativeBridge }).PQ
@@ -49,4 +51,14 @@ export function offerSavePassword(id: string, password: string) {
       void navigator.credentials.store(new W.PasswordCredential({ id, password })).catch(() => {})
     }
   } catch { /* ignore */ }
+}
+
+/** App only: show Google Password Manager's saved logins; the chosen one is passed to fill(). */
+export function pickSavedPassword(fill: (id: string, password: string) => void): () => void {
+  const b = nativeBridge()
+  if (!b?.getPassword) return () => {}
+  const W = window as unknown as { __pqFill?: (id: string, pw: string) => void }
+  W.__pqFill = fill
+  try { b.getPassword() } catch { /* ignore */ }
+  return () => { if (W.__pqFill === fill) delete W.__pqFill }
 }

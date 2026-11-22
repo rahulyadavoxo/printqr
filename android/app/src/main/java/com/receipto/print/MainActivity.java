@@ -40,6 +40,11 @@ import androidx.credentials.CreateCredentialResponse;
 import androidx.credentials.CreatePasswordRequest;
 import androidx.credentials.CredentialManager;
 import androidx.credentials.CredentialManagerCallback;
+import androidx.credentials.GetCredentialRequest;
+import androidx.credentials.GetCredentialResponse;
+import androidx.credentials.GetPasswordOption;
+import androidx.credentials.PasswordCredential;
+import androidx.credentials.exceptions.GetCredentialException;
 import androidx.credentials.exceptions.CreateCredentialException;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -132,6 +137,8 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         });
         web = new WebView(this);
         root.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        // No raw system autofill dialog ("Use your saved password for appassets..."); the app asks Google Password Manager itself (PQ.getPassword).
+        if (android.os.Build.VERSION.SDK_INT >= 26) web.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
         statusBg = new View(this);
         statusBg.setBackgroundColor(0xFFFAF9F6);
         root.addView(statusBg, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, android.view.Gravity.TOP));
@@ -725,6 +732,27 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
                 } catch (Throwable t) {
                     Toast.makeText(MainActivity.this, "Password save error: " + t.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
                 }
+            });
+        }
+
+        /** Pick a saved login from Google Password Manager (app 1.5.73+). Fills the form through window.__pqFill(id, password). */
+        @JavascriptInterface
+        public void getPassword() {
+            if (!trustedPage) return;
+            runOnUiThread(() -> {
+                try {
+                    CredentialManager cm = CredentialManager.create(MainActivity.this);
+                    GetCredentialRequest req = new GetCredentialRequest.Builder().addCredentialOption(new GetPasswordOption()).build();
+                    cm.getCredentialAsync(MainActivity.this, req, null,
+                        androidx.core.content.ContextCompat.getMainExecutor(MainActivity.this), new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
+                            @Override public void onResult(GetCredentialResponse r) {
+                                if (!(r.getCredential() instanceof PasswordCredential) || web == null) return;
+                                PasswordCredential pc = (PasswordCredential) r.getCredential();
+                                web.evaluateJavascript("window.__pqFill&&window.__pqFill(" + JSONObject.quote(pc.getId()) + "," + JSONObject.quote(pc.getPassword()) + ")", null);
+                            }
+                            @Override public void onError(GetCredentialException e) { /* nothing saved / dismissed: just type it */ }
+                        });
+                } catch (Throwable ignored) { }
             });
         }
 

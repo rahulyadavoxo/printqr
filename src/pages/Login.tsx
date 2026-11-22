@@ -1,4 +1,4 @@
-import { PUBLIC_BASE, offerSavePassword } from '../lib/app'
+import { PUBLIC_BASE, offerSavePassword, pickSavedPassword } from '../lib/app'
 import PasswordInput from '../components/PasswordInput'
 import { FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
@@ -31,6 +31,13 @@ export default function Login() {
   const nav = useNavigate()
 
   useEffect(() => clearAuthUrlError(), [])
+
+  // App: offer saved logins from Google Password Manager (once, on the login form)
+  useEffect(() => {
+    if (initialMode === 'signup' || initialMode === 'forgot') return
+    return pickSavedPassword((id, pw) => { setEmail(id); setPassword(pw) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (cooldown <= 0) return
