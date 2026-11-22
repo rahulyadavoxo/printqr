@@ -154,11 +154,12 @@ export default function Login() {
     if (!codeStep || via !== 'phone') stopOtpAutoRead()
   }, [codeStep, via])
 
-  async function sendPhoneCode(e?: FormEvent) {
+  async function sendPhoneCode(e?: FormEvent, num?: string) {
     e?.preventDefault()
     const resend = !e
     if (resend && cooldown > 0) return
-    if (!INDIAN_MOBILE.test(mobile)) {
+    const number = num ?? mobile
+    if (!INDIAN_MOBILE.test(number)) {
       setMsg({ text: t('phBad'), error: true })
       return
     }
@@ -172,11 +173,12 @@ export default function Login() {
     })
     try {
       const { error } = await supabase.auth.signInWithOtp({
-        phone: `+91${mobile}`,
+        phone: `+91${number}`,
         options: { captchaToken: captcha || undefined, shouldCreateUser: true }
       })
       if (error) throw error
       try { localStorage.setItem(VIA_KEY, 'phone') } catch { /* ignore */ }
+      if (num) { setMobile(num); setVia('phone') }
       if (resend) { setMsg({ text: t('phCodeResent'), error: false }); setCode('') }
       else { setCode(''); setCodeStep(true) }
       setCooldown(60)
@@ -400,26 +402,33 @@ export default function Login() {
     )
   }
 
+  // A 10-digit mobile number typed in the Email / Mobile box: no password, an OTP is sent instead.
+  const idIsPhone = !/[@a-z]/i.test(email) && INDIAN_MOBILE.test(cleanMobile(email))
+
   // "Use email instead": the old email + password form (login / create account / forgot password).
   return (
     <div className="auth-page">
       <TopBar />
       <main className="auth-wrap">
-        <form className="card auth-card" onSubmit={submit}>
+        <form className="card auth-card" onSubmit={idIsPhone ? (e) => sendPhoneCode(e, cleanMobile(email)) : submit}>
           <h1 className="auth-title">{signup ? t('signupTitle') : t('loginTitle')}</h1>
           <p className="muted center">{signup ? t('signupSub') : t('loginSub')}</p>
           {googleButton}
           <label className="field">
-            <span>{t('email')}</span>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} name="email" autoComplete="username" placeholder="you@example.com" />
+            <span>{t('idLabel')}</span>
+            <input type="text" inputMode={idIsPhone ? 'tel' : 'email'} required value={email} onChange={(e) => setEmail(e.target.value)} name="email"
+              autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder={t('idPlaceholder')} />
+            {idIsPhone && <small className="hint">{t('mobileHintShort')}</small>}
           </label>
-          <label className="field">
-            <span>{t('password')}</span>
-            <PasswordInput name="password" required minLength={signup ? 8 : 6} value={password} onChange={(e) => setPassword(e.target.value)}
-              autoComplete={signup ? 'new-password' : 'current-password'} />
-            {signup && <small className="hint">{t('passwordHint')}</small>}
-          </label>
-          {!signup && (
+          {!idIsPhone && (
+            <label className="field">
+              <span>{t('password')}</span>
+              <PasswordInput name="password" required minLength={signup ? 8 : 6} value={password} onChange={(e) => setPassword(e.target.value)}
+                autoComplete={signup ? 'new-password' : 'current-password'} />
+              {signup && <small className="hint">{t('passwordHint')}</small>}
+            </label>
+          )}
+          {!signup && !idIsPhone && (
             <p className="forgot-line">
               <button type="button" className="link small" onClick={() => switchTo('forgot')}>{t('forgotLink')}</button>
             </p>
@@ -427,7 +436,7 @@ export default function Login() {
           <Turnstile key={mode} action={signup ? 'signup' : 'login'} onToken={setCaptcha} resetKey={captchaReset} lang={lang} quiet />
           {msg && <p className={`notice${msg.error ? ' error' : ''}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
           <button className="btn primary block lg" disabled={busy}>
-            {busy ? t('pleaseWait') : signup ? t('createAccount') : t('login')}
+            {busy ? t('pleaseWait') : idIsPhone ? t('mobileSend') : signup ? t('createAccount') : t('login')}
           </button>
           <p className="center small switch-line">
             <span className="muted">{signup ? t('haveAccount') : t('noAccount')}</span>{' '}
