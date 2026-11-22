@@ -1,7 +1,7 @@
-import { PUBLIC_BASE, offerSavePassword, pickSavedPassword } from '../lib/app'
+import { PUBLIC_BASE, offerSavePassword, pickSavedPassword, startOtpAutoRead } from '../lib/app'
 import PasswordInput from '../components/PasswordInput'
 import { googleAvailable, signInWithGoogle } from '../lib/google'
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { clearAuthUrlError, peekAuthUrlError, sendResetEmail } from '../lib/recovery'
@@ -118,6 +118,20 @@ export default function Login() {
     return te(e)
   }
 
+  // App: Google's SMS Retriever reads the OTP SMS by itself (no tap) and we verify it straight away.
+  // Started just before the SMS is requested, so a fast SMS is not missed. Website / older app: no-op.
+  const otpStop = useRef<(() => void) | null>(null)
+  const verifying = useRef(false)
+  const verifyPhoneRef = useRef<(e?: FormEvent, autoCode?: string) => Promise<void>>(async () => {})
+  function stopOtpAutoRead() {
+    otpStop.current?.()
+    otpStop.current = null
+  }
+  useEffect(() => stopOtpAutoRead, [])
+  useEffect(() => {
+    if (!codeStep || via !== 'phone') stopOtpAutoRead()
+  }, [codeStep, via])
+
   async function sendPhoneCode(e?: FormEvent) {
     e?.preventDefault()
     const resend = !e
@@ -128,6 +142,12 @@ export default function Login() {
     }
     setBusy(true)
     setMsg(null)
+    stopOtpAutoRead()
+    otpStop.current = startOtpAutoRead((c) => {
+      otpStop.current = null
+      setCode(c)
+      void verifyPhoneRef.current(undefined, c)
+    })
     try {
       const { error } = await supabase.auth.signInWithOtp({
         phone: `+91${mobile}`,
@@ -139,6 +159,7 @@ export default function Login() {
       else { setCode(''); setCodeStep(true) }
       setCooldown(60)
     } catch (err) {
+      if (!resend) stopOtpAutoRead()
       setMsg({ text: phoneErr(err), error: true })
     } finally {
       setBusy(false)
@@ -146,12 +167,16 @@ export default function Login() {
     }
   }
 
-  async function verifyPhoneCode(e: FormEvent) {
-    e.preventDefault()
+  /** Typed code (form submit) or the code the app read from the SMS (autoCode). One check at a time. */
+  async function verifyPhoneCode(e?: FormEvent, autoCode?: string) {
+    e?.preventDefault()
+    const token = (autoCode ?? code).replace(/\s/g, '')
+    if (verifying.current || token.length < 6) return
+    verifying.current = true
     setBusy(true)
     setMsg(null)
     try {
-      const { data, error } = await supabase.auth.verifyOtp({ phone: `+91${mobile}`, token: code.replace(/\s/g, ''), type: 'sms' })
+      const { data, error } = await supabase.auth.verifyOtp({ phone: `+91${mobile}`, token, type: 'sms' })
       if (error) throw error
       if (!data.session) throw new Error(t('phCodeBad'))
       // A number seen for the first time just got its account: shop setup. Others: dashboard
@@ -161,9 +186,11 @@ export default function Login() {
     } catch (err) {
       setMsg({ text: phoneErr(err, true), error: true })
     } finally {
+      verifying.current = false
       setBusy(false)
     }
   }
+  verifyPhoneRef.current = verifyPhoneCode
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {

@@ -35,6 +35,10 @@ export type NativeBridge = {
   getPassword?: () => void
   // Google sign-in sheet (app 1.5.74+); answers through window.__pqGoogle(idToken, error)
   googleSignIn?: (clientId: string, nonceHash: string) => void
+  // SMS OTP auto-read with Google's SMS Retriever (app newer than 1.5.77); the code arrives as the
+  // window event 'printqr-otp' (detail { code, error }). Needs the app hash at the end of the SMS (send-sms, SMS_APP_HASH).
+  startSmsRetriever?: () => void
+  stopSmsRetriever?: () => void
 }
 export function nativeBridge(): NativeBridge | undefined {
   return (window as unknown as { PQ?: NativeBridge }).PQ
@@ -63,6 +67,33 @@ export function pickSavedPassword(fill: (id: string, password: string) => void):
   W.__pqFill = fill
   try { b.getPassword() } catch { /* ignore */ }
   return () => { if (W.__pqFill === fill) delete W.__pqFill }
+}
+
+/** Window event the app fires when the SMS Retriever read an OTP SMS (MainActivity.otpEvent). */
+export const OTP_EVENT = 'printqr-otp'
+
+/**
+ * App only: read the next OTP SMS by itself (Google SMS Retriever, no permission, no tap; waits up to 5 minutes).
+ * Call it just before the SMS is requested; onCode gets the digits once. Returns a stop function.
+ * On the website, or an older app without the bridge method, it does nothing (the keyboard still suggests the code).
+ */
+export function startOtpAutoRead(onCode: (code: string) => void): () => void {
+  const b = nativeBridge()
+  if (!b?.startSmsRetriever) return () => {}
+  let done = false
+  const onEvent = (e: Event) => {
+    const code = String((e as CustomEvent<{ code?: string }>).detail?.code || '')
+    if (done || !/^\d{4,10}$/.test(code)) return // timeout / error: just type it
+    done = true
+    window.removeEventListener(OTP_EVENT, onEvent)
+    onCode(code)
+  }
+  window.addEventListener(OTP_EVENT, onEvent)
+  try { b.startSmsRetriever() } catch { /* ignore */ }
+  return () => {
+    window.removeEventListener(OTP_EVENT, onEvent)
+    if (!done) { done = true; try { b.stopSmsRetriever?.() } catch { /* ignore */ } }
+  }
 }
 
 /** What identifies a login on screen: the email, or the mobile number for OTP accounts ("+91 98765 43210"). */

@@ -6,11 +6,13 @@
 //   SMSGATE_USERNAME, SMSGATE_PASSWORD  = shown in the SMSGate app (Home -> Cloud server) after "Start"
 //   SEND_SMS_HOOK_SECRET                = the secret Supabase shows when you create the hook (v1,whsec_...)
 // Optional: SMSGATE_URL (default https://api.sms-gate.app/3rdparty/v1/messages, change it for a private server)
+//           SMS_APP_HASH = Android app hash(es) for automatic OTP reading in the app (see text.ts)
 // Deployed with --no-verify-jwt; every request is checked with the Standard Webhooks signature instead.
 //
 // Only Indian mobile numbers (+91, 10 digits starting 6-9) get an SMS. The OTP is never logged.
 
 import { logOps } from '../_shared/ops.ts'
+import { appHashes, smsText } from './text.ts'
 
 const SMSGATE_URL = Deno.env.get('SMSGATE_URL') || 'https://api.sms-gate.app/3rdparty/v1/messages'
 // Supabase gives an HTTP hook 5 seconds in total, so give up on SMSGate a little before that.
@@ -71,8 +73,8 @@ function normalise(raw: string): string {
   return `+${d}`
 }
 
-// 52 characters in UCS-2 (the Hindi part makes it Unicode): fits in one SMS (70 characters).
-const text = (otp: string) => `PrintQR code: ${otp}. Do not share. किसी को न बताएं।`
+// "PrintQR code: 123456. Do not share.\n<app hash>": English only (GSM-7), 47 bytes with one hash.
+const text = (otp: string) => smsText(otp, appHashes(Deno.env.get('SMS_APP_HASH')))
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return hookError(405, 'method not allowed')

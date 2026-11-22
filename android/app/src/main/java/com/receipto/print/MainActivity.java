@@ -4,8 +4,11 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.DownloadManager;
 import android.content.ActivityNotFoundException;
+import android.content.BroadcastReceiver;
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
@@ -13,6 +16,8 @@ import android.content.pm.SigningInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.os.Environment;
 import android.print.PrintAttributes;
@@ -36,6 +41,7 @@ import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import androidx.core.content.FileProvider;
+import androidx.core.os.BundleCompat;
 import androidx.credentials.CreateCredentialResponse;
 import androidx.credentials.CreatePasswordRequest;
 import androidx.credentials.CredentialManager;
@@ -55,6 +61,9 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 
+import com.google.android.gms.auth.api.phone.SmsRetriever;
+import com.google.android.gms.common.api.CommonStatusCodes;
+import com.google.android.gms.common.api.Status;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.razorpay.Checkout;
@@ -74,6 +83,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * PrintQR Android app. The whole web app is bundled inside the APK (assets/www, built by
@@ -535,6 +546,108 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         }
     }
 
+    // ---------------- SMS OTP auto-read (Google SMS Retriever API) ----------------
+    // The login page calls PQ.startSmsRetriever() just before it asks Supabase for the SMS code. Play services
+    // then hands us the next SMS (within 5 minutes) that contains this app's 11-character hash
+    // (send-sms adds it from the SMS_APP_HASH secret). No SMS permission, no tap. The code goes to the page as
+    // window event 'printqr-otp' {code, error}. The receiver is removed after one message, on timeout, or on destroy.
+    /** Play services gives up after 5 minutes (and broadcasts TIMEOUT); this is only a safety net. */
+    private static final long SMS_WAIT_MS = 5 * 60 * 1000L + 30 * 1000L;
+    private static final Pattern OTP_6 = Pattern.compile("(?<!\\d)\\d{6}(?!\\d)");
+    private static final Pattern OTP_ANY = Pattern.compile("(?<!\\d)\\d{4,10}(?!\\d)");
+    private final Handler smsHandler = new Handler(Looper.getMainLooper());
+    /** Registered receiver while waiting for the SMS, else null. Main thread only. */
+    private BroadcastReceiver smsReceiver;
+    private final Runnable smsTimeout = () -> {
+        if (smsReceiver == null) return;
+        endSmsWait();
+        otpEvent("", "timeout");
+    };
+
+    /** Main thread. Starts (or restarts) the wait for one OTP SMS. */
+    private void startSmsWait() {
+        endSmsWait();
+        final BroadcastReceiver r = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context c, Intent intent) {
+                if (smsReceiver != this || intent == null || !SmsRetriever.SMS_RETRIEVED_ACTION.equals(intent.getAction())) return;
+                Bundle x = intent.getExtras();
+                Status st = x == null ? null : smsStatus(x);
+                int code = st == null ? CommonStatusCodes.ERROR : st.getStatusCode();
+                endSmsWait();
+                if (code == CommonStatusCodes.SUCCESS) {
+                    String otp = otpFrom(x.getString(SmsRetriever.EXTRA_SMS_MESSAGE));
+                    otpEvent(otp, otp.isEmpty() ? "no_code" : "");
+                } else {
+                    otpEvent("", code == CommonStatusCodes.TIMEOUT ? "timeout" : "error");
+                }
+            }
+        };
+        IntentFilter f = new IntentFilter(SmsRetriever.SMS_RETRIEVED_ACTION);
+        try {
+            // Only Play services (holder of SEND_PERMISSION) may deliver this broadcast. Android 13+ needs the
+            // exported flag spelled out for a receiver that hears another app (Android 14+ throws without it);
+            // ContextCompat passes RECEIVER_EXPORTED on 33+ and uses the plain permission overload below that.
+            androidx.core.content.ContextCompat.registerReceiver(this, r, f, SmsRetriever.SEND_PERMISSION, null,
+                androidx.core.content.ContextCompat.RECEIVER_EXPORTED);
+        } catch (Exception e) {
+            otpEvent("", "register");
+            return;
+        }
+        smsReceiver = r;
+        smsHandler.postDelayed(smsTimeout, SMS_WAIT_MS);
+        try {
+            SmsRetriever.getClient(this).startSmsRetriever().addOnFailureListener(e -> {
+                // No / old Play services, API not available: stop listening; the user types the code.
+                if (smsReceiver != r) return;
+                endSmsWait();
+                otpEvent("", "start");
+            });
+        } catch (Throwable t) {
+            endSmsWait();
+            otpEvent("", "start");
+        }
+    }
+
+    /** Main thread. Stops waiting (safe to call any time). */
+    private void endSmsWait() {
+        smsHandler.removeCallbacks(smsTimeout);
+        BroadcastReceiver r = smsReceiver;
+        smsReceiver = null;
+        if (r != null) {
+            try { unregisterReceiver(r); } catch (Exception ignored) { }
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private static Status smsStatus(Bundle x) {
+        try {
+            x.setClassLoader(Status.class.getClassLoader());
+            Object o = Build.VERSION.SDK_INT >= 33
+                ? BundleCompat.getParcelable(x, SmsRetriever.EXTRA_STATUS, Status.class)
+                : x.get(SmsRetriever.EXTRA_STATUS);
+            return o instanceof Status ? (Status) o : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** First 6-digit number in the SMS (the code comes before the app hash), else any 4-10 digit number. */
+    static String otpFrom(String sms) {
+        if (sms == null) return "";
+        Matcher m = OTP_6.matcher(sms);
+        if (m.find()) return m.group();
+        m = OTP_ANY.matcher(sms);
+        return m.find() ? m.group() : "";
+    }
+
+    /** Hands the code (or why there is none) to the login page. The SMS text itself never leaves this method. */
+    private void otpEvent(String code, String error) {
+        if (!trustedPage) return;
+        js("window.dispatchEvent(new CustomEvent('printqr-otp',{detail:{code:" + JSONObject.quote(code)
+            + ",error:" + JSONObject.quote(error) + "}}))");
+    }
+
     /** Runs JavaScript in the app page (used to hand Razorpay's result back to the web code). */
     private void js(String code) {
         runOnUiThread(() -> { if (web != null) web.evaluateJavascript(code, null); });
@@ -795,6 +908,19 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
             web.evaluateJavascript("window.__pqGoogle&&window.__pqGoogle(" + JSONObject.quote(token) + "," + JSONObject.quote(err) + ")", null);
         }
 
+        /** SMS OTP auto-read (newer than app 1.5.77): wait for the next OTP SMS; answers via window event 'printqr-otp'. */
+        @JavascriptInterface
+        public void startSmsRetriever() {
+            if (!trustedPage) return;
+            runOnUiThread(MainActivity.this::startSmsWait);
+        }
+
+        /** Stop waiting for the OTP SMS (login page closed, number changed). */
+        @JavascriptInterface
+        public void stopSmsRetriever() {
+            runOnUiThread(MainActivity.this::endSmsWait);
+        }
+
         /** Status bar colour to match the page's own top bar (app 1.5.47+). hex like #e6e1d6. */
         @JavascriptInterface
         public void setStatusColor(String hex, boolean darkIcons) {
@@ -1047,6 +1173,7 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
 
     @Override
     protected void onDestroy() {
+        endSmsWait();
         if (PushService.active == this) PushService.active = null;
         super.onDestroy();
     }
