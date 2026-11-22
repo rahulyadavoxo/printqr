@@ -1360,6 +1360,7 @@ html.in-app input, html.in-app textarea, html.in-app select, html.in-app [conten
 /* ===== Admin panel ===== */
 .admin-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 4px; }
 .admin-head h1 { margin: 0; }
+.admin-head .adm-bell-d + .btn { margin-left: 0; }
 .admin-sec { margin: 26px 0 12px; font-size: 18px; }
 .admin-search { display: flex; gap: 8px; margin-bottom: 12px; }
 .admin-search input { flex: 1; min-width: 0; }
@@ -2071,3 +2072,31 @@ input[type="password"]::-ms-reveal { display: none; }
 @media (max-height:860px) { .lxd-bento .lxb-bento { grid-auto-rows:96px; } }
 @media (max-height:720px) { .lxd-bento .lxb-bento { grid-auto-rows:84px; gap:12px; } }
 @media (max-height:760px) { .lxf-right .pay { display:none; } .lxf-right .lxb-t1 svg { width:clamp(90px,8vw,140px); } }
+
+/* v30: admin notifications bell + panel */
+.adm-bell, .adm-bell-d { position: relative; }
+.adm-bell-d { display: inline-flex; align-items: center; margin-left: auto; margin-right: 8px; }
+.adm-badge {
+  position: absolute; top: 2px; right: 0; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px;
+  background: #d92d20; color: #fff; font-size: 11px; font-weight: 800; line-height: 17px; text-align: center;
+}
+.adm-bell-d .adm-badge { top: -6px; right: -6px; }
+.adm-notif-back {
+  position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-start; justify-content: flex-end;
+  padding: 64px 16px 16px; background: rgba(10, 12, 16, .32); animation: cf-fade .18s ease-out;
+}
+.adm-notif {
+  width: 100%; max-width: 420px; max-height: calc(100dvh - 90px); display: flex; flex-direction: column;
+  background: var(--c-surface); border-radius: 18px; box-shadow: 0 14px 40px rgba(11, 18, 16, .25); overflow: hidden;
+}
+.adm-notif-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 8px 4px 16px; font-size: 16px; }
+.adm-notif-sum { margin: 0 16px 8px; font-weight: 700; color: var(--c-lime-600); }
+.adm-notif-sum.bad { color: #d92d20; }
+.adm-notif-list { overflow-y: auto; padding: 0 10px 8px; display: grid; gap: 6px; }
+.adm-notif-item { padding: 10px 12px; border-radius: 12px; background: var(--c-sunken); display: grid; gap: 3px; overflow-wrap: anywhere; }
+.adm-notif-item.bad { background: rgba(217, 45, 32, .09); }
+.adm-notif-foot { padding: 8px 16px 12px; border-top: 1px solid var(--c-line); }
+@media (max-width: 1023.98px) {
+  .adm-notif-back { align-items: flex-end; justify-content: center; padding: 0; }
+  .adm-notif { max-width: 560px; border-radius: 22px 22px 0 0; max-height: 80dvh; padding-bottom: env(safe-area-inset-bottom); }
+}
