@@ -1643,3 +1643,8 @@ img.shop-avatar { object-fit: cover; padding: 0; }
 @media (prefers-reduced-motion: reduce) { .cf-back, .cf-box { animation: none; } }
 .cf-busy { display: flex; align-items: center; justify-content: center; gap: 12px; max-width: 240px; padding: 20px; font-weight: 650; }
 .spinner.dark { border-color: var(--c-line-2); border-top-color: var(--c-ink); }
+
+/* Phone/tablet: the top bar's bottom line curves up at both ends (rounded bottom corners) */
+@media (max-width: 1023.98px) {
+  .topbar:not(.dash-bar) { border-radius: 0 0 18px 18px; }
+}
