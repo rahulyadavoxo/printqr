@@ -43,7 +43,11 @@ export function setupPush() {
 
 /** Before sign out: stop sending this account's orders to this phone. */
 export async function removePush() {
-  await removeWebPush()
+  // Web + app tokens are removed in parallel (each is one network call)
+  await Promise.all([removeWebPush(), removeAppPush()])
+}
+
+async function removeAppPush() {
   let token = ''
   try { token = localStorage.getItem('pq-push-token') || '' } catch { /* ignore */ }
   if (!token) return

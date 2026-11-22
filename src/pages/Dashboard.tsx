@@ -577,10 +577,15 @@ export default function Dashboard() {
     } catch { return 'build ' + __BUILD__ }
   })
 
+  const [loggingOut, setLoggingOut] = useState(false)
   async function logout() {
     if (!await askConfirm(t('logoutAsk'))) return
-    await removePush()
-    await supabase.auth.signOut()
+    setLoggingOut(true)
+    // Slow net must not keep the user waiting: each step gets a time cap, then the local session is cleared anyway.
+    const cap = <T,>(p: Promise<T>, ms: number) => Promise.race([p, new Promise<void>((r) => setTimeout(r, ms))])
+    await cap(removePush().catch(() => {}), 1500)
+    const done = await cap(supabase.auth.signOut().then(() => true, () => false), 1500)
+    if (done !== true) await supabase.auth.signOut({ scope: 'local' }).catch(() => {})
     nav('/', { replace: true })
   }
 
@@ -660,6 +665,11 @@ export default function Dashboard() {
 
   return (
     <div className={`app-page dash sb-${sb}${sbMenu ? ' sb-pinned' : ''}${menu ? ' menu-open' : ''}${bottomNav ? ' has-bnav' : ''}`} onClick={unlockAudio}>
+      {loggingOut && (
+        <div className="cf-back" role="status" aria-live="polite">
+          <div className="cf-box cf-busy"><span className="spinner dark" aria-hidden="true" /> {t('loggingOut')}</div>
+        </div>
+      )}
       <header className="topbar dash-bar no-print">
         <div className="topbar-in wide">
           <button type="button" className="menu-btn" onClick={() => setMenu(true)} aria-label={t('menu')} aria-expanded={menu}>
