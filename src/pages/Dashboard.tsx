@@ -225,6 +225,7 @@ function ShopPhotoField({ shop, onSaved }: { shop: Shop; onSaved: (s: Shop) => v
     }
   }
   async function remove() {
+    if (!confirm(t('shopPhotoRemoveAsk'))) return
     setMsg(null)
     setBusy(true)
     try {
@@ -576,6 +577,7 @@ export default function Dashboard() {
   })
 
   async function logout() {
+    if (!confirm(t('logoutAsk'))) return
     await removePush()
     await supabase.auth.signOut()
     nav('/', { replace: true })
