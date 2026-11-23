@@ -1936,8 +1936,11 @@ input[type="password"]::-ms-reveal { display: none; }
 .lxb-t4 .n { font-size:38px; letter-spacing:-1.5px; }
 .lxb-t4 p { margin:10px 0 0; font-size:12.5px; font-weight:600; opacity:.7; }
 .lxb-t4 .upi { position:absolute; right:18px; top:18px; background:#fff; border-radius:99px; font-size:11px; font-weight:800; padding:5px 10px; }
-@media (max-width:1000px) { .lxb-grid { grid-template-columns:1fr; max-width:470px; margin:0 auto; width:100%; } .lxd-bento .lxb-bento { display:none; } }
+@media (max-width:1000px) { .lxb-grid { grid-template-columns:minmax(0,1fr); max-width:470px; margin:0 auto; width:100%; } .lxd-bento .lxb-bento { display:none; } }
 @media (max-width:560px) { .lxd-card { padding:24px 20px 22px; } }
+/* tiny phones: never wider than the screen (grid items default to min-width:auto) */
+.lxd-card, .lxf-left { min-width:0; }
+@media (max-width:360px) { .lxd-card { padding:20px 14px 18px; border-radius:22px; } .lxf-left { padding-left:12px; padding-right:12px; } }
 
 .lxd-bentofull { display:grid; grid-template-columns:minmax(460px,40%) 1fr; min-height:100vh; }
 .lxf-left { display:flex; flex-direction:column; padding:28px clamp(28px,4vw,64px); background:radial-gradient(600px 400px at 0 100%,#ffe9d8 0,transparent 65%), radial-gradient(500px 360px at 100% 0,#e4f5b8 0,transparent 65%), #f6f4ec; }
@@ -1972,7 +1975,7 @@ input[type="password"]::-ms-reveal { display: none; }
 .lxf-right .lxb-t4 .upi { right:clamp(18px,1.8vw,30px); top:clamp(18px,1.8vw,30px); font-size:12px; padding:6px 12px; }
 .lxf-right .pay { display:flex; gap:10px; flex-wrap:wrap; }
 .lxf-right .pay span { background:rgba(255,255,255,.75); border-radius:99px; padding:7px 13px; font-size:clamp(11.5px,.9vw,14px); font-weight:700; }
-@media (max-width:1000px) { .lxd-bentofull { grid-template-columns:1fr; } .lxf-right { display:none; } .lxf-left { min-height:100vh; padding:20px; } }
+@media (max-width:1000px) { .lxd-bentofull { grid-template-columns:minmax(0,1fr); } .lxf-right { display:none; } .lxf-left { min-height:100vh; padding:20px; } }
 
 @media (prefers-reduced-motion:reduce) { .lxd *, .lxd *::before, .lxd *::after { animation:none !important; } }
 
