@@ -8,8 +8,27 @@ export const isConfigured = Boolean(url && key)
 export const SUPABASE_URL = url || 'https://example.supabase.co'
 export const SUPABASE_KEY = key || 'missing-key'
 
+/** v38: set by lib/errorReport. Called when the server answers 5xx, or a database function is missing (404). */
+export const serverErrorHook: { fn: ((msg: string, where: string) => void) | null } = { fn: null }
+const watchedFetch: typeof fetch = async (input, init) => {
+  const res = await fetch(input, init)
+  try {
+    if (serverErrorHook.fn && (res.status >= 500 || res.status === 404)) {
+      const u = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
+      const path = u.pathname
+      const missingFn = res.status === 404 && path.startsWith('/rest/v1/rpc/')
+      if ((res.status >= 500 || missingFn) && !path.endsWith('/report_client_error')) {
+        const name = path.replace(/^\/(rest|storage|functions|auth)\/v1\//, '$1 ').replace(/\/object\/.*/, '/object')
+        serverErrorHook.fn(`Server ${res.status} on ${name.slice(0, 60)}`, 'server')
+      }
+    }
+  } catch { /* never break a request */ }
+  return res
+}
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' }
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' },
+  global: { fetch: watchedFetch }
 })
 
 /** True for errors that mean the request went out without a valid login (expired token after being offline). */

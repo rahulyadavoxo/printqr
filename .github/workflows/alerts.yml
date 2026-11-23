@@ -1,0 +1,55 @@
+# v38: a failed GitHub run (deploy, migrations, Edge Functions, backups, app builds ...) shows up in the
+# Admin panel bell (public.ops_alerts, key gh_<workflow>); the next successful run closes it.
+# The 15-minute health check sends the push notification. Only reads this run's name / result / link:
+# no secrets or personal data go into the alert. Never fails other workflows (separate run, always exits 0).
+name: Workflow alerts to Admin bell
+
+on:
+  workflow_run:
+    workflows:
+      - "Build & deploy to GitHub Pages"
+      - "Run Supabase SQL migrations"
+      - "Deploy Supabase Edge Functions"
+      - "Daily database backup (to Cloudflare R2)"
+      - "Backup restore test"
+      - "Build apps"
+      - "CI"
+      - "Auto-delete old files (backup)"
+      - "Check Supabase Auth email setup"
+      - "Health check"
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alerts-${{ github.event.workflow_run.workflow_id }}
+  cancel-in-progress: false
+
+jobs:
+  bell:
+    if: contains(fromJSON('["success","failure","timed_out","startup_failure"]'), github.event.workflow_run.conclusion)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SB_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      SB_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      WF_NAME: ${{ github.event.workflow_run.name }}
+      WF_ID: ${{ github.event.workflow_run.workflow_id }}
+      WF_RESULT: ${{ github.event.workflow_run.conclusion }}
+      WF_URL: ${{ github.event.workflow_run.html_url }}
+      WF_BRANCH: ${{ github.event.workflow_run.head_branch }}
+    steps:
+      - name: Open or close the alert
+        run: |
+          if [ -z "$SB_URL" ] || [ -z "$SB_KEY" ]; then echo "::warning::Supabase secrets missing, skipped"; exit 0; fi
+          bad=false; [ "$WF_RESULT" != "success" ] && bad=true
+          when=$(TZ=Asia/Kolkata date '+%d %b %H:%M IST')
+          body=$(jq -n --arg k "gh_$WF_ID" --arg t "GitHub: $WF_NAME failed" \
+            --arg d "Result: $WF_RESULT ($WF_BRANCH, $when). Open the run: $WF_URL" --argjson b "$bad" \
+            '{p_key:$k, p_title:$t, p_detail:$d, p_bad:$b}')
+          code=$(curl -s -o out.txt -w '%{http_code}' -X POST "$SB_URL/rest/v1/rpc/ops_alert_set" \
+            -H "apikey: $SB_KEY" -H "Authorization: Bearer $SB_KEY" -H "Content-Type: application/json" -d "$body" || echo 000)
+          echo "ops_alert_set -> HTTP $code $(head -c 100 out.txt)"
+          [ "$code" = "404" ] && echo "::warning::ops_alert_set missing: run migration v38"
+          exit 0

@@ -58,6 +58,19 @@ async function checks(): Promise<Check[]> {
     key: 'edge_errors', bad: errBad, title: 'Errors in Edge Functions',
     detail: errs.map((e) => `${e.source} (${e.n}x): ${e.last}`).join(' | ').slice(0, 500) || 'Errors in the last 3 hours.'
   })
+  // v38: crashes / server errors reported by the website, Android app and Windows app (level 'client')
+  const cl = h.events.filter((e) => e.level === 'client')
+  const nCl = cl.reduce((s, e) => s + Number(e.n || 0), 0)
+  let clBad: boolean | null = nCl > 0
+  if (!clBad) {
+    const calm = await rpc<Health>('ops_health', { p_since_min: 180 })
+    clBad = calm.events.some((e) => e.level === 'client') ? null : false
+  }
+  const clName: Record<string, string> = { 'client-web': 'website', 'client-app': 'Android app', 'client-desktop': 'Windows app' }
+  out.push({
+    key: 'client_errors', bad: clBad, title: 'Errors on website / app',
+    detail: cl.map((e) => `${clName[e.source] || e.source} (${e.n}x): ${e.last}`).join(' | ').slice(0, 500) || 'Errors in the last 3 hours.'
+  })
   out.push({ key: 'cron', bad: h.cron_failed > 0, title: 'Scheduled jobs failing', detail: `${h.cron_failed} pg_cron run(s) failed in the last 20 minutes.` })
   out.push({
     key: 'cleanup', bad: h.cleanup_overdue > 0 || h.stuck_uploading > 0, title: 'Auto-delete is behind',
@@ -157,6 +170,11 @@ Deno.serve(async (req) => {
         if (cur.notified_at) await pushAdmins(`PrintQR: ${c.title} fixed`, 'Back to normal.', `alert-${c.key}`).catch(() => 0)
         results.push(`closed ${c.key}`)
       }
+    }
+    // v38: alerts opened by GitHub workflows (alerts.yml, key gh_*) get their push here
+    for (const a of open.filter((x) => x.key.startsWith('gh_') && !x.notified_at)) {
+      const sent = await pushAdmins(`PrintQR alert: ${a.title}`, 'Open the Admin panel bell for details.', `alert-${a.key}`).catch(() => 0)
+      if (sent) await call(`/rest/v1/ops_alerts?id=eq.${a.id}`, { method: 'PATCH', body: JSON.stringify({ notified_at: now }) })
     }
     if (open.some((a) => a.key === 'health_check')) {
       await call('/rest/v1/ops_alerts?key=eq.health_check&closed_at=is.null', { method: 'PATCH', body: JSON.stringify({ closed_at: now }) })
