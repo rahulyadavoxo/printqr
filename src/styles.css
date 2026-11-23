@@ -2784,7 +2784,7 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 .ann-pop-bar { height: 4px; border-radius: 2px; background: var(--c-sunken); overflow: hidden; }
 .ann-pop-bar i { display: block; height: 100%; border-radius: 2px; background: var(--c-ink); transition: width .1s linear; }
 .ann-pop-head { display: flex; align-items: center; gap: 12px; margin: 14px 0 16px; }
-.ann-pop-ico { width: 44px; height: 44px; flex: none; border-radius: 13px; display: grid; place-items: center; background: var(--c-lime); color: #0e1628; }
+.ann-pop-ico { width: 48px; height: 42px; flex: none; display: block; color: var(--c-ink); }
 .ann-pop-who { flex: 1; min-width: 0; }
 .ann-pop-who h2 { margin: 0; font-size: 16px; font-weight: 800; line-height: 1.25; }
 .ann-pop-who span { display: block; margin-top: 2px; font-size: 12.5px; color: var(--c-muted); }
