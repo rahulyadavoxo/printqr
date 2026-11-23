@@ -2577,9 +2577,11 @@ html:lang(hi) .lpb h2,html:lang(hi) .lpb h3{line-height:1.25}
   /* page tab: rounded top, concave feet, flows into the panel below (covers its top border) */
   html:not(.in-app) .dash .bar-dtab { position: relative; z-index: 61; display: flex; align-items: center; gap: 8px; height: 36px; margin: 0 0 -1px 21px; padding: 0 16px;
     background: var(--vs-panel); color: var(--c-ink); border: 1px solid var(--c-line); border-bottom: 0; border-radius: 10px 10px 0 0; }
-  html:not(.in-app) .dash .bar-dtab::before, html:not(.in-app) .dash .bar-dtab::after { content: ""; position: absolute; bottom: 0; width: 10px; height: 10px; pointer-events: none; }
-  html:not(.in-app) .dash .bar-dtab::before { left: -11px; background: radial-gradient(circle at 0 0, transparent 9.5px, var(--c-line) 10px, var(--vs-panel) 11px); }
-  html:not(.in-app) .dash .bar-dtab::after { right: -11px; background: radial-gradient(circle at 100% 0, transparent 9.5px, var(--c-line) 10px, var(--vs-panel) 11px); }
+  /* concave feet: a rounded 1px border draws the curve, a clipped shadow fills the outside with the panel colour */
+  html:not(.in-app) .dash .bar-dtab::before, html:not(.in-app) .dash .bar-dtab::after { content: ""; position: absolute; bottom: 0; width: 11px; height: 11px;
+    box-sizing: border-box; border: 0 solid var(--c-line); background: transparent; box-shadow: 0 0 0 12px var(--vs-panel); clip-path: inset(0); pointer-events: none; }
+  html:not(.in-app) .dash .bar-dtab::before { left: -11px; border-right-width: 1px; border-bottom-width: 1px; border-bottom-right-radius: 11px; }
+  html:not(.in-app) .dash .bar-dtab::after { right: -11px; border-left-width: 1px; border-bottom-width: 1px; border-bottom-left-radius: 11px; }
   html:not(.in-app) .dash .bar-dtab svg { display: block; flex: none; color: var(--c-muted); }
   html:not(.in-app) .dash .bar-title h1 { font-size: 14px; font-weight: 600; }
   html:not(.in-app) .dash .bar-sub { display: none; }
