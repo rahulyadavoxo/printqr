@@ -1195,7 +1195,11 @@ const en = {
   lbFaqH2: "Quick answers.",
   lbQ5: "I run a print shop. How do I start?",
   lbFinH2b: "Scan. Upload. Print.",
-  lbFinCta: "Login / Sign up →"
+  lbFinCta: "Login / Sign up →",
+  payListTitle: 'Payments / receipts',
+  payReceipt: 'Download receipt',
+  payReceiptFail: 'The receipt could not be made. Please try again.',
+  payListNote: 'Seller: {seller}. For a refund or a wrong charge, write to us with the payment ID shown on the receipt.'
 }
 
 export type Key = keyof typeof en
@@ -2383,7 +2387,11 @@ const hi: Record<Key, string> = {
   lbFaqH2: "झटपट जवाब।",
   lbQ5: "मेरी प्रिंट दुकान है। शुरू कैसे करूँ?",
   lbFinH2b: "स्कैन। अपलोड। प्रिंट।",
-  lbFinCta: "लॉगिन / साइन अप →"
+  lbFinCta: "लॉगिन / साइन अप →",
+  payListTitle: 'पेमेंट / रसीदें',
+  payReceipt: 'रसीद डाउनलोड करें',
+  payReceiptFail: 'रसीद नहीं बन पाई। कृपया फिर से कोशिश करें।',
+  payListNote: 'विक्रेता: {seller}। रिफ़ंड या गलत चार्ज के लिए रसीद पर दिखी पेमेंट ID के साथ हमें लिखें।'
 }
 
 export type Lang = 'en' | 'hi'

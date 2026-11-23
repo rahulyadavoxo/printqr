@@ -26,6 +26,8 @@ import { BOTTOM, isTab, NAV, savedSidebar, SbMode, Tab, TABS } from '../lib/dash
 import { DashSkeleton, EditorSkel, OrdersSkel } from '../components/Skeletons'
 import { Period, startUpgrade, callFn, Tier, TIER_PRICES, yearlyOff } from '../lib/billing'
 import { ask as askConfirm } from '../components/ConfirmHost'
+import { BillingPayment, downloadReceipt, money } from '../lib/receipt'
+import { SELLER } from '../lib/seller'
 
 // The document editor is a separate chunk, loaded only when the Edit tab opens.
 const Editor = lazy(() => import('./editor/Editor'))
@@ -2643,6 +2645,66 @@ function PlanCompare({ current }: { current: PlanTier }) {
 
 const ENDED = ['cancelled', 'completed', 'expired']
 
+/** Plan tab: one row per Razorpay payment (v33 billing_payments) with a PDF receipt. Hidden when there are none. */
+function PaymentsList({ shop }: { shop: Shop }) {
+  const { t, lang } = useI18n()
+  const [rows, setRows] = useState<BillingPayment[] | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [err, setErr] = useState(false)
+
+  useEffect(() => {
+    let live = true
+    supabase
+      .from('billing_payments')
+      .select('payment_id,subscription_id,tier,period,amount,currency,paid_at,period_start,period_end')
+      .eq('shop_id', shop.id)
+      .order('paid_at', { ascending: false })
+      .limit(60)
+      .then(({ data, error }) => {
+        // Before the v33 database update the table does not exist: show nothing.
+        if (live) setRows(error ? [] : ((data || []) as BillingPayment[]))
+      })
+    return () => { live = false }
+  }, [shop.id, shop.plan_expires_at])
+
+  if (!rows?.length) return null
+  const day = (iso: string) => new Date(iso).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+
+  async function get(p: BillingPayment) {
+    setBusy(p.payment_id)
+    setErr(false)
+    try {
+      await downloadReceipt(p, shop.name)
+    } catch (e) {
+      console.error(e)
+      setErr(true)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="card pay-list">
+      <h3 className="card-title">{t('payListTitle')}</h3>
+      <ul>
+        {rows.map((p) => (
+          <li key={p.payment_id}>
+            <div className="pay-main">
+              <b>{p.tier === 'plus' ? t('planPlus') : t('planPro')}{p.period ? ` · ${p.period === 'yearly' ? t('planYearly') : t('planMonthly')}` : ''}</b>
+              <span className="small muted">{day(p.paid_at)} · {money(p)}</span>
+            </div>
+            <button type="button" className="btn small" disabled={busy !== null} onClick={() => void get(p)}>
+              {busy === p.payment_id ? t('pleaseWait') : t('payReceipt')}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {err && <p className="notice error">{t('payReceiptFail')}</p>}
+      <p className="small muted">{t('payListNote', { seller: SELLER })}</p>
+    </div>
+  )
+}
+
 function PlanTab({ shop, email, contact, onChanged }: { shop: Shop; email?: string; contact?: string; onChanged: () => Promise<void> | void }) {
   const { t, te, lang } = useI18n()
   const [busy, setBusy] = useState<string | null>(null)
@@ -2776,6 +2838,7 @@ function PlanTab({ shop, email, contact, onChanged }: { shop: Shop; email?: stri
       {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
       {shown.length > 0 && <p className="small muted">{t('planPayNote')}</p>}
       <PlanCompare current={plus ? 'plus' : pro ? 'pro' : 'free'} />
+      <PaymentsList shop={shop} />
 
       {pro && !ended && shop.razorpay_subscription_id && (
         <button type="button" className="btn danger-outline" disabled={busy !== null} onClick={() => void cancel()}>

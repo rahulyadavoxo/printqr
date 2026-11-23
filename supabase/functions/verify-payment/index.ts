@@ -1,6 +1,6 @@
 // POST { razorpay_payment_id, razorpay_subscription_id, razorpay_signature }  (JWT required)
 // Verifies the Razorpay Checkout signature, then turns Pro on from the subscription's current cycle.
-import { activate, corsHeaders, fail, hmacHex, HttpError, json, keySecret, ownerShop, rzp, safeEqual, Subscription } from '../_shared/billing.ts'
+import { activate, corsHeaders, fail, hmacHex, HttpError, json, keySecret, ownerShop, Payment, recordPayment, rzp, safeEqual, Subscription } from '../_shared/billing.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -22,6 +22,12 @@ Deno.serve(async (req) => {
       throw new HttpError(409, 'subscription_ended', 'This subscription has ended. Please start a new one.')
     }
     const updated = await activate(sub, shop.id)
+    // Receipt row for this payment (v33). The webhook writes the same row; payment_id keeps it to one.
+    const pay = await rzp<Payment>(`payments/${encodeURIComponent(paymentId)}`).catch((e) => {
+      console.warn('payment lookup', e)
+      return { id: paymentId } as Payment
+    })
+    await recordPayment(sub, { ...pay, id: paymentId }, shop.id)
     return json({
       ok: true,
       plan: updated.plan,

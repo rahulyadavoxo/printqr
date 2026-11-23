@@ -2115,8 +2115,7 @@ input[type="password"]::-ms-reveal { display: none; }
 @keyframes adm-toast-out { to { transform: translate(-50%, -140%); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .adm-toast, .adm-toast.out { animation: none; } }
 
-/* =====================================================================
-   Landing design "duo" (Home -> LandingDuo). Everything scoped under .lpd
+/* ==============================================================   Landing design "duo" (Home -> LandingDuo). Everything scoped under .lpd
    so other pages are unaffected. Always light, like the design file.
    ===================================================================== */
 .lpd{--bg:#f6f4ec;--ink:#0d1210;--muted:#5f675f;--line:#e6e4d8;--lime:#a6e22e;--lime-l:#e9f8c4;--lime-d:#3f5d0f;--peach:#ffdcc2;--pad:clamp(18px,3.2vw,64px);--serif:"Instrument Serif",Georgia,"Times New Roman",serif;
@@ -2655,3 +2654,9 @@ html:not(.in-app) .dash .bar-actions .avatar-btn .shop-avatar, html:not(.in-app)
 html:not(.in-app) .dash .bar-actions .bar-btn, html:not(.in-app) .dash .bar-actions .avatar-btn { padding: 0; display: grid; place-items: center; line-height: 1; }
 html:not(.in-app) .dash .bar-actions .bar-btn > svg, html:not(.in-app) .dash .bar-actions .avatar-btn > * { display: block; margin: 0; }
 html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+=======
+/* Plan tab: payments / receipts (v33) */
+.pay-list ul { list-style: none; margin: 0 0 8px; padding: 0; }
+.pay-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line, rgba(0, 0, 0, 0.08)); }
+.pay-list li:last-child { border-bottom: 0; }
+.pay-list .pay-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
