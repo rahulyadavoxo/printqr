@@ -4,7 +4,7 @@ import { LogoMark, TopBar } from './TopBar'
 import Icon from './Icon'
 import BarStory from './BarStory'
 import { AdminShell } from './AdminShell'
-import { QrLoadPage } from './QrLoader'
+import { QrLoader, QrLoadPage } from './QrLoader'
 import { Key, useI18n } from '../lib/i18n'
 import { IN_APP, ON_ANDROID } from '../lib/app'
 import { routeQuery } from '../lib/router'
@@ -277,32 +277,13 @@ export function AdminSkeleton() {
 /* ------------------------------------------------------------------ */
 /* Dashboard (/dashboard?tab=...) */
 
-/** Orders tab: the queue card with its status pills and two order cards (token, name, files, buttons). */
+/** Orders tab: how many orders (or none) is not known until the queue loads, so the QR loading mark
+ *  instead of guessed order cards (user rule 2026-11-23). */
 export function OrdersSkel() {
   return (
-    <div className="card fold-card has-orders skel-queue" aria-busy="true">
+    <div className="qr-load-block" role="status" aria-busy="true">
       <Busy />
-      <div className="queue-summary" aria-hidden="true"><B w={92} h={22} r={999} /><B w={80} h={22} r={999} /></div>
-      <div className="orders-grid">
-        {[0, 1].map((i) => (
-          <div className="card order skel-order-card" key={i} aria-hidden="true">
-            <div className="order-top">
-              <B w={64} h={44} r={12} />
-              <div className="order-who skel-stack"><B w="58%" h={16} /><B w="34%" h={12} /></div>
-              <div className="order-right"><B w={70} h={22} r={999} /><B w={60} h={24} /></div>
-            </div>
-            <ul className="files">
-              <li>
-                {/* Photo orders show a 52px thumbnail beside a one-line name (keeps the height when it loads) */}
-                <div className="file-head"><B w={52} h={52} r={11} style={{ flex: 'none' }} /><B w="62%" h={14} /></div>
-                <div className="file-meta"><B w={44} h={20} r={6} /><B w={64} h={20} r={6} /><B w={90} h={12} /><B w={40} h={14} style={{ marginLeft: 'auto' }} /></div>
-                <div className="file-actions"><B h={44} r={12} style={{ flex: '1 1 130px', width: 'auto' }} /><B h={44} r={12} style={{ flex: '1 1 130px', width: 'auto' }} /></div>
-              </li>
-            </ul>
-            <B h={50} r={14} />
-          </div>
-        ))}
-      </div>
+      <QrLoader />
     </div>
   )
 }

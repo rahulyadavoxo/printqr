@@ -1583,10 +1583,6 @@ img.shop-avatar { object-fit: cover; padding: 0; }
 .skel-field-real { margin: var(--sp-4) 0; }
 .skel-tabs-row { pointer-events: none; }
 .skel-tabs-row .skel { flex: none; }
-.skel-queue .queue-summary { margin-left: calc(var(--fold) - 6px); }
-.skel-order-card { box-shadow: var(--sh-1); }
-.skel-order-card::before { background: var(--c-line-2); }
-.skel-order-card .files li { display: grid; gap: 0; }
 .skel-poster { border-color: var(--c-line-2); }
 .skel-poster .poster-qr { border-color: var(--c-line-2); }
 .skel-poster .poster-steps .skel-inline { flex-wrap: nowrap; }
@@ -2735,3 +2731,4 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 @keyframes qrl-pulse { 0%, 100% { opacity: .12; transform: scale(.6); } 40% { opacity: 1; transform: scale(1); } }
 @keyframes qrl-breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .qr-loader * { animation: none !important; } .qr-loader .px { opacity: .6; } }
+.qr-load-block { min-height: 46vh; display: grid; place-items: center; color: var(--c-ink); }
