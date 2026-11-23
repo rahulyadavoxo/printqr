@@ -50,7 +50,8 @@ const LOG_KEYS: Record<string, Key> = {
   pro_given: 'admLogProGiven', pro_removed: 'admLogProRemoved', blocked: 'admLogBlocked', unblocked: 'admLogUnblocked',
   qr_reset: 'admLogQrReset', shop_edited: 'admLogShopEdited', settings: 'admLogSettings', ip_blocked: 'admLogIpBlocked',
   ip_unblocked: 'admLogIpUnblocked', report_resolved: 'admLogReport', user_disabled: 'admLogUserDisabled',
-  user_enabled: 'admLogUserEnabled', reset_sent: 'admLogResetSent', sub_cancelled: 'admLogSubCancelled', files_deleted: 'admLogFilesDeleted'
+  user_enabled: 'admLogUserEnabled', reset_sent: 'admLogResetSent', sub_cancelled: 'admLogSubCancelled', files_deleted: 'admLogFilesDeleted',
+  file_report_dismissed: 'frLogDismissed', file_report_files_deleted: 'frLogDeleted'
 }
 
 

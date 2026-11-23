@@ -185,6 +185,8 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
                 // Cloudflare Turnstile (bot check) runs in its own frame: let that frame load in place.
                 if (!req.isForMainFrame() && "challenges.cloudflare.com".equals(req.getUrl().getHost())) return false;
+                // UPI pay button on the order status page (item 16): hand the upi:// link to a UPI app.
+                if ("upi".equalsIgnoreCase(req.getUrl().getScheme())) return openUpi(req.getUrl(), false);
                 return handleUrl(req.getUrl());
             }
 
@@ -731,6 +733,8 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
             openExternal(uri.toString());
             return true;
         }
+        // Razorpay pop-up (plan payment): same UPI hand-off, but the fallback there is a card.
+        if (scheme.equalsIgnoreCase("upi")) return openUpi(uri, true);
         Intent i = null;
         try {
             i = scheme.equals("intent")
@@ -755,6 +759,26 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
             else Toast.makeText(this, scheme.equals("upi") || uri.toString().contains("upi")
                 ? (PushService.hi(this) ? "कोई UPI ऐप नहीं मिला। Google Pay, PhonePe या Paytm इंस्टॉल करें, या कार्ड से भुगतान करें।" : "No UPI app found. Install Google Pay, PhonePe or Paytm, or pay by card.")
                 : (PushService.hi(this) ? "इसे खोलने के लिए कोई ऐप नहीं मिला" : "No app found to open this"), Toast.LENGTH_LONG).show();
+        }
+        return true;
+    }
+
+    /**
+     * upi://pay links open in a UPI app with ACTION_VIEW (Google Pay, PhonePe, Paytm, BHIM...). If no app can take it,
+     * a Toast says so instead of the WebView showing an error page. Always returns true (the WebView never loads it).
+     */
+    private boolean openUpi(Uri uri, boolean cardFallback) {
+        Intent i = new Intent(Intent.ACTION_VIEW, uri);
+        i.addCategory(Intent.CATEGORY_BROWSABLE);
+        try {
+            if (i.resolveActivity(getPackageManager()) == null) throw new ActivityNotFoundException();
+            startActivity(i);
+        } catch (Exception e) {
+            boolean hi = PushService.hi(this);
+            String msg = cardFallback
+                ? (hi ? "कोई UPI ऐप नहीं मिला। Google Pay, PhonePe या Paytm इंस्टॉल करें, या कार्ड से भुगतान करें।" : "No UPI app found. Install Google Pay, PhonePe or Paytm, or pay by card.")
+                : (hi ? "कोई UPI ऐप नहीं मिला। Google Pay, PhonePe या Paytm इंस्टॉल करें, या काउंटर पर पेमेंट करें।" : "No UPI app found. Install Google Pay, PhonePe or Paytm, or pay at the counter.");
+            Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
         }
         return true;
     }

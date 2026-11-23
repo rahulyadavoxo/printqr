@@ -26,6 +26,7 @@ import { BOTTOM, isTab, NAV, savedSidebar, SbMode, Tab, TABS } from '../lib/dash
 import { DashSkeleton, EditorSkel, OrdersSkel } from '../components/Skeletons'
 import { Period, startUpgrade, callFn, Tier, TIER_PRICES, yearlyOff } from '../lib/billing'
 import { ask as askConfirm } from '../components/ConfirmHost'
+import { FILE_REPORT_REASONS, FILE_REPORT_REASON_KEY, FileReportReason } from '../lib/fileReports'
 
 // The document editor is a separate chunk, loaded only when the Edit tab opens.
 const Editor = lazy(() => import('./editor/Editor'))
@@ -1126,9 +1127,33 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
     void load()
   }
 
+  /** v34: the shop marks an order Paid / Unpaid (UPI or cash). */
+  async function setPaid(o: Order, paid: boolean) {
+    setErr(null)
+    const at = paid ? o.paid_at || new Date().toISOString() : null
+    setOrders((l) => l.map((x) => (x.id === o.id ? { ...x, paid_at: at } : x)))
+    const { error } = await supabase.rpc('set_order_paid', { p_order_id: o.id, p_paid: paid })
+    if (error) {
+      setErr(te(error))
+      void load()
+    }
+  }
+
+  /** v34: "Report file" holds the order (files kept for review, hidden here) and tells the PrintQR team. */
+  const [reporting, setReporting] = useState<Order | null>(null)
+  async function sendReport(o: Order, reason: FileReportReason, note: string): Promise<string | null> {
+    const { error } = await supabase.rpc('report_order_files', { p_order_id: o.id, p_reason: reason, p_note: note.trim() || null })
+    if (error) return te(error)
+    setReporting(null)
+    setOrders((l) => l.map((x) => (x.id === o.id ? { ...x, hold: true } : x)))
+    setInfo(t('frSent', { token: o.token }))
+    void load()
+    return null
+  }
+
   /** "Start printing": Pro / Plus in the Windows app also send the files to the printer; otherwise only the status moves. */
   async function startPrinting(o: Order) {
-    const files = (o.order_files || []).filter((f) => canDirectPrint(f.file_name))
+    const files = o.hold ? [] : (o.order_files || []).filter((f) => canDirectPrint(f.file_name))
     if (startPrints && !o.files_deleted && files.length) {
       if (printingId || !(await claimForPrint(o))) return
       return printDirect(o, files, true)
@@ -1209,7 +1234,7 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
           ) : (
             <div className="orders-grid">
               {active.map((o) => (
-                <OrderCard key={o.id} o={o} keepHours={keepHours} lang={lang} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} onStart={startPrinting} onBlock={blockSender} printingId={printingId} />
+                <OrderCard key={o.id} o={o} keepHours={keepHours} lang={lang} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} onStart={startPrinting} onBlock={blockSender} onPaid={setPaid} onReport={setReporting} printingId={printingId} />
               ))}
             </div>
           )}
@@ -1223,11 +1248,67 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
       {showDone && (
         <div className="orders-grid">
           {finished.map((o) => (
-            <OrderCard key={o.id} o={o} keepHours={keepHours} lang={lang} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} onStart={startPrinting} onBlock={blockSender} printingId={printingId} />
+            <OrderCard key={o.id} o={o} keepHours={keepHours} lang={lang} onStatus={setStatus} onOpen={openFile} onDownload={downloadFile} onDelete={deleteFiles} onPrint={desk ? printDirect : undefined} onStart={startPrinting} onBlock={blockSender} onPaid={setPaid} onReport={setReporting} printingId={printingId} />
           ))}
         </div>
       )}
+      {reporting && <ReportFileDialog o={reporting} onClose={() => setReporting(null)} onSend={sendReport} />}
     </section>
+  )
+}
+
+/** v34 "Report file": reason + optional note. The order's files are then kept for the PrintQR team and hidden here. */
+function ReportFileDialog({ o, onClose, onSend }: {
+  o: Order
+  onClose: () => void
+  onSend: (o: Order, reason: FileReportReason, note: string) => Promise<string | null>
+}) {
+  const { t } = useI18n()
+  const [reason, setReason] = useState<FileReportReason | ''>('')
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [busy, onClose])
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    if (!reason) return setErr(t('frPickReason'))
+    setBusy(true)
+    setErr(null)
+    const m = await onSend(o, reason, note)
+    setBusy(false)
+    if (m) setErr(m)
+  }
+  return (
+    <div className="cf-back" onClick={() => !busy && onClose()}>
+      <form className="cf-box fr-box" role="dialog" aria-modal="true" aria-labelledby="fr-title" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+        <span className="cf-icon is-danger" aria-hidden="true"><Icon name="shield" size={22} /></span>
+        <h2 id="fr-title" className="fr-title">{t('frTitle', { token: o.token })}</h2>
+        <p className="small muted">{t('frSub')}</p>
+        <fieldset className="fr-reasons">
+          <legend className="small">{t('frReason')}</legend>
+          {FILE_REPORT_REASONS.map((r) => (
+            <label key={r} className={`fr-reason${reason === r ? ' on' : ''}`}>
+              <input type="radio" name="fr-reason" value={r} checked={reason === r} disabled={busy} onChange={() => setReason(r)} />
+              <span>{t(FILE_REPORT_REASON_KEY[r])}</span>
+            </label>
+          ))}
+        </fieldset>
+        <label className="field">
+          <span>{t('frNote')}</span>
+          <textarea rows={3} maxLength={500} value={note} disabled={busy} placeholder={t('frNoteHint')} onChange={(e) => setNote(e.target.value)} />
+        </label>
+        {reason === 'csam' && <p className="small fr-warn"><Icon name="alert" size={15} /> {t('frCsamWarn')}</p>}
+        {err && <p className="notice error" role="alert"><Icon name="alert" size={18} /> <span>{err}</span></p>}
+        <div className="cf-row">
+          <button type="button" className="btn" disabled={busy} onClick={onClose}>{t('cancel')}</button>
+          <button type="submit" className="btn danger" disabled={busy}>{busy ? t('pleaseWait') : t('frSend')}</button>
+        </div>
+      </form>
+    </div>
   )
 }
 
@@ -1278,8 +1359,16 @@ function OrderCard(props: {
   keepHours?: number
   lang?: string
   onBlock?: (o: Order) => void
+  /** v34: Paid / Unpaid toggle */
+  onPaid?: (o: Order, paid: boolean) => void
+  /** v34: "Report file" */
+  onReport?: (o: Order) => void
 }) {
-  const { o, onStatus, onOpen, onDownload, onDelete, onPrint, onStart, onBlock, printingId, keepHours, lang } = props
+  const { o, onStatus, onOpen, onDownload, onDelete, onPrint, onStart, onBlock, onPaid, onReport, printingId, keepHours, lang } = props
+  // v34: a reported order's files are kept for review and hidden from the shop.
+  const held = !!o.hold
+  const noFiles = o.files_deleted || held
+  const paid = !!o.paid_at
   // v25: orders not printed yet keep their files for at least 48 hours.
   const keepFor = keepHours ? (['received', 'printing'].includes(o.status) ? Math.max(keepHours, 48) : keepHours) : 0
   const expiry = keepFor ? new Date(new Date(o.created_at).getTime() + keepFor * 3600 * 1000) : null
@@ -1287,7 +1376,7 @@ function OrderCard(props: {
     ? expiry.toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN', expiry.toDateString() === new Date().toDateString()
       ? { hour: 'numeric', minute: '2-digit' } : { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
     : ''
-  const printable = (o.order_files || []).filter((f) => canDirectPrint(f.file_name))
+  const printable = noFiles ? [] : (o.order_files || []).filter((f) => canDirectPrint(f.file_name))
   const busy = !!printingId
   const { t } = useI18n()
   const next = NEXT[o.status]
@@ -1307,13 +1396,19 @@ function OrderCard(props: {
         <div className="order-right">
           <span className={`pill tiny s-${o.status}`}>{t(STATUS_TEXT[o.status])}</span>
           <strong className="amt">{rupees(Number(o.total))}</strong>
+          {onPaid && o.status !== 'cancelled' && (
+            <button type="button" className={`paid-toggle${paid ? ' is-paid' : ''}`} aria-pressed={paid}
+              title={paid ? t('paidTapUnpaid') : t('paidTapPaid')} onClick={() => onPaid(o, !paid)}>
+              {paid ? <><Icon name="check" size={13} stroke={3} /> {t('paidYes')}</> : t('paidNo')}
+            </button>
+          )}
         </div>
       </div>
       {o.note && <p className="note"><Icon name="note" size={16} /> <span>{o.note}</span></p>}
       <ul className="files">
         {(o.order_files || []).map((f) => (
           <li key={f.id}>
-            {!o.files_deleted && isImageName(f.file_name) ? (
+            {!noFiles && isImageName(f.file_name) ? (
               <div className="file-head">
                 <StoredImageThumb path={f.storage_path} name={f.file_name} onOpen={setViewImg} />
                 <div className="fname is-img">{f.file_name}</div>
@@ -1342,7 +1437,7 @@ function OrderCard(props: {
                 <b>{rupees(Number(f.price))}</b>
               </div>
             )}
-            {!o.files_deleted && (
+            {!noFiles && (
               <div className="file-actions">
                 {onPrint && canDirectPrint(f.file_name) && (
                   <button type="button" className="btn small primary" disabled={busy} onClick={() => onPrint(o, [f])}>
@@ -1357,10 +1452,11 @@ function OrderCard(props: {
         ))}
       </ul>
       {viewImg && <ImageLightbox src={viewImg.src} name={viewImg.name} onClose={() => setViewImg(null)} />}
+      {held && !o.files_deleted && <p className="small files-gone fr-held"><Icon name="shield" size={15} /> {t('frHeld')}</p>}
       {o.files_deleted && <p className="small muted files-gone"><Icon name="trash" size={15} /> {t('filesDeleted')}</p>}
-      {!o.files_deleted && expiryText && <p className="small muted files-gone"><Icon name="clock" size={15} /> {t('filesExpireAt', { time: expiryText })}</p>}
+      {!noFiles && expiryText && <p className="small muted files-gone"><Icon name="clock" size={15} /> {t('filesExpireAt', { time: expiryText })}</p>}
       <div className="order-actions">
-        {onPrint && !o.files_deleted && printable.length > 1 && ['received', 'printing'].includes(o.status) && (
+        {onPrint && !noFiles && printable.length > 1 && ['received', 'printing'].includes(o.status) && (
           <button type="button" className="btn soft" disabled={busy} onClick={() => onPrint(o, printable)}>
             <Icon name="printer" size={19} /> {printingId === o.id ? t('dpPrinting') : t('dpPrintAll', { n: printable.length })}
           </button>
@@ -1369,11 +1465,14 @@ function OrderCard(props: {
         {['received', 'printing', 'ready'].includes(o.status) && (
           <button type="button" className="btn danger-outline" onClick={async () => { if (await askConfirm(t('confirmCancel'), { icon: 'x' })) onStatus(o, 'cancelled') }}>{t('cancel')}</button>
         )}
-        {['done', 'cancelled'].includes(o.status) && !o.files_deleted && (
+        {['done', 'cancelled'].includes(o.status) && !noFiles && (
           <button type="button" className="btn" onClick={() => onDelete(o)}><Icon name="trash" size={17} /> {t('deleteNow')}</button>
         )}
         {onBlock && (
           <button type="button" className="link small block-sender" onClick={() => onBlock(o)}>{t('blockSender')}</button>
+        )}
+        {onReport && !noFiles && (
+          <button type="button" className="link small block-sender report-file" onClick={() => onReport(o)}>{t('frButton')}</button>
         )}
       </div>
     </article>
@@ -1951,16 +2050,21 @@ function Report({ shop, onUpgrade }: { shop: Shop; onUpgrade: () => void }) {
   const { t, tn, te, lang } = useI18n()
   const tier = shopTier(shop)
   const maxDays = HISTORY_DAYS[tier]
-  const [rows, setRows] = useState<{ status: OrderStatus; total: number; created_at: string }[] | null>(null)
+  const [rows, setRows] = useState<{ status: OrderStatus; total: number; created_at: string; paid_at?: string | null }[] | null>(null)
   useEffect(() => {
     const since = new Date(Date.now() - 30 * 86400 * 1000).toISOString()
-    supabase
+    const get = (cols: string) => supabase
       .from('orders')
-      .select('status,total,created_at')
+      .select(cols)
       .eq('shop_id', shop.id)
       .in('status', ['received', 'printing', 'ready', 'done'])
       .gte('created_at', since)
-      .then(({ data }) => setRows((data || []) as NonNullable<typeof rows>))
+    void (async () => {
+      // paid_at comes with the v34 database update; before it, load the summary without it.
+      let { data, error } = await get('status,total,created_at,paid_at')
+      if (error) ({ data } = await get('status,total,created_at'))
+      setRows((data || []) as unknown as NonNullable<typeof rows>)
+    })()
   }, [shop.id])
 
   // Order history: as far back as the plan allows (7 days / 6 months / 1 year; the database hides older rows).
@@ -1992,13 +2096,17 @@ function Report({ shop, onUpgrade }: { shop: Shop; onUpgrade: () => void }) {
   startOfDay.setHours(0, 0, 0, 0)
   const sum = (from: number) => {
     const list = (rows || []).filter((r) => new Date(r.created_at).getTime() >= from)
-    return { count: list.length, total: list.reduce((s, r) => s + Number(r.total), 0) }
+    return {
+      count: list.length,
+      total: list.reduce((s, r) => s + Number(r.total), 0),
+      paid: list.reduce((s, r) => s + (r.paid_at ? Number(r.total) : 0), 0)
+    }
   }
   const today = sum(startOfDay.getTime())
   const week = sum(startOfDay.getTime() - 6 * 86400 * 1000)
   const month = sum(startOfDay.getTime() - 29 * 86400 * 1000)
 
-  const cards: { label: Key; v: { count: number; total: number }; accent?: boolean; lock?: boolean }[] = [
+  const cards: { label: Key; v: { count: number; total: number; paid: number }; accent?: boolean; lock?: boolean }[] = [
     { label: 'today', v: today, accent: true },
     { label: 'last7', v: week },
     { label: 'last30', v: month, lock: maxDays < 30 }
@@ -2039,6 +2147,9 @@ function Report({ shop, onUpgrade }: { shop: Shop; onUpgrade: () => void }) {
             <div className="small stat-label"><Icon name={s.accent ? 'rupee' : 'chart'} size={16} /> {t(s.label)}</div>
             <div className="big-num">{rupees(s.v.total)}</div>
             <div className="small stat-sub">{tn('orders_one', 'orders_other', s.v.count)}</div>
+            {s.accent && s.v.count > 0 && (
+              <div className="small stat-paid">{t('paidToday', { paid: rupees(s.v.paid), left: rupees(Math.max(0, s.v.total - s.v.paid)) })}</div>
+            )}
           </div>
         ))}
       </div>}
