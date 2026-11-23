@@ -2745,3 +2745,15 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 /* Small icon that sits inside a line of text (replaced emoji, 2026-11-23) */
 .ico-inl { vertical-align: -0.15em; margin-right: 4px; }
 .pill .ico-inl { margin-right: 3px; }
+
+/* Android app announcement popup (AppNotices AnnPopup, v37) */
+.ann-pop-wrap { position: fixed; inset: 0; z-index: 900; background: rgba(8, 12, 10, .5); display: grid; place-items: center; padding: 20px; touch-action: none; user-select: none; -webkit-user-select: none; animation: annFade .2s ease-out; }
+.ann-pop { width: min(380px, 100%); background: var(--c-surface); color: var(--c-ink); border: 1px solid var(--c-line); border-radius: 18px; box-shadow: var(--sh-3); padding: 22px 20px 16px; text-align: center; }
+.ann-pop-ico { width: 48px; height: 48px; margin: 0 auto 10px; border-radius: 14px; display: grid; place-items: center; background: var(--c-lime); color: #0b1210; }
+.ann-pop h2 { margin: 0 0 8px; font-size: 18px; }
+.ann-pop p { margin: 0 0 16px; font-size: 15.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 50vh; overflow-y: auto; }
+.ann-pop-ok { width: 100%; }
+.ann-pop-bar { height: 4px; margin-top: 14px; border-radius: 4px; background: var(--c-sunken); overflow: hidden; }
+.ann-pop-bar i { display: block; height: 100%; background: var(--c-ink); transition: width .1s linear; }
+.ann-pop-hint { margin-top: 8px; }
+@keyframes annFade { from { opacity: 0; } }

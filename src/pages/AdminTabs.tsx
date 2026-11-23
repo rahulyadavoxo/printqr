@@ -534,6 +534,9 @@ export function AdminSettings({ onMsg, onSaveSlot }: { onMsg: Msg; onSaveSlot?: 
       <label htmlFor="set-ann-hi">{t('admAnnouncementHi')}</label>
       <textarea id="set-ann-hi" rows={2} maxLength={300} value={s.announcement_hi || ''} onChange={(e) => set({ announcement_hi: e.target.value })} />
       <p className="small muted">{t('admAnnouncementHint')}</p>
+      <label htmlFor="set-ann-secs">{t('admAnnSecs')}</label>
+      <input id="set-ann-secs" type="number" min={3} max={120} value={s.announcement_secs ?? 8} onChange={(e) => set({ announcement_secs: Math.max(3, Math.min(120, Math.floor(Number(e.target.value) || 8))) })} />
+      <p className="small muted">{t('admAnnSecsHint')}</p>
 
       <label className="admin-check">
         <input type="checkbox" checked={s.maintenance} onChange={(e) => set({ maintenance: e.target.checked })} />

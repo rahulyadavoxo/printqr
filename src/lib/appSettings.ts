@@ -5,6 +5,8 @@ import { supabase } from './supabase'
 export type AppSettings = {
   announcement: string | null
   announcement_hi: string | null
+  /** v37: seconds the app popup stays open before it closes by itself (3..120). */
+  announcement_secs: number
   maintenance: boolean
   maintenance_msg: string | null
   min_app_version: string | null
@@ -77,7 +79,7 @@ function remember(s: AppSettings) {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  announcement: null, announcement_hi: null, maintenance: false, maintenance_msg: null, min_app_version: null, free_counter_limit: 0, login_design: storedDesign(), login_designs: {},
+  announcement: null, announcement_hi: null, announcement_secs: 8, maintenance: false, maintenance_msg: null, min_app_version: null, free_counter_limit: 0, login_design: storedDesign(), login_designs: {},
   landing_design: storedLanding(), landing_designs: {}
 }
 
