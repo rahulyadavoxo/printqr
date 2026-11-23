@@ -2654,9 +2654,38 @@ html:not(.in-app) .dash .bar-actions .avatar-btn .shop-avatar, html:not(.in-app)
 html:not(.in-app) .dash .bar-actions .bar-btn, html:not(.in-app) .dash .bar-actions .avatar-btn { padding: 0; display: grid; place-items: center; line-height: 1; }
 html:not(.in-app) .dash .bar-actions .bar-btn > svg, html:not(.in-app) .dash .bar-actions .avatar-btn > * { display: block; margin: 0; }
 html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
-=======
 /* Plan tab: payments / receipts (v33) */
 .pay-list ul { list-style: none; margin: 0 0 8px; padding: 0; }
 .pay-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line, rgba(0, 0, 0, 0.08)); }
 .pay-list li:last-child { border-bottom: 0; }
 .pay-list .pay-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+/* ---- v34: UPI paid mark (item 16) + Report file (item 17) ---- */
+.paid-toggle { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 3px 10px; border-radius: 999px; border: 1.5px dashed var(--c-line-2); background: var(--c-surface); color: var(--c-muted); font: inherit; font-size: 12.5px; font-weight: 750; cursor: pointer; }
+.paid-toggle:hover { border-color: var(--c-ink-2); color: var(--c-ink); }
+.paid-toggle.is-paid { border-style: solid; border-color: transparent; background: var(--c-green-bg); color: var(--c-green-ink); }
+.paid-toggle:focus-visible { outline: 3px solid var(--brand-ring); outline-offset: 2px; }
+.stat-paid { margin-top: 4px; font-weight: 650; opacity: .9; }
+.paid-badge { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 14px 0 0; padding: 12px; border-radius: 14px; background: var(--c-green-bg); color: var(--c-green-ink); font-weight: 800; font-size: 17px; }
+.upi-extras { margin-top: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.upi-id-row { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.upi-id { font-size: 14px; font-weight: 700; padding: 4px 8px; border-radius: 8px; background: var(--c-sunken); color: var(--c-ink); overflow-wrap: anywhere; }
+.upi-qr-toggle { background: none; border: 0; padding: 4px; }
+.upi-qr { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.upi-qr img { width: 200px; height: 200px; border-radius: 12px; background: #fff; padding: 8px; }
+.upi-qr-skel { width: 200px; height: 200px; border-radius: 12px; }
+.upi-note { text-align: center; margin: 8px 0 0; }
+.fr-held { color: var(--c-red-ink); font-weight: 650; }
+.report-file { color: var(--c-red-ink); }
+.fr-box { max-width: 420px; text-align: left; max-height: calc(100vh - 32px); overflow-y: auto; }
+.fr-box .cf-icon { display: flex; margin: 0 auto 10px; }
+.fr-title { margin: 0 0 6px; font-size: 18px; text-align: center; }
+.fr-reasons { border: 0; padding: 0; margin: 12px 0; display: flex; flex-direction: column; gap: 6px; }
+.fr-reasons legend { font-weight: 700; margin-bottom: 6px; }
+.fr-reason { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--c-line); border-radius: 12px; cursor: pointer; font-size: 14.5px; }
+.fr-reason.on { border-color: var(--c-red); background: var(--c-red-bg); }
+.fr-box textarea { width: 100%; resize: vertical; }
+.fr-warn { display: flex; gap: 6px; align-items: flex-start; color: var(--c-red-ink); background: var(--c-red-bg); padding: 8px 10px; border-radius: 10px; margin: 8px 0; }
+.fr-box .cf-row { margin-top: 12px; }
+.fr-files { overflow-wrap: anywhere; margin: 4px 0 0; }
+.admin-tag.fr-urgent { background: var(--c-red-bg); color: var(--c-red-ink); }

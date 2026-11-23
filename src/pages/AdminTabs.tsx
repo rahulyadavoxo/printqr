@@ -9,6 +9,7 @@ const LOGIN_DESIGN_LABEL: Record<LoginDesign, Key> = { classic: 'admLoginClassic
 const LANDING_DESIGN_LABEL: Record<LandingDesign, Key> = { classic: 'admLandingClassic', duo: 'admLandingDuo', bold: 'admLandingBold' }
 const LOGIN_PLATFORM_LABEL: Record<LoginPlatform, Key> = { app: 'admLoginApp', mweb: 'admLoginMweb', web: 'admLoginWeb', desktop: 'admLoginDesktop' }
 import { rupees } from '../lib/pricing'
+import { FILE_REPORT_REASON_KEY } from '../lib/fileReports'
 import { SkelForm, SkelList, SkelLog, SkelStats } from '../components/Skeletons'
 import { ask as askConfirm } from '../components/ConfirmHost'
 
@@ -301,6 +302,81 @@ type Spam = {
   reports: { id: number; shop_id: string; name: string; slug: string; reason: string; created_at: string; resolved: boolean }[]
 }
 
+/** v34: a shop reported an order's files. The order is on hold (files kept, hidden from the shop) until an admin acts. */
+type FileReportRow = {
+  id: number; order_id: string | null; shop_id: string | null; reason: string; note: string | null; token: number | null
+  shop_name: string | null; file_names: string[]; paths: string[]; status: 'open' | 'dismissed' | 'files_deleted'
+  created_at: string; resolved_at: string | null
+}
+
+function AdminFileReports({ onMsg, onChanged }: { onMsg: Msg; onChanged: () => void }) {
+  const { t, teRaw } = useI18n()
+  const dt = useDateTime()
+  const [rows, setRows] = useState<FileReportRow[] | null>(null)
+  const [busy, setBusy] = useState<number | null>(null)
+
+  const load = useCallback(async () => {
+    const { data, error } = await supabase.from('file_reports').select('*').order('created_at', { ascending: false }).limit(50)
+    if (error) { onMsg({ text: teRaw(error), error: true }); setRows([]); return }
+    const list = (data || []) as FileReportRow[]
+    // Open ones first, newest first inside each group.
+    setRows([...list.filter((r) => r.status === 'open'), ...list.filter((r) => r.status !== 'open')])
+  }, [onMsg, teRaw])
+  useEffect(() => { load() }, [load])
+
+  const act = async (r: FileReportRow, action: 'report_dismiss' | 'report_delete_files') => {
+    const ask = action === 'report_dismiss' ? t('frDismissAsk', { n: r.token ?? '?' }) : t('frDeleteAsk', { n: r.token ?? '?' })
+    if (!await askConfirm(ask, { icon: action === 'report_dismiss' ? 'check' : 'trash' })) return
+    setBusy(r.id)
+    onMsg(null)
+    try {
+      await callFn('admin-action', { action, report_id: r.id })
+      onMsg({ text: t('admDone') })
+      load()
+      onChanged()
+    } catch (e) {
+      onMsg({ text: teRaw(e), error: true })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const open = (rows || []).filter((r) => r.status === 'open').length
+  return (
+    <>
+      <h2 className="admin-sec">{t('frAdminTitle')} ({open})</h2>
+      <p className="small muted">{t('frAdminHint')}</p>
+      {!rows ? <SkelList n={2} /> : rows.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
+        <div className="admin-list">
+          {rows.map((r) => (
+            <div className={`card admin-item${r.status !== 'open' ? ' is-done' : ''}`} key={r.id}>
+              <div className="admin-item-top">
+                <b className="admin-ellipsis">#{r.token ?? '?'} · {r.shop_name || '—'}</b>
+                <span className="admin-tags">
+                  <span className={`admin-tag${r.reason === 'csam' ? ' fr-urgent' : ''}`}>{t(FILE_REPORT_REASON_KEY[r.reason] || 'frReasonOther')}</span>
+                  {r.status !== 'open' && <span className="admin-tag">{r.status === 'dismissed' ? t('frStatusDismissed') : t('frStatusDeleted')}</span>}
+                </span>
+              </div>
+              <div className="small muted">{dt(r.created_at)}{r.resolved_at ? ` · ${t('frClosedAt', { time: dt(r.resolved_at) })}` : ''}</div>
+              {r.note && <p className="small admin-quote">{r.note}</p>}
+              {r.file_names.length > 0 && <p className="small muted fr-files">{r.file_names.join(', ')}</p>}
+              {r.status === 'open' && r.paths.length > 0 && (
+                <p className="small muted mono fr-files">{t('frEvidence', { path: r.paths[0].split('/').slice(0, 2).join('/') + '/' })}</p>
+              )}
+              {r.status === 'open' && (
+                <div className="admin-row">
+                  <button type="button" className="btn small soft" disabled={busy === r.id} onClick={() => act(r, 'report_dismiss')}>{t('frDismiss')}</button>
+                  <button type="button" className="btn small danger-outline" disabled={busy === r.id} onClick={() => act(r, 'report_delete_files')}>{t('frDeleteFiles')}</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
 export function AdminSpam({ onMsg, onChanged }: { onMsg: Msg; onChanged: () => void }) {
   const { t, teRaw, lang } = useI18n()
   const dt = useDateTime()
@@ -335,6 +411,7 @@ export function AdminSpam({ onMsg, onChanged }: { onMsg: Msg; onChanged: () => v
 
   return (
     <>
+      <AdminFileReports onMsg={onMsg} onChanged={onChanged} />
       <h2 className="admin-sec">{t('admReports')} ({openReports.length})</h2>
       {data.reports.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
         <div className="admin-list">

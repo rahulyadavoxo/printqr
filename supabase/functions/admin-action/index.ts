@@ -4,6 +4,8 @@
 //   send_reset   { user_id }                             -> password reset email
 //   cancel_subscription { shop_id }                      -> Razorpay cancel (at cycle end when possible)
 //   delete_files { order_id }                            -> delete an order's files from storage now
+//   report_dismiss { report_id }                         -> file report (v34): nothing wrong; ends the order's hold
+//   report_delete_files { report_id }                    -> file report (v34): delete the reported files (takedown)
 // Every action is written to public.admin_log.
 import { corsHeaders, db, fail, HttpError, json, rzp, Subscription, updateShop } from '../_shared/billing.ts'
 
@@ -41,6 +43,30 @@ function id(v: unknown, name: string): string {
 
 async function log(admin: string, action: string, shop: string | null, detail: Record<string, unknown>) {
   await db('admin_log', { method: 'POST', body: JSON.stringify({ admin_id: admin, action, shop_id: shop, detail }), prefer: 'return=minimal' })
+}
+
+/** Deletes an order's files (and photo thumbnails) from storage and marks the order. Returns how many objects. */
+async function removeOrderFiles(orderId: string, extra: Record<string, unknown> = {}): Promise<{ shop: string; files: number }> {
+  const orders = await db<{ id: string; shop_id: string; status: string; files_deleted: boolean }[]>(
+    `orders?id=eq.${orderId}&select=id,shop_id,status,files_deleted`)
+  const order = orders[0]
+  if (!order) throw new HttpError(404, 'not_found', 'Order not found')
+  const files = await db<{ storage_path: string }[]>(`order_files?order_id=eq.${orderId}&select=storage_path`)
+  const paths = files.map((f) => f.storage_path).filter(Boolean).flatMap((p) => [p, p + '.thumb.jpg'])
+  if (paths.length) await call('/storage/v1/object/uploads', { method: 'DELETE', body: JSON.stringify({ prefixes: paths }) })
+  const patch: Record<string, unknown> = { files_deleted: true, ...extra }
+  if (order.status === 'uploading') patch.status = 'cancelled'
+  await db(`orders?id=eq.${orderId}`, { method: 'PATCH', body: JSON.stringify(patch), prefer: 'return=minimal' })
+  return { shop: order.shop_id, files: paths.length }
+}
+
+type FileReport = { id: number; order_id: string | null; shop_id: string | null; status: string; reason: string }
+async function fileReport(v: unknown): Promise<FileReport> {
+  const rid = Number(v)
+  if (!Number.isInteger(rid) || rid <= 0) throw new HttpError(400, 'bad_request', 'Missing report_id')
+  const rows = await db<FileReport[]>(`file_reports?id=eq.${rid}&select=id,order_id,shop_id,status,reason`)
+  if (!rows[0]) throw new HttpError(404, 'not_found', 'Report not found')
+  return rows[0]
 }
 
 Deno.serve(async (req) => {
@@ -114,18 +140,42 @@ Deno.serve(async (req) => {
 
     if (action === 'delete_files') {
       const orderId = id(body.order_id, 'order_id')
-      const orders = await db<{ id: string; shop_id: string; status: string; files_deleted: boolean }[]>(
-        `orders?id=eq.${orderId}&select=id,shop_id,status,files_deleted`)
-      const order = orders[0]
-      if (!order) throw new HttpError(404, 'not_found', 'Order not found')
-      const files = await db<{ storage_path: string }[]>(`order_files?order_id=eq.${orderId}&select=storage_path`)
-      const paths = files.map((f) => f.storage_path).filter(Boolean).flatMap((p) => [p, p + '.thumb.jpg'])
-      if (paths.length) await call('/storage/v1/object/uploads', { method: 'DELETE', body: JSON.stringify({ prefixes: paths }) })
-      const patch: Record<string, unknown> = { files_deleted: true }
-      if (order.status === 'uploading') patch.status = 'cancelled'
-      await db(`orders?id=eq.${orderId}`, { method: 'PATCH', body: JSON.stringify(patch), prefer: 'return=minimal' })
-      await log(admin, 'files_deleted', order.shop_id, { order_id: orderId, files: paths.length })
-      return json({ ok: true, files: paths.length })
+      const r = await removeOrderFiles(orderId)
+      await log(admin, 'files_deleted', r.shop, { order_id: orderId, files: r.files })
+      return json({ ok: true, files: r.files })
+    }
+
+    // v34 file reports. The reported order stays on hold (files kept, hidden from the shop) until one of these.
+    if (action === 'report_dismiss') {
+      const rep = await fileReport(body.report_id)
+      if (rep.status !== 'open') throw new HttpError(409, 'already_closed', 'This report is already closed')
+      const now = new Date().toISOString()
+      await db(`file_reports?id=eq.${rep.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'dismissed', resolved_at: now, resolved_by: admin }), prefer: 'return=minimal' })
+      let released = false
+      if (rep.order_id) {
+        // Another open report on the same order keeps the hold.
+        const others = await db<{ id: number }[]>(`file_reports?order_id=eq.${rep.order_id}&status=eq.open&select=id`)
+        if (!others.length) {
+          await db(`orders?id=eq.${rep.order_id}`, { method: 'PATCH', body: JSON.stringify({ hold: false }), prefer: 'return=minimal' })
+          released = true
+        }
+      }
+      await log(admin, 'file_report_dismissed', rep.shop_id, { report: rep.id, order_id: rep.order_id, released })
+      return json({ ok: true, released })
+    }
+
+    if (action === 'report_delete_files') {
+      const rep = await fileReport(body.report_id)
+      if (rep.status !== 'open') throw new HttpError(409, 'already_closed', 'This report is already closed')
+      if (!rep.order_id) throw new HttpError(404, 'not_found', 'Order not found')
+      const r = await removeOrderFiles(rep.order_id, { hold: false })
+      const now = new Date().toISOString()
+      // Every open report on this order is closed by the takedown.
+      await db(`file_reports?order_id=eq.${rep.order_id}&status=eq.open`, {
+        method: 'PATCH', body: JSON.stringify({ status: 'files_deleted', resolved_at: now, resolved_by: admin }), prefer: 'return=minimal'
+      })
+      await log(admin, 'file_report_files_deleted', rep.shop_id || r.shop, { report: rep.id, order_id: rep.order_id, reason: rep.reason, files: r.files })
+      return json({ ok: true, files: r.files })
     }
 
     throw new HttpError(400, 'bad_action', 'Unknown action')

@@ -157,6 +157,10 @@ export type Order = {
   created_at: string
   updated_at: string
   order_files?: OrderFile[]
+  /** v34: when the shop marked it paid (null = unpaid). */
+  paid_at?: string | null
+  /** v34: reported with "Report file": files are kept for review and hidden from the shop. */
+  hold?: boolean
 }
 
 export const DEFAULT_RATES: Rates = { bw_single: 2, bw_double: 1.5, color_single: 10, color_double: 8 }

@@ -13,11 +13,73 @@ import Icon from '../components/Icon'
 import hourglass from '../assets/hourglass.svg'
 import readyAnim from '../assets/ready-collect.svg'
 import doneAnim from '../assets/order-done-thank-you.svg'
+import QRCode from 'qrcode'
+import { upiLink as buildUpiLink } from '../lib/upi'
 
 type Info = {
   token: number; status: OrderStatus; total: number; created_at: string; shop_name: string; upi_id: string | null; file_count: number
   /** v17 */
   files_deleted?: boolean; files_expire_at?: string | null; is_plus?: boolean; logo_url?: string | null; brand_color?: string | null
+  /** v34: the shop marked the order paid */
+  paid?: boolean
+}
+
+/** v34: copy the shop's UPI ID, and a QR of the same upi:// link for paying from another phone. */
+function UpiExtras({ upiId, link }: { upiId: string; link: string }) {
+  const { t } = useI18n()
+  const [copied, setCopied] = useState(false)
+  const [qrOpen, setQrOpen] = useState(false)
+  const [qr, setQr] = useState<string | null>(null)
+  useEffect(() => {
+    if (!qrOpen || qr) return
+    let live = true
+    QRCode.toDataURL(link, { margin: 1, width: 240, errorCorrectionLevel: 'M' })
+      .then((u) => { if (live) setQr(u) })
+      .catch(() => { if (live) setQr('') })
+    return () => { live = false }
+  }, [qrOpen, qr, link])
+  async function copy() {
+    let ok = false
+    try {
+      await navigator.clipboard.writeText(upiId)
+      ok = true
+    } catch {
+      // Old WebViews: copy through a hidden text box.
+      const ta = document.createElement('textarea')
+      ta.value = upiId
+      ta.setAttribute('readonly', '')
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      try { ok = document.execCommand('copy') } catch { ok = false }
+      ta.remove()
+    }
+    if (ok) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+  return (
+    <div className="upi-extras">
+      <div className="upi-id-row">
+        <span className="small muted">{t('upiIdLabel')}</span>
+        <code className="upi-id">{upiId}</code>
+        <button type="button" className="btn small" onClick={() => void copy()} aria-live="polite">
+          <Icon name={copied ? 'check' : 'file'} size={15} /> {copied ? t('upiCopied') : t('upiCopy')}
+        </button>
+      </div>
+      <button type="button" className="link small upi-qr-toggle" aria-expanded={qrOpen} onClick={() => setQrOpen(!qrOpen)}>
+        {qrOpen ? t('upiQrHide') : t('upiQrShow')}
+      </button>
+      {qrOpen && (
+        <div className="upi-qr">
+          {qr ? <img src={qr} width={200} height={200} alt={t('upiQrAlt')} /> : qr === '' ? <span className="small muted">{t('upiQrFail')}</span> : <div className="skel upi-qr-skel" />}
+          <span className="small muted">{t('upiQrHint')}</span>
+        </div>
+      )}
+    </div>
+  )
 }
 
 /** "Print again" (v23, public.reorder_info): the old order's files and the shop's rates today. */
@@ -207,8 +269,9 @@ function StatusPage({ id, orderKey: key }: { id: string; orderKey: string }) {
 
   const isReady = info.status === 'ready' || info.status === 'done'
   const stepIdx = isReady ? -1 : STEPS.findIndex((x) => x.s === info.status)
-  const upiLink = info.upi_id
-    ? `upi://pay?pa=${encodeURIComponent(info.upi_id)}&pn=${encodeURIComponent(info.shop_name)}&am=${Number(info.total).toFixed(2)}&cu=INR&tn=${encodeURIComponent('Print token ' + info.token)}`
+  // v34: built by lib/upi (encoded, 2-decimal amount, plain-text note "PrintQR Token N").
+  const upiLink = info.upi_id && !info.paid
+    ? buildUpiLink({ upiId: info.upi_id, payee: info.shop_name, amount: Number(info.total), token: info.token })
     : null
 
   const waiting = ['uploading', 'received', 'printing'].includes(info.status)
@@ -247,8 +310,15 @@ function StatusPage({ id, orderKey: key }: { id: string; orderKey: string }) {
           <span className="ticket-files"><Icon name="file" size={18} /> {tn('files_one', 'files_other', Number(info.file_count))}</span>
           <span className="ticket-total"><span className="muted">{t('total')}</span> <strong className="amount">{rupees(Number(info.total))}</strong></span>
         </div>
-        {upiLink && info.status !== 'cancelled' && (
-          <a className="btn primary block lg pay-btn" href={upiLink}><Icon name="rupee" size={20} /> {t('sPay', { amount: rupees(Number(info.total)) })}</a>
+        {info.paid && info.status !== 'cancelled' && (
+          <p className="paid-badge" role="status"><Icon name="check" size={18} stroke={3} /> {t('sPaid')}</p>
+        )}
+        {upiLink && info.upi_id && info.status !== 'cancelled' && (
+          <>
+            <a className="btn primary block lg pay-btn" href={upiLink}><Icon name="rupee" size={20} /> {t('sPay', { amount: rupees(Number(info.total)) })}</a>
+            <UpiExtras upiId={info.upi_id.trim()} link={upiLink} />
+            <p className="small muted upi-note">{t('sPayNote')}</p>
+          </>
         )}
       </div>
       {canPush && push !== 'on' && (
