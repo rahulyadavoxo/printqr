@@ -5,8 +5,9 @@ import { Key, useI18n } from '../lib/i18n'
 import { LogoMark, TopBar } from '../components/TopBar'
 import { LegalLinks } from './Legal'
 import { AppDownloadButton } from '../components/AppDownload'
-import { landingDesignFor, useAppSettings } from '../lib/appSettings'
+import { LANDING_DESIGNS, LandingDesign, landingDesignFor, useAppSettings } from '../lib/appSettings'
 import LandingDuo from './LandingDuo'
+import LandingBold from './LandingBold'
 
 /* A decorative, QR-looking grid (not a real code). */
 const QR_N = 21
@@ -93,10 +94,12 @@ export default function Home() {
   useEffect(() => {
     if (session) nav('/dashboard', { replace: true })
   }, [session, nav])
-  // Preview without saving: /#/?landing=duo or /#/?landing=classic
+  // Preview without saving: /#/?landing=duo, /#/?landing=bold or /#/?landing=classic
   const preview = params.get('landing')
-  const design = preview === 'duo' || preview === 'classic' ? preview : landingDesignFor(settings)
-  return design === 'duo' ? <LandingDuo /> : <ClassicLanding />
+  const design = (LANDING_DESIGNS as readonly string[]).includes(preview ?? '') ? (preview as LandingDesign) : landingDesignFor(settings)
+  if (design === 'duo') return <LandingDuo />
+  if (design === 'bold') return <LandingBold />
+  return <ClassicLanding />
 }
 
 /** The current (classic) landing page. */

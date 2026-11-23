@@ -6,7 +6,7 @@ import { AppSettings, DEFAULT_SETTINGS, DESIGNS_FOR, LANDING_DESIGNS, LOGIN_PLAT
 import type { Key } from '../lib/i18n'
 
 const LOGIN_DESIGN_LABEL: Record<LoginDesign, Key> = { classic: 'admLoginClassic', modern: 'admLoginModern', split: 'admLoginSplit', bento: 'admLoginBento', bentofull: 'admLoginBentoFull' }
-const LANDING_DESIGN_LABEL: Record<LandingDesign, Key> = { classic: 'admLandingClassic', duo: 'admLandingDuo' }
+const LANDING_DESIGN_LABEL: Record<LandingDesign, Key> = { classic: 'admLandingClassic', duo: 'admLandingDuo', bold: 'admLandingBold' }
 const LOGIN_PLATFORM_LABEL: Record<LoginPlatform, Key> = { app: 'admLoginApp', mweb: 'admLoginMweb', web: 'admLoginWeb', desktop: 'admLoginDesktop' }
 import { rupees } from '../lib/pricing'
 import { SkelForm, SkelList, SkelLog, SkelStats } from '../components/Skeletons'

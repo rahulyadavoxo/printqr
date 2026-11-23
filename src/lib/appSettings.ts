@@ -17,8 +17,9 @@ export type AppSettings = {
   landing_designs: Partial<Record<LoginPlatform, LandingDesign>>
 }
 
-/** classic = the current landing page, duo = two big panels (customer / shop) + cost estimator. */
-export const LANDING_DESIGNS = ['classic', 'duo'] as const
+/** classic = the current landing page, duo = two big panels (customer / shop) + cost estimator,
+ * bold = big "Scan. Upload. Print." headline + live queue scene (v32). */
+export const LANDING_DESIGNS = ['classic', 'duo', 'bold'] as const
 export type LandingDesign = typeof LANDING_DESIGNS[number]
 const isLanding = (v: unknown): v is LandingDesign => (LANDING_DESIGNS as readonly unknown[]).includes(v)
 export function landingDesignFor(s: AppSettings, p: LoginPlatform = currentLoginPlatform()): LandingDesign {
