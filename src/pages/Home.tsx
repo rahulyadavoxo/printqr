@@ -57,7 +57,7 @@ const ICONS: Record<string, ReactElement> = {
   print: <path d="M7 9V3h10v6M7 17H4v-8h16v8h-3M7 14h10v7H7z" />,
   phone: <path d="M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM11 18h2" />,
   rupee: <path d="M7 4h10M7 8h10M9 4c5 0 5 8 0 8H7l8 8" />,
-  bell: <path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0" />,
+  bell: <path d="M6 14.5v-5a6 6 0 0 1 12 0v5l2 2H4zM10 18.5a2 2 0 0 0 4 0" />,
   trash: <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />,
   upi: <path d="M3 6h18v12H3zM3 10h18M7 15h4" />
 }

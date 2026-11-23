@@ -2643,10 +2643,15 @@ html:not(.in-app) .dash .bar-actions .toggle.is-open { border-color: #8fd8a5; }
 html:not(.in-app) .dash .bar-actions .toggle.is-closed { border-color: #f2b1b1; }
 [data-theme="dark"] .dash .bar-actions .toggle.is-open { border-color: #1f5c36; }
 [data-theme="dark"] .dash .bar-actions .toggle.is-closed { border-color: #5c2626; }
-html:not(.in-app) .dash .bar-actions .avatar-btn .shop-avatar, html:not(.in-app) .dash .bar-actions .avatar-btn .shop-avatar img { border-radius: 5px; }
+html:not(.in-app) .dash .bar-actions .avatar-btn .shop-avatar { width: 24px !important; height: 24px !important; }
+html:not(.in-app) .dash .bar-actions .avatar-btn .shop-avatar, html:not(.in-app) .dash .bar-actions .avatar-btn .shop-avatar img { border-radius: 4px; }
 
 /* Desktop web + Windows: VS Code style edges across the dashboard (small, even corner radius everywhere) */
 @media (min-width: 1024px) {
   html:not(.in-app) .dash { --r-xs: 4px; --r-sm: 6px; --r-md: 8px; --r-lg: 8px; --r-xl: 10px; --radius: 8px; --radius-sm: 6px; }
   html:not(.in-app) .dash .bar-actions .bar-btn, html:not(.in-app) .dash .bar-actions .toggle, html:not(.in-app) .dash .bar-actions .avatar-btn { border-radius: 6px; }
 }
+/* Desktop web + Windows: icons/text dead-centre inside the top-right controls (no UA button padding) */
+html:not(.in-app) .dash .bar-actions .bar-btn, html:not(.in-app) .dash .bar-actions .avatar-btn { padding: 0; display: grid; place-items: center; line-height: 1; }
+html:not(.in-app) .dash .bar-actions .bar-btn > svg, html:not(.in-app) .dash .bar-actions .avatar-btn > * { display: block; margin: 0; }
+html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
