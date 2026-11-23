@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { QrLoadBlock } from './QrLoader'
 import Icon from './Icon'
 import { ask as askConfirm } from './ConfirmHost'
 import { Key, useI18n } from '../lib/i18n'
@@ -263,7 +264,8 @@ export function DevicesCard() {
       <h2 className="card-title">{t('devTitle')}</h2>
       <p className="small muted">{t('devSub')}</p>
       {list === null ? (
-        <p className="small muted"><span className="spinner dark" aria-hidden="true" /> {t('pleaseWait')}</p>
+        // How many devices is not known yet: small QR loader (user rule 2026-11-23)
+        <QrLoadBlock small />
       ) : (
         <ul className="dev-list">
           {list.map((s) => (
