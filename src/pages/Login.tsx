@@ -409,7 +409,7 @@ export default function Login() {
   const qrSvg = (
     <svg viewBox="0 0 7 7" shapeRendering="crispEdges" aria-hidden="true"><g fill="#0d1210"><rect x="0" y="0" width="3" height="3"/><rect x="4" y="0" width="3" height="3"/><rect x="0" y="4" width="3" height="3"/><rect x="4" y="4" width="1" height="1"/><rect x="6" y="5" width="1" height="2"/><rect x="5" y="6" width="1" height="1"/></g><g fill="#fff"><rect x=".7" y=".7" width="1.6" height="1.6"/><rect x="4.7" y=".7" width="1.6" height="1.6"/><rect x=".7" y="4.7" width="1.6" height="1.6"/></g></svg>
   )
-  const lxLogo = <div className="lx-logo"><i>P</i><div><b>print</b><small>BY RECEIPTO</small></div></div>
+  const lxLogo = <div className="lx-logo"><img src={import.meta.env.BASE_URL + 'logo.svg'} alt="Print by Receipto" width={110} height={44} /></div>
   const lxLang = (
     <div className="lx-lang" role="group" aria-label={t('language')}>
       <button type="button" aria-pressed={lang === 'en'} onClick={() => setLang('en')}>EN</button>
@@ -507,7 +507,7 @@ export default function Login() {
           </div>
           <div className="lxs-foot">© Receipto</div>
           <div className="lxs-receipt" aria-hidden="true">
-            <div className="rh"><b>print</b><span>#1024</span></div>
+            <div className="rh"><img src={import.meta.env.BASE_URL + 'logo.svg'} alt="" width={60} height={24} /><span>#1024</span></div>
             <div className="l" /><div className="l s" /><div className="l" /><div className="l s" />
             <div className="tot"><span>{t('lxTotal')}</span><b>₹48</b></div>
             <div className="chip">{t('lxPrinted')}</div>

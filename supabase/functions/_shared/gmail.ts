@@ -109,7 +109,7 @@ export function esc(s: string): string {
 }
 
 const SITE_URL = 'https://print.receipto.in/'
-const LOGO = 'https://print.receipto.in/icon-192.png'
+const LOGO = 'https://print.receipto.in/logo-dark-mail.png'
 const INK = '#0b1210'
 const LIME = '#a6e22e'
 const BRAND = '#3f6212'
@@ -142,11 +142,7 @@ export function layout(title: string, bodyHtml: string, opts: LayoutOpts = {}): 
 
 <tr><td style="background:${INK};background-image:linear-gradient(135deg,#0b1210 0%,#1f2d16 70%,#3f6212 100%);border-radius:20px 20px 0 0;padding:26px 28px 30px">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-    <td style="vertical-align:middle"><img src="${LOGO}" width="40" height="40" alt="PrintQR" style="display:block;border:0;border-radius:11px"></td>
-    <td style="vertical-align:middle;padding-left:12px;font-family:${FONT}">
-      <div style="font-size:22px;font-weight:800;color:#ffffff;line-height:1">print</div>
-      <div style="font-size:9px;font-weight:700;letter-spacing:2.5px;color:${LIME};padding-top:4px">BY RECEIPTO</div>
-    </td>
+    <td style="vertical-align:middle"><img src="${LOGO}" width="140" height="56" alt="Print by Receipto" style="display:block;border:0"></td>
   </tr></table>
   ${opts.icon ? `<div style="font-size:40px;line-height:1;padding-top:26px">${opts.icon}</div>` : ''}
   <h1 style="margin:${opts.icon ? '12px' : '26px'} 0 0;font-family:${FONT};font-size:26px;line-height:1.25;font-weight:800;color:#ffffff">${esc(title)}</h1>
