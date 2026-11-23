@@ -6,9 +6,9 @@ export type Tab = 'orders' | 'rates' | 'qr' | 'edit' | 'report' | 'settings' | '
 export const TABS: { id: Tab; label: Key; icon: string }[] = [
   { id: 'orders', label: 'tabOrders', icon: 'orders' },
   { id: 'rates', label: 'tabRates', icon: 'rupee' },
-  { id: 'qr', label: 'tabQr', icon: 'qr' },
-  { id: 'edit', label: 'tabEdit', icon: 'scan' },
-  { id: 'report', label: 'tabReport', icon: 'chart' },
+  { id: 'qr', label: 'tabQr', icon: 'qrnav' },
+  { id: 'edit', label: 'tabEdit', icon: 'editnav' },
+  { id: 'report', label: 'tabReport', icon: 'earnings' },
   { id: 'settings', label: 'tabSettings', icon: 'settings' },
   { id: 'plan', label: 'tabPlan', icon: 'plans' }
 ]
