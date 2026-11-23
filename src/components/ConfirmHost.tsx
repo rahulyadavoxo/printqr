@@ -5,7 +5,8 @@ import Icon from './Icon'
 // App-style confirm popup instead of the browser's raw confirm() box
 // (which shows "The page at https://appassets... says:" in the Android app).
 // Usage: if (!(await ask(t('logoutAsk')))) return
-type Opts = { ok?: string; danger?: boolean; icon?: string }
+/** body: smaller grey text under the title; cancel: label of the left button; icon 'trash' = animated bin. */
+type Opts = { ok?: string; cancel?: string; body?: string; danger?: boolean; icon?: string }
 type Req = { msg: string; opts: Opts; done: (v: boolean) => void }
 
 let push: ((r: Req) => void) | null = null
@@ -42,10 +43,20 @@ export default function ConfirmHost() {
   return (
     <div className="cf-back" onClick={() => close(false)}>
       <div className="cf-box" role="alertdialog" aria-modal="true" aria-labelledby="cf-msg" onClick={(e) => e.stopPropagation()}>
-        <span className={'cf-icon' + (danger ? ' is-danger' : '')} aria-hidden="true"><Icon name={req.opts.icon || (danger ? 'alert' : 'info')} size={22} /></span>
-        <p id="cf-msg" className="cf-msg">{req.msg}</p>
+        <div className="cf-head">
+          <span className={'cf-icon' + (danger ? ' is-danger' : '')} aria-hidden="true">
+            {req.opts.icon === 'trash' ? (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <g className="cf-lid"><path d="M4 7h16" /><path d="M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2" /></g>
+                <path d="M6 7l.9 12a2 2 0 0 0 2 1.8h6.2a2 2 0 0 0 2-1.8L18 7" /><path d="M10 11v5" /><path d="M14 11v5" />
+              </svg>
+            ) : <Icon name={req.opts.icon || (danger ? 'alert' : 'info')} size={22} />}
+          </span>
+          <p id="cf-msg" className="cf-msg">{req.msg}</p>
+        </div>
+        {req.opts.body && <p className="cf-body">{req.opts.body}</p>}
         <div className="cf-row">
-          <button type="button" className="btn" onClick={() => close(false)}>{t('cancel')}</button>
+          <button type="button" className="btn" onClick={() => close(false)}>{req.opts.cancel || t('cancel')}</button>
           <button type="button" ref={okRef} className={'btn ' + (danger ? 'danger' : 'primary')} onClick={() => close(true)}>{req.opts.ok || t('cfYes')}</button>
         </div>
       </div>

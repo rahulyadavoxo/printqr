@@ -223,7 +223,7 @@ export default function Editor() {
       setScreen('edit')
       return
     }
-    if (!await askConfirm(t('edDiscardNewQ'))) return
+    if (!await askConfirm(t('edDiscardNewQ'), { body: t('edDiscardNewBody'), ok: t('edDiscardBtn'), cancel: t('edKeepEditing'), icon: 'trash' })) return
     const drop = new Set(queue)
     queue.forEach(forgetPage)
     const left = pages.filter((p) => !drop.has(p.id))
