@@ -838,15 +838,15 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
                                 // User tapped "Not now" -> silent. Anything else: say why, so it can be fixed (e.g. no password manager turned on).
                                 if (e instanceof androidx.credentials.exceptions.CreateCredentialCancellationException) return;
                                 boolean hi = PushService.hi(MainActivity.this);
-                                String why = e instanceof androidx.credentials.exceptions.CreateCredentialNoCreateOptionException
-                                    || e instanceof androidx.credentials.exceptions.CreateCredentialProviderConfigurationException
-                                    ? (hi ? "पासवर्ड सेव नहीं हुआ: फ़ोन Settings में Google Password Manager चालू करें" : "Password not saved: turn on Google Password Manager in phone Settings")
-                                    : (hi ? "पासवर्ड सेव नहीं हुआ" : "Password not saved") + " (" + e.getType() + ")";
-                                Toast.makeText(MainActivity.this, why, Toast.LENGTH_LONG).show();
+                                // Only the case the user can fix gets a Toast; the technical type goes to the log, never on screen.
+                                android.util.Log.w("PrintQR", "password save: " + e.getType());
+                                if (e instanceof androidx.credentials.exceptions.CreateCredentialNoCreateOptionException
+                                    || e instanceof androidx.credentials.exceptions.CreateCredentialProviderConfigurationException)
+                                    Toast.makeText(MainActivity.this, hi ? "पासवर्ड सेव नहीं हुआ: फ़ोन Settings में Google Password Manager चालू करें" : "Password not saved: turn on Google Password Manager in phone Settings", Toast.LENGTH_LONG).show();
                             }
                         });
                 } catch (Throwable t) {
-                    Toast.makeText(MainActivity.this, "Password save error: " + t.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+                    android.util.Log.w("PrintQR", "password save failed", t);
                 }
             });
         }

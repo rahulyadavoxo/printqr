@@ -1018,7 +1018,37 @@ const en = {
   errSenderBlocked: "This shop is not accepting orders from your network. Please talk to the shop.",
   errShopSpaceFull: "This shop's file space is full right now. Please ask the shop to finish or clear old orders, then try again.",
   errServiceBusy: "Uploads are paused for a short while because the service is very busy. Please try again later.",
-  errTooManyAttempts: "This order could not be sent. Please start a new order."
+  errTooManyAttempts: "This order could not be sent. Please start a new order.",
+  errPdfPages: 'A PDF can have up to 2000 pages.',
+  errPdfRead: 'Could not read the pages of {name}. Please send it again, or save it as a new PDF first.',
+  errQrPro: 'Dynamic QR needs the Pro plan.',
+  errFile50: 'Each file must be under 50 MB.',
+  errFileNotFound: 'File not found. Please add it again.',
+  errFileType: 'File type not allowed: {ext}. Send PDF, photo, Word, Excel or PowerPoint files.',
+  errCounterPlus: 'More counters need the Plus plan.',
+  errCounterNotFound: "This counter was not found. Please scan the shop's QR again.",
+  errNotSignedIn: 'Please log in again.',
+  errOrder200: 'One order can be up to 200 MB in total.',
+  errUploadIncomplete: 'Some files did not upload completely. Please try again.',
+  errShopBusy: 'This shop is getting too many orders right now. Please try again in a few minutes.',
+  errNetworkBusy: 'Too many orders from this network. Please wait a few minutes and try again.',
+  errWeakPassword: 'This password is too weak. Use at least 6 characters, with letters and numbers.',
+  errTooManyTries: 'Too many tries. Please wait a few minutes and try again.',
+  errEmailInvalid: 'Please enter a correct email address.',
+  errSignupOff: 'New sign-ups are closed right now. Please try again later.',
+  googleFailNoAccount: 'No Google account found on this phone. Add one in phone Settings, or log in with email.',
+  googleFailReauth: 'Your Google account needs to sign in again. Open phone Settings > Google, then try again.',
+  pushOn: 'Notifications are on',
+  pushBlocked: 'Notifications are off. Turn them on in phone Settings.',
+  pushNotReady: 'Notifications are not set up yet. They will retry by themselves.',
+  errFileChanged: 'One of the files changed while uploading. Please send it again.',
+  errFileNotReal: 'One of the files is not a real PDF, photo or Office file. Please send it again.',
+  errIdcardOnePage: 'The ID card sheet must be one page. Please make it again.',
+  errPdfUnreadable: 'This PDF could not be read. Please send another copy of it.',
+  errOrdersUnavailable: 'Orders are temporarily unavailable. Please try again shortly.',
+  errSubEnded: 'This subscription has ended. Please start a new one.',
+  errPayNotVerified: 'Payment could not be verified. Please check your plan again in a few minutes. If money was cut and the plan is not active, contact us.',
+  errPayOtherShop: 'This payment is for another shop.'
 }
 
 export type Key = keyof typeof en
@@ -2029,7 +2059,37 @@ const hi: Record<Key, string> = {
   errSenderBlocked: "यह दुकान आपके नेटवर्क से ऑर्डर नहीं ले रही है। कृपया दुकान से बात करें।",
   errShopSpaceFull: "इस दुकान की फ़ाइल जगह अभी भरी हुई है। दुकान से पुराने ऑर्डर पूरे या साफ़ करने को कहें, फिर दोबारा कोशिश करें।",
   errServiceBusy: "सर्विस अभी बहुत व्यस्त है, इसलिए अपलोड थोड़ी देर के लिए रुके हैं। कृपया बाद में कोशिश करें।",
-  errTooManyAttempts: "यह ऑर्डर नहीं भेजा जा सका। कृपया नया ऑर्डर शुरू करें।"
+  errTooManyAttempts: "यह ऑर्डर नहीं भेजा जा सका। कृपया नया ऑर्डर शुरू करें।",
+  errPdfPages: 'एक PDF में ज़्यादा से ज़्यादा 2000 पेज हो सकते हैं।',
+  errPdfRead: '{name} के पेज नहीं पढ़ पाए। इसे फिर से भेजें, या पहले नई PDF के रूप में सेव करें।',
+  errQrPro: 'डायनामिक QR के लिए प्रो प्लान चाहिए।',
+  errFile50: 'हर फ़ाइल 50 MB से छोटी होनी चाहिए।',
+  errFileNotFound: 'फ़ाइल नहीं मिली। कृपया फिर से जोड़ें।',
+  errFileType: 'यह फ़ाइल टाइप नहीं चलेगा: {ext}। PDF, फ़ोटो, Word, Excel या PowerPoint फ़ाइल भेजें।',
+  errCounterPlus: 'और काउंटर के लिए प्लस प्लान चाहिए।',
+  errCounterNotFound: 'यह काउंटर नहीं मिला। दुकान का QR फिर से स्कैन करें।',
+  errNotSignedIn: 'कृपया फिर से लॉगिन करें।',
+  errOrder200: 'एक ऑर्डर कुल मिलाकर 200 MB तक हो सकता है।',
+  errUploadIncomplete: 'कुछ फ़ाइलें पूरी अपलोड नहीं हुईं। फिर से कोशिश करें।',
+  errShopBusy: 'इस दुकान पर अभी बहुत ऑर्डर आ रहे हैं। कुछ मिनट बाद कोशिश करें।',
+  errNetworkBusy: 'इस नेटवर्क से बहुत ऑर्डर आए हैं। कुछ मिनट रुककर फिर कोशिश करें।',
+  errWeakPassword: 'पासवर्ड बहुत कमज़ोर है। कम से कम 6 अक्षर रखें, अक्षर और नंबर दोनों के साथ।',
+  errTooManyTries: 'बहुत बार कोशिश हुई। कुछ मिनट रुककर फिर कोशिश करें।',
+  errEmailInvalid: 'सही ईमेल पता डालें।',
+  errSignupOff: 'अभी नए अकाउंट नहीं बन रहे। बाद में कोशिश करें।',
+  googleFailNoAccount: 'इस फ़ोन में कोई Google अकाउंट नहीं मिला। फ़ोन Settings में जोड़ें, या ईमेल से लॉगिन करें।',
+  googleFailReauth: 'आपके Google अकाउंट को फिर से साइन इन करना होगा। फ़ोन Settings > Google खोलें, फिर कोशिश करें।',
+  pushOn: 'नोटिफ़िकेशन चालू हैं',
+  pushBlocked: 'नोटिफ़िकेशन बंद हैं। फ़ोन Settings में चालू करें।',
+  pushNotReady: 'नोटिफ़िकेशन अभी सेट नहीं हुए। अपने आप फिर कोशिश होगी।',
+  errFileChanged: 'अपलोड के दौरान एक फ़ाइल बदल गई। कृपया फिर से भेजें।',
+  errFileNotReal: 'एक फ़ाइल असली PDF, फ़ोटो या Office फ़ाइल नहीं है। कृपया फिर से भेजें।',
+  errIdcardOnePage: 'आईडी कार्ड शीट एक ही पेज की होनी चाहिए। कृपया फिर से बनाएँ।',
+  errPdfUnreadable: 'यह PDF पढ़ी नहीं जा सकी। इसकी दूसरी कॉपी भेजें।',
+  errOrdersUnavailable: 'ऑर्डर अभी कुछ देर के लिए बंद हैं। थोड़ी देर बाद कोशिश करें।',
+  errSubEnded: 'यह सब्सक्रिप्शन खत्म हो गया है। नया शुरू करें।',
+  errPayNotVerified: 'पेमेंट वेरिफ़ाई नहीं हो पाया। कुछ मिनट बाद अपना प्लान फिर से देखें। अगर पैसे कटे हैं और प्लान चालू नहीं हुआ, तो हमसे संपर्क करें।',
+  errPayOtherShop: 'यह पेमेंट किसी दूसरी दुकान का है।'
 }
 
 export type Lang = 'en' | 'hi'
@@ -2067,7 +2127,44 @@ const SERVER_ERRORS: Record<string, Key> = {
   'this shop is not accepting orders from your network': 'errSenderBlocked',
   "this shop's file space is full right now. please ask the shop to finish or clear old orders, then try again": 'errShopSpaceFull',
   'uploads are paused for a short while because the service is very busy. please try again later': 'errServiceBusy',
-  'this order could not be sent. please start a new order': 'errTooManyAttempts'
+  'this order could not be sent. please start a new order': 'errTooManyAttempts',
+  'a pdf can have up to 2000 pages': 'errPdfPages',
+  'dynamic qr needs the pro plan': 'errQrPro',
+  'each file must be under 50 mb': 'errFile50',
+  'file not found': 'errFileNotFound',
+  'more counters need the plus plan': 'errCounterPlus',
+  'counter not found': 'errCounterNotFound',
+  'not signed in': 'errNotSignedIn',
+  'one order can be up to 200 mb in total': 'errOrder200',
+  'some files did not upload completely. please try again': 'errUploadIncomplete',
+  'this shop is getting too many orders right now. please try again in a few minutes': 'errShopBusy',
+  'too many orders from this network. please wait a few minutes and try again': 'errNetworkBusy',
+  'one of the files changed while uploading. please send it again': 'errFileChanged',
+  'one of the files is not a real pdf, photo or office file. please send it again': 'errFileNotReal',
+  'the id card sheet must be one page. please make it again': 'errIdcardOnePage',
+  'this pdf could not be read. please send another copy of it': 'errPdfUnreadable',
+  'orders are temporarily unavailable. please try again shortly': 'errOrdersUnavailable',
+  'this subscription has ended. please start a new one': 'errSubEnded',
+  'this payment is for another shop': 'errPayOtherShop',
+  'payment could not be verified': 'errPayNotVerified',
+  'payment details missing': 'errPayNotVerified',
+  'please log in again': 'errNotSignedIn'
+}
+
+/* Supabase Auth error codes mapped to dictionary keys (the code stays the same when Supabase rewords a message). */
+const AUTH_ERRORS: Record<string, Key> = {
+  weak_password: 'errWeakPassword',
+  email_not_confirmed: 'errEmailNotConfirmed',
+  user_already_exists: 'errUserExists',
+  email_exists: 'errUserExists',
+  invalid_credentials: 'errBadLogin',
+  same_password: 'errSamePassword',
+  over_email_send_rate_limit: 'errTooManyTries',
+  over_request_rate_limit: 'errTooManyTries',
+  over_sms_send_rate_limit: 'errTooManyTries',
+  email_address_invalid: 'errEmailInvalid',
+  signup_disabled: 'errSignupOff',
+  email_provider_disabled: 'errSignupOff'
 }
 
 type Ctx = {
@@ -2130,13 +2227,17 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       if (/permission denied for (table|relation|schema)|jwt expired|invalid jwt|jwt.*(malformed|invalid)/i.test(raw)) return t('errSession')
       const k = SERVER_ERRORS[raw.trim().replace(/\.$/, '').toLowerCase()]
       if (k) return t(k)
-      // Our own messages (raise exception in SQL = P0001, or short plain sentences from our functions) stay readable;
-      // anything else (database / network / library internals) becomes one friendly line, details in the console.
-      const code = String((e as { code?: string } | null)?.code ?? '')
-      if (code === 'P0001') return raw
-      // Supabase Auth's own messages (weak password, email not confirmed, rate limit) are written for people.
-      const ae = e as { name?: string; status?: number } | null
-      if (ae && /^Auth/.test(String(ae.name || '')) && Number(ae.status) >= 400 && Number(ae.status) < 500) return raw
+      const pdf = /^could not read the pages of (.+?)\.?$/i.exec(raw.trim())
+      if (pdf) return t('errPdfRead', { name: pdf[1] })
+      const ft = /^file type not allowed: ([^.]+)\./i.exec(raw.trim())
+      if (ft) return t('errFileType', { ext: ft[1] })
+      // Supabase Auth: pick the line by its error code, never show its English text as is.
+      const ae = e as { name?: string; status?: number; code?: string } | null
+      const ak = AUTH_ERRORS[String(ae?.code || '')]
+      if (ak) return t(ak)
+      if (ae && /^Auth/.test(String(ae.name || '')) && Number(ae.status) === 429) return t('errTooManyTries')
+      // Anything else (an unknown server line, database / network / library internals): one friendly line for
+      // shop owners and customers. The real text goes to the console; the admin panel uses teRaw to see it.
       try { console.error('[PrintQR error]', e) } catch { /* ignore */ }
       return t('errGeneric')
     }

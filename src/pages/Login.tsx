@@ -308,7 +308,15 @@ export default function Login() {
       else return
     } catch (e) {
       const m = String((e as Error)?.message || '')
-      if (m !== 'cancel') setMsg({ text: isCaptchaError(e) ? t('captchaFail') : t('googleFail') + (m && m !== 'google' ? ` (${m.slice(0, 160)})` : ''), error: true })
+      if (m !== 'cancel') {
+        // The real reason goes to the console only; the shop owner sees one plain line.
+        if (m && m !== 'google') { try { console.error('[PrintQR google]', m) } catch { /* ignore */ } }
+        const text = isCaptchaError(e) ? t('captchaFail')
+          : /no_?credential|no credentials available/i.test(m) ? t('googleFailNoAccount')
+          : /reauth/i.test(m) ? t('googleFailReauth')
+          : t('googleFail')
+        setMsg({ text, error: true })
+      }
       setCaptchaReset((n) => n + 1)
     }
     setBusy(false)
