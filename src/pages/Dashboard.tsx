@@ -683,7 +683,11 @@ export default function Dashboard() {
             <span>{t(current.label)}</span>
           </div>
           <div className="bar-title d-only">
-            <h1>{t(current.label)}</h1>
+            {/* Desktop web/Windows: current page as a tab that flows into the page panel (like the app's bar-tab) */}
+            <div className="bar-dtab" aria-current="page">
+              <Icon name={current.icon} size={16} />
+              <h1>{t(current.label)}</h1>
+            </div>
           </div>
           <div className="bar-actions d-only">
             {!staff && openToggle}

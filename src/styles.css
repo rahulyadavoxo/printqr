@@ -2549,16 +2549,27 @@ html:lang(hi) .lpb h2,html:lang(hi) .lpb h3{line-height:1.25}
    the edge, the page in a rounded panel beside it, a status bar at the bottom.
    ===================================================================== */
 .dash-status, .dock-badge { display: none; }
+.bar-dtab { display: contents; }
+.bar-dtab > svg { display: none; }
 @media (min-width: 1024px) {
   html:not(.in-app) body:has(.dash) { background: var(--c-sunken); }
-  html:not(.in-app) .dash { --vs-gap: 6px; --vs-bar: 54px; --vs-top: 44px; --vs-status: 28px; }
+  html:not(.in-app) .dash { --vs-gap: 6px; --vs-bar: 54px; --vs-wide: 220px; --vs-w: var(--vs-bar); --vs-top: 44px; --vs-status: 28px; }
+  html:not(.in-app) .dash.sb-expanded { --vs-w: var(--vs-wide); }
 
   /* title bar: full width, no card */
   html:not(.in-app) .dash .dash-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 62; height: var(--vs-top); margin: 0 !important;
     background: transparent !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; transition: none; }
   html:not(.in-app) .dash .dash-bar .topbar-in { max-width: none; height: var(--vs-top); min-height: var(--vs-top) !important;
-    padding: 0 var(--vs-gap) 0 calc(var(--vs-gap) * 2 + var(--vs-bar)) !important; }
-  html:not(.in-app) .dash .bar-title h1 { font-size: 14px; font-weight: 650; }
+    padding: 0 var(--vs-gap) 0 calc(var(--vs-gap) * 2 + var(--vs-w)) !important; align-items: stretch; transition: padding-left .2s; }
+  html:not(.in-app) .dash .bar-title { display: flex; align-items: flex-end; }
+  /* page tab: rounded top, concave feet, flows into the panel below (covers its top border) */
+  html:not(.in-app) .dash .bar-dtab { position: relative; z-index: 61; display: flex; align-items: center; gap: 8px; height: 36px; margin: 0 0 -1px 10px; padding: 0 16px;
+    background: var(--c-bg); color: var(--c-ink); border: 1px solid var(--c-line); border-bottom: 0; border-radius: 10px 10px 0 0; }
+  html:not(.in-app) .dash .bar-dtab::before, html:not(.in-app) .dash .bar-dtab::after { content: ""; position: absolute; bottom: 0; width: 10px; height: 10px; pointer-events: none; }
+  html:not(.in-app) .dash .bar-dtab::before { left: -11px; background: radial-gradient(circle at 0 0, transparent 9.5px, var(--c-line) 10px, var(--c-bg) 11px); }
+  html:not(.in-app) .dash .bar-dtab::after { right: -11px; background: radial-gradient(circle at 100% 0, transparent 9.5px, var(--c-line) 10px, var(--c-bg) 11px); }
+  html:not(.in-app) .dash .bar-dtab svg { display: block; flex: none; color: var(--c-muted); }
+  html:not(.in-app) .dash .bar-title h1 { font-size: 14px; font-weight: 600; }
   html:not(.in-app) .dash .bar-sub { display: none; }
   html:not(.in-app) .dash .bar-actions { gap: 4px; }
   html:not(.in-app) .dash .bar-actions .bar-btn, html:not(.in-app) .dash .bar-actions .toggle, html:not(.in-app) .dash .bar-actions .avatar-btn { height: 30px; min-height: 30px; }
@@ -2567,31 +2578,37 @@ html:lang(hi) .lpb h2,html:lang(hi) .lpb h3{line-height:1.25}
   html:not(.in-app) .dash .bar-actions .avatar-btn .shop-avatar { width: 22px !important; height: 22px !important; border-radius: 6px; font-size: 11px; }
 
   /* icon bar */
-  html:not(.in-app) .dash .drawer { top: var(--vs-top) !important; bottom: var(--vs-status) !important; left: var(--vs-gap) !important; width: var(--vs-bar) !important;
-    border: 1px solid var(--c-line); border-radius: 8px; box-shadow: none !important; overflow: visible; transition: none; }
-  html:not(.in-app) .dash .drawer-head { position: fixed; top: 0; left: var(--vs-gap); width: var(--vs-bar); height: var(--vs-top); padding: 0; display: grid; place-items: center; background: none; border: 0; }
-  html:not(.in-app) .dash .drawer-head .shop-avatar { width: 26px !important; height: 26px !important; border-radius: 6px; font-size: 12px; box-shadow: none; }
-  html:not(.in-app) .dash .drawer-head .shop-avatar img { border-radius: 6px; }
-  html:not(.in-app) .dash .drawer-title, html:not(.in-app) .dash .drawer-close, html:not(.in-app) .dash .drawer-label,
-  html:not(.in-app) .dash .drawer-foot, html:not(.in-app) .dash .sb-control, html:not(.in-app) .dash .drawer-item .fold,
+  html:not(.in-app) .dash .drawer { top: var(--vs-top) !important; bottom: var(--vs-status) !important; left: var(--vs-gap) !important; width: var(--vs-w) !important;
+    border: 1px solid var(--c-line); border-radius: 8px; box-shadow: none !important; overflow: visible; transition: width .2s cubic-bezier(.2, .8, .2, 1), box-shadow .2s; }
+  html:not(.in-app) .dash.sb-hover .drawer:hover, html:not(.in-app) .dash.sb-hover .drawer:has(:focus-visible), html:not(.in-app) .dash.sb-hover.sb-pinned .drawer {
+    width: var(--vs-wide) !important; box-shadow: var(--sh-3) !important; z-index: 70; }
+  html:not(.in-app) .dash .drawer-head, html:not(.in-app) .dash .drawer-label,
+  html:not(.in-app) .dash .drawer-foot, html:not(.in-app) .dash .drawer-item .fold,
   html:not(.in-app) .dash .drawer-item span { display: none !important; }
+  html:not(.in-app) .dash .drawer-nav { overflow: hidden !important; }
+  html:not(.in-app) .dash.sb-expanded .drawer-item span, html:not(.in-app) .dash.sb-hover .drawer:hover .drawer-item span,
+  html:not(.in-app) .dash.sb-hover .drawer:has(:focus-visible) .drawer-item span, html:not(.in-app) .dash.sb-hover.sb-pinned .drawer-item span {
+    display: inline !important; opacity: 1 !important; white-space: nowrap; font-size: 14.5px; }
+  html:not(.in-app) .dash .sb-control { display: flex; justify-content: center; padding: 4px 0 8px; }
+  html:not(.in-app) .dash .sb-btn { width: 40px; height: 34px; }
+  html:not(.in-app) .dash .sb-pop { left: 0; bottom: 46px; }
   html:not(.in-app) .dash .drawer-nav { flex: 1; display: flex; flex-direction: column; padding: 4px 0 !important; overflow: visible; }
   html:not(.in-app) .dash .drawer-group { margin: 0; padding: 0; background: none !important; }
   html:not(.in-app) .dash .drawer-group:last-child { margin-top: auto; }
-  html:not(.in-app) .dash .drawer-item { position: relative; isolation: isolate; width: 100%; height: 55px; min-height: 55px; padding: 0 !important; justify-content: center;
+  html:not(.in-app) .dash .drawer-item { position: relative; isolation: isolate; width: 100%; height: 55px; min-height: 55px; padding: 0 0 0 13px !important; justify-content: flex-start; gap: 14px;
     border-radius: 0; background: none !important; color: var(--c-muted); overflow: visible; }
   html:not(.in-app) .dash .drawer-item:hover { color: var(--c-ink); }
-  html:not(.in-app) .dash .drawer-item svg { width: 26px; height: 26px; }
+  html:not(.in-app) .dash .drawer-item svg { flex: none; width: 26px; height: 26px; }
   html:not(.in-app) .dash .drawer-item.on { color: var(--c-ink); }
   html:not(.in-app) .dash .drawer-item.on::before { content: ""; position: absolute; left: -1px; top: 10px; bottom: 10px; width: 2px; border-radius: 0 2px 2px 0; background: var(--c-ink); }
   html:not(.in-app) .dash .drawer-item.on::after { content: ""; position: absolute; inset: 7px; z-index: -1; border-radius: 8px; background: var(--c-lime); opacity: .4; }
-  html:not(.in-app) .dash .dock-badge { display: grid; place-items: center; position: absolute; right: 7px; bottom: 7px; min-width: 16px; height: 16px; padding: 0 4px;
+  html:not(.in-app) .dash .dock-badge { display: grid; place-items: center; position: absolute; left: 33px; top: 33px; min-width: 16px; height: 16px; padding: 0 4px;
     border-radius: 8px; background: var(--c-ink); color: var(--c-lime); font-size: 10px; font-weight: 800; line-height: 1; }
 
   /* page panel */
-  html:not(.in-app) .dash .dash-main { position: fixed; top: var(--vs-top); bottom: var(--vs-status); left: calc(var(--vs-gap) * 2 + var(--vs-bar)); right: var(--vs-gap);
+  html:not(.in-app) .dash .dash-main { position: fixed; top: var(--vs-top); bottom: var(--vs-status); left: calc(var(--vs-gap) * 2 + var(--vs-w)); right: var(--vs-gap);
     margin: 0 !important; max-width: none; overflow-y: auto; overscroll-behavior: contain; background: var(--c-bg);
-    border: 1px solid var(--c-line); border-radius: 8px; padding: 16px 20px 24px !important; transition: none; }
+    border: 1px solid var(--c-line); border-radius: 8px; padding: 16px 20px 24px !important; transition: left .2s cubic-bezier(.2, .8, .2, 1); }
   html:not(.in-app) .dash .dash-main > :first-child, html:not(.in-app) .dash .dash-main > .card:first-child { margin-top: 0; }
 
   /* status bar */
