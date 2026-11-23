@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Key, useI18n } from '../lib/i18n'
 import { LangToggle, LogoMark, Wordmark } from '../components/TopBar'
 import { AppDownloadButton } from '../components/AppDownload'
+import UploadPreview from '../components/UploadPreview'
 
 /* Landing design "duo" (admin picks it in Settings -> Landing page design). All styles are under `.lpd`. */
 
@@ -145,7 +146,7 @@ export default function LandingDuo() {
       <main id="lpd-top">
         <div className="lpd-duo">
           <div {...panel('c', 'ldForCustomers')}>
-            <div className="lpd-peek" aria-hidden="true"><i>←</i><span>{t('ldPeekCustomer')}</span><em>{t('ldPeekHint')}</em></div>
+            <div className="lpd-peek" aria-hidden="true"><i>→</i><span>{t('ldPeekCustomer')}</span><em>{t('ldPeekHint')}</em></div>
             <div className="lpd-body">
               <div>
                 <span className="lpd-tag">{t('ldForCustomers')}</span>
@@ -162,14 +163,7 @@ export default function LandingDuo() {
               </div>
               <div className="lpd-mp" aria-hidden="true">
                 <div className="lpd-phone">
-                  <div className="lpd-scr">
-                    <div className="lpd-pt"><b>print</b><span>Sharma Xerox</span></div>
-                    <h4>{t('ldPhUpload')}</h4>
-                    <div className="lpd-pf">Notes_Unit3.pdf<small>{t('ldPhPages')}</small><div className="lpd-bar"><i /></div></div>
-                    <div className="lpd-po"><div className="on">{t('ldPhBw')}</div><div>{t('ldPhColour')}</div></div>
-                    <div className="lpd-pf lpd-pf-total"><span>{t('ldPhTotal')}</span><b>₹48</b></div>
-                    <div className="lpd-pay">{t('ldPhPay')}</div>
-                  </div>
+                  <div className="lpd-scr"><UploadPreview /></div>
                 </div>
                 <div className="lpd-chipf"><i>✓</i>{t('ldOrderSent')}</div>
               </div>

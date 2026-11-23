@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Key, useI18n } from '../lib/i18n'
 import { LangToggle, LogoMark, Wordmark } from '../components/TopBar'
 import { AppDownloadButton } from '../components/AppDownload'
+import UploadPreview from '../components/UploadPreview'
 
 /* Landing design "bold" (admin picks it in Settings -> Landing page design): big "Scan. Upload. Print."
    headline, animated live-queue scene, marquee, 3 steps, bento tiles, customer/shop cards, FAQ.
@@ -109,14 +110,7 @@ export default function LandingBold() {
                   <div className="row"><div className="ic">PDF</div><div>Form_Aadhaar.pdf<small>{t('ldM4')}</small></div><div className="ch"><span className="chip q">{t('ldStQueued')}</span></div></div>
                 </div>
               </div>
-              <div className="lpb-phone"><div className="ps">
-                <div className="pt"><b>print</b><span>Sharma Xerox</span></div>
-                <h4>{t('ldPhUpload')}</h4>
-                <div className="pf">Notes_Unit3.pdf<small>{t('ldPhPages')}</small><div className="bar"><i /></div></div>
-                <div className="po"><div className="on">{t('ldPhBw')}</div><div>{t('ldPhColour')}</div></div>
-                <div className="pf tot"><span>{t('ldPhTotal')}</span><b>₹48</b></div>
-                <div className="pay">{t('ldPhPay')}</div>
-              </div></div>
+              <div className="lpb-phone"><div className="ps"><UploadPreview /></div></div>
               <div className="lpb-fly"><i>PDF</i>{t('ldOrderSent')}</div>
               <div className="lpb-qrc">{QR_SVG}{t('lbScanToPrint')}</div>
             </div>
