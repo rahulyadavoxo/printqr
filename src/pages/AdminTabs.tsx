@@ -539,11 +539,22 @@ export function AdminSettings({ onMsg, onSaveSlot }: { onMsg: Msg; onSaveSlot?: 
     })
   }, [onMsg, teRaw])
 
+  // Phone: leaving a setting's page without saving (on-screen Back, Android/browser back, or another row)
+  // drops that page's unsaved edits, back to the last saved values. Computer (one card) keeps every edit.
+  const leftRef = useRef({ phone, sec })
+  useEffect(() => {
+    const was = leftRef.current
+    leftRef.current = { phone, sec }
+    if (was.phone && phone && was.sec && was.sec !== sec && orig) setS(orig)
+  }, [phone, sec, orig])
+
   const dirty = !!s && !!orig && JSON.stringify(s) !== JSON.stringify(orig)
+  // Phone: Save only on a setting's page that has changes (never on the list).
+  const showSave = dirty && (!phone || !!sec)
   useEffect(() => {
     // requestSubmit keeps the form's own checks (e.g. version pattern) and the maintenance confirm.
-    onSaveSlot?.(dirty ? { run: () => formRef.current?.requestSubmit(), busy } : null)
-  }, [dirty, busy, onSaveSlot])
+    onSaveSlot?.(showSave ? { run: () => formRef.current?.requestSubmit(), busy } : null)
+  }, [showSave, busy, onSaveSlot])
   useEffect(() => () => onSaveSlot?.(null), [onSaveSlot])
 
   const backBtn = sec && (
@@ -650,7 +661,7 @@ export function AdminSettings({ onMsg, onSaveSlot }: { onMsg: Msg; onSaveSlot?: 
     )
   }
 
-  // Phone: the form stays mounted on the hub too, so the bottom-bar Save works for edits made on any page.
+  // Phone: the form stays mounted on the hub too; unsaved edits are dropped when a page is left (see leftRef).
   const title = sec && SET_SECS.find(([k]) => k === sec)![2]
   return (
     <form ref={formRef} onSubmit={save}>
@@ -675,7 +686,7 @@ function AdminSetHub({ t, s, onOpen }: { t: ReturnType<typeof useI18n>['t']; s?:
       case 'announcement': return onOff(!!(s.announcement || '').trim() || !!(s.announcement_hi || '').trim())
       case 'popup': return <span className="set-val">{t('admSetSecs', { n: String(s.announcement_secs ?? 8) })}</span>
       case 'maintenance': return onOff(!!s.maintenance, true)
-      case 'minversion': return <span className="set-val">{s.min_app_version || t('admSetNoLimit')}</span>
+      case 'minversion': return <span className="set-val adm-set-minv">{s.min_app_version || t('admSetNoLimit')}</span>
       case 'freecounters': return <span className="set-val">{s.free_counter_limit}</span>
       default: return null
     }

@@ -1655,6 +1655,10 @@ img.shop-avatar { object-fit: cover; padding: 0; }
 .set-back { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 10px -4px; padding: 6px 8px 6px 2px; border: none; background: none; font: inherit; font-size: 16px; font-weight: 700; color: var(--c-ink-2); cursor: pointer; border-radius: var(--r-sm); }
 /* Admin phone Settings hub: on/off badge beside a row (Off grey, Maintenance on red) */
 .adm-set-badge { flex: none; }
+/* Admin hub rows: the title stays whole on one line; a value that does not fit shrinks with … instead */
+.adm-set-hub .set-lbl { flex: 1 0 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm-set-hub .set-val { flex: 0 100 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm-set-hub .adm-set-minv { margin-left: -8px; } /* long title: a little closer so a version like 1.5.122 fits whole at 390px */
 .adm-set-badge.is-off { background: var(--c-sunken); color: var(--c-ink-2); }
 .adm-set-badge.is-warn { background: var(--c-red-bg); color: var(--c-red-ink); }
 
