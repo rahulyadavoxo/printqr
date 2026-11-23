@@ -27,6 +27,7 @@ const PATHS: Record<string, ReactElement> = {
   plus: <path d="M12 5v14M5 12h14" />,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
   back: <path d="M19 12H5M11 6l-6 6 6 6" />,
+  orders: <><path d="M4.5 6.5V19a2.5 2.5 0 0 0 2.5 2.5h6" /><path d="M13.5 18H10a2 2 0 0 1-2-2V4.5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2V13" /><path d="M11 6.9l.7.7 1.3-1.4M15 7.2h2M11 11.4l.7.7 1.3-1.4M15 11.7h2M11 15.4l.7.7 1.3-1.4" /><circle cx="18.5" cy="18.5" r="3.5" /><path d="M17.1 18.6l.9.9 1.7-1.8" /></>,
   bell: <path d="M6 14.5v-5a6 6 0 0 1 12 0v5l2 2H4zM10 18.5a2 2 0 0 0 4 0" />,
   image: <path d="M4 5h16v14H4zM4 16l5-5 4 4 2-2 5 5M15.5 9.5h.01" />,
   user: <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0" />,

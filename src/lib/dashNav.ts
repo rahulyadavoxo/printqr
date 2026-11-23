@@ -4,7 +4,7 @@ import type { Key } from './i18n'
 export type Tab = 'orders' | 'rates' | 'qr' | 'edit' | 'report' | 'settings' | 'plan'
 
 export const TABS: { id: Tab; label: Key; icon: string }[] = [
-  { id: 'orders', label: 'tabOrders', icon: 'inbox' },
+  { id: 'orders', label: 'tabOrders', icon: 'orders' },
   { id: 'rates', label: 'tabRates', icon: 'rupee' },
   { id: 'qr', label: 'tabQr', icon: 'qr' },
   { id: 'edit', label: 'tabEdit', icon: 'scan' },

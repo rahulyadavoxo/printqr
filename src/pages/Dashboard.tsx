@@ -306,7 +306,7 @@ function NotifyMenu({ active, paperLow, paperN, blocked, onGo }: { active: numbe
   const push = pushState()
   const items: { icon: string; text: string; tab?: Tab; warn?: boolean }[] = []
   if (blocked) items.push({ icon: 'alert', text: t('blockedTitle'), warn: true })
-  if (active > 0) items.push({ icon: 'inbox', text: `${t('dActive')}: ${active}`, tab: 'orders' })
+  if (active > 0) items.push({ icon: 'orders', text: `${t('dActive')}: ${active}`, tab: 'orders' })
   if (paperLow) items.push({ icon: 'alert', text: t('paperLow', { n: paperN }), tab: 'settings', warn: true })
   const badge = items.length
   if (push === 'blocked') items.push({ icon: 'bell', text: t('pushBlockedPc') })
