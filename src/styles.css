@@ -2548,11 +2548,23 @@ html:lang(hi) .lpb h2,html:lang(hi) .lpb h3{line-height:1.25}
    VS Code style shell. Thin title bar on top, a 54px icon bar inset 6px from
    the edge, the page in a rounded panel beside it, a status bar at the bottom.
    ===================================================================== */
-.dash-status, .dock-badge { display: none; }
+.dash-status, .dock-badge, .bar-logo { display: none; }
+.notif-btn { position: relative; }
+.notif-badge { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #d92d20; color: #fff;
+  font-size: 10.5px; font-weight: 800; line-height: 16px; text-align: center; }
+.notif-menu { min-width: 290px; }
+.notif-menu button { white-space: normal !important; align-items: flex-start !important; line-height: 1.35; }
+.notif-menu button:disabled { cursor: default; opacity: 1; color: var(--c-muted); }
+.notif-menu button:disabled:hover { background: none; }
+.notif-menu button.warn { color: #b42318; }
+.notif-menu button svg { flex: none; margin-top: 1px; }
+.notif-none { margin: 0; padding: 10px; font-size: 14px; color: var(--c-muted); }
 .bar-dtab { display: contents; }
 .bar-dtab > svg { display: none; }
 @media (min-width: 1024px) {
-  html:not(.in-app) body:has(.dash) { background: var(--c-sunken); }
+  html:not(.in-app) body:has(.dash) { background: var(--c-bg); }
+  html:not(.in-app) .dash { --vs-panel: var(--c-surface); }
+  html:not(.in-app) .dash .bar-logo { display: grid; place-items: center; position: absolute; top: 0; left: var(--vs-gap); width: var(--vs-bar); height: var(--vs-top); }
   html:not(.in-app) .dash { --vs-gap: 6px; --vs-bar: 54px; --vs-wide: 220px; --vs-w: var(--vs-bar); --vs-top: 44px; --vs-status: 28px; }
   html:not(.in-app) .dash.sb-expanded { --vs-w: var(--vs-wide); }
 
@@ -2563,11 +2575,11 @@ html:lang(hi) .lpb h2,html:lang(hi) .lpb h3{line-height:1.25}
     padding: 0 var(--vs-gap) 0 calc(var(--vs-gap) * 2 + var(--vs-w)) !important; align-items: stretch; transition: padding-left .2s; }
   html:not(.in-app) .dash .bar-title { display: flex; align-items: flex-end; }
   /* page tab: rounded top, concave feet, flows into the panel below (covers its top border) */
-  html:not(.in-app) .dash .bar-dtab { position: relative; z-index: 61; display: flex; align-items: center; gap: 8px; height: 36px; margin: 0 0 -1px 10px; padding: 0 16px;
-    background: var(--c-bg); color: var(--c-ink); border: 1px solid var(--c-line); border-bottom: 0; border-radius: 10px 10px 0 0; }
+  html:not(.in-app) .dash .bar-dtab { position: relative; z-index: 61; display: flex; align-items: center; gap: 8px; height: 36px; margin: 0 0 -1px 21px; padding: 0 16px;
+    background: var(--vs-panel); color: var(--c-ink); border: 1px solid var(--c-line); border-bottom: 0; border-radius: 10px 10px 0 0; }
   html:not(.in-app) .dash .bar-dtab::before, html:not(.in-app) .dash .bar-dtab::after { content: ""; position: absolute; bottom: 0; width: 10px; height: 10px; pointer-events: none; }
-  html:not(.in-app) .dash .bar-dtab::before { left: -11px; background: radial-gradient(circle at 0 0, transparent 9.5px, var(--c-line) 10px, var(--c-bg) 11px); }
-  html:not(.in-app) .dash .bar-dtab::after { right: -11px; background: radial-gradient(circle at 100% 0, transparent 9.5px, var(--c-line) 10px, var(--c-bg) 11px); }
+  html:not(.in-app) .dash .bar-dtab::before { left: -11px; background: radial-gradient(circle at 0 0, transparent 9.5px, var(--c-line) 10px, var(--vs-panel) 11px); }
+  html:not(.in-app) .dash .bar-dtab::after { right: -11px; background: radial-gradient(circle at 100% 0, transparent 9.5px, var(--c-line) 10px, var(--vs-panel) 11px); }
   html:not(.in-app) .dash .bar-dtab svg { display: block; flex: none; color: var(--c-muted); }
   html:not(.in-app) .dash .bar-title h1 { font-size: 14px; font-weight: 600; }
   html:not(.in-app) .dash .bar-sub { display: none; }
@@ -2607,7 +2619,7 @@ html:lang(hi) .lpb h2,html:lang(hi) .lpb h3{line-height:1.25}
 
   /* page panel */
   html:not(.in-app) .dash .dash-main { position: fixed; top: var(--vs-top); bottom: var(--vs-status); left: calc(var(--vs-gap) * 2 + var(--vs-w)); right: var(--vs-gap);
-    margin: 0 !important; max-width: none; overflow-y: auto; overscroll-behavior: contain; background: var(--c-bg);
+    margin: 0 !important; max-width: none; overflow-y: auto; overscroll-behavior: contain; background: var(--vs-panel);
     border: 1px solid var(--c-line); border-radius: 8px; padding: 16px 20px 24px !important; transition: left .2s cubic-bezier(.2, .8, .2, 1); }
   html:not(.in-app) .dash .dash-main > :first-child, html:not(.in-app) .dash .dash-main > .card:first-child { margin-top: 0; }
 

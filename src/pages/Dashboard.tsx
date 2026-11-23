@@ -299,6 +299,40 @@ function usePopover() {
 }
 
 /** Shows only the current theme; hover or tap to pick Light / Dark / Auto. */
+/** Desktop web/Windows: bell next to "Shop open" with what needs the owner's attention. */
+function NotifyMenu({ active, paperLow, paperN, blocked, onGo }: { active: number; paperLow: boolean; paperN: number; blocked: boolean; onGo: (t: Tab) => void }) {
+  const { t } = useI18n()
+  const p = usePopover()
+  const push = pushState()
+  const items: { icon: string; text: string; tab?: Tab; warn?: boolean }[] = []
+  if (blocked) items.push({ icon: 'alert', text: t('blockedTitle'), warn: true })
+  if (active > 0) items.push({ icon: 'inbox', text: `${t('dActive')}: ${active}`, tab: 'orders' })
+  if (paperLow) items.push({ icon: 'alert', text: t('paperLow', { n: paperN }), tab: 'settings', warn: true })
+  const badge = items.length
+  if (push === 'blocked') items.push({ icon: 'bell', text: t('pushBlockedPc') })
+  else if (push === 'pending') items.push({ icon: 'bell', text: t('pushNotReady') })
+  return (
+    <div className="pop-wrap notif-wrap" ref={p.ref}>
+      <button type="button" className="bar-btn notif-btn" onClick={() => p.setOpen((v) => !v)} aria-label={t('notifTitle')} aria-expanded={p.open} title={t('notifTitle')}>
+        <Icon name="bell" size={18} />
+        {badge > 0 && <span className="notif-badge">{badge}</span>}
+      </button>
+      {p.open && (
+        <div className="pop-menu notif-menu" role="menu">
+          <div className="pop-title">{t('notifTitle')}</div>
+          {items.length === 0 && <p className="notif-none">{t('notifNone')}</p>}
+          {items.map((x, i) => (
+            <button key={i} type="button" role="menuitem" className={x.warn ? 'warn' : ''} disabled={!x.tab}
+              onClick={() => { if (x.tab) { onGo(x.tab); p.setOpen(false) } }}>
+              <Icon name={x.icon} size={16} /> <span>{x.text}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ThemeMenu() {
   const { t } = useI18n()
   const { pref, setTheme } = useTheme()
@@ -675,6 +709,8 @@ export default function Dashboard() {
           <button type="button" className="menu-btn" onClick={() => setMenu(true)} aria-label={t('menu')} aria-expanded={menu}>
             <Icon name="menu" size={24} />
           </button>
+          {/* Desktop web/Windows: logo in the top-left corner, above the icon bar */}
+          {!IN_APP && <span className="bar-logo"><LogoMark size={28} /></span>}
           {/* Android app only: animated print-shop story in the empty space of the phone bar */}
           {IN_APP && <BarStory />}
           {/* Phone/tablet: current page as a Supabase-style tab on the right of the bar */}
@@ -691,6 +727,7 @@ export default function Dashboard() {
           </div>
           <div className="bar-actions d-only">
             {!staff && openToggle}
+            {!IN_APP && <NotifyMenu active={activeCount ?? 0} paperLow={!!paperLow} paperN={Number(shop.paper_sheets)} blocked={!!shop.blocked} onGo={go} />}
             <LangMenu />
             <ThemeMenu />
             <ProfileMenu shop={shop} onSettings={staff ? undefined : () => go('settings')} onLogout={logout}
@@ -778,7 +815,7 @@ export default function Dashboard() {
       {!IN_APP && (
         <footer className="dash-status no-print" aria-label={t('menu')}>
           {!staff && <span className={shop.is_open ? 'is-on' : 'is-off'}>{shop.is_open ? t('shopOpen') : t('shopClosed')}</span>}
-          <span>{t('dActive')}: {activeCount}</span>
+          <span>{t('dActive')}: {activeCount ?? 0}</span>
           {!staff && ready && <span className="end">{planLabel}</span>}
         </footer>
       )}
