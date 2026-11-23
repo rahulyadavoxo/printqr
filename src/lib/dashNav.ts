@@ -10,7 +10,7 @@ export const TABS: { id: Tab; label: Key; icon: string }[] = [
   { id: 'edit', label: 'tabEdit', icon: 'scan' },
   { id: 'report', label: 'tabReport', icon: 'chart' },
   { id: 'settings', label: 'tabSettings', icon: 'settings' },
-  { id: 'plan', label: 'tabPlan', icon: 'star' }
+  { id: 'plan', label: 'tabPlan', icon: 'plans' }
 ]
 
 /** Android app and Android web: bottom bar, left to right (Orders in the centre, Settings on the right). */
