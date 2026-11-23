@@ -78,12 +78,29 @@ function AnnPopup({ note, secs }: { note: string; secs: number }) {
   return (
     <div className="ann-pop-wrap" onPointerDown={hold(true)} onPointerUp={hold(false)} onPointerCancel={hold(false)} onPointerLeave={hold(false)}>
       <div className="ann-pop" role="dialog" aria-modal="true" aria-labelledby="ann-pop-title">
-        <div className="ann-pop-ico" aria-hidden="true"><Icon name="info" size={24} /></div>
-        <h2 id="ann-pop-title">{t('annTitle')}</h2>
-        <p>{note}</p>
-        <button type="button" className="btn btn-primary ann-pop-ok" onPointerDown={(e) => e.stopPropagation()} onClick={() => setOpen(false)}>{t('annOk')}</button>
         <div className="ann-pop-bar" aria-hidden="true"><i style={{ width: `${(left / total) * 100}%` }} /></div>
-        <div className="small muted ann-pop-hint">{t('annHold')} · {Math.ceil(left / 1000)}s</div>
+        <div className="ann-pop-head">
+          <div className="ann-pop-ico" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 10v4h3.5l6.5 4V6L7.5 10H4Z" /><path d="M7.2 14.5l1.1 4.2" /><path d="M17 9.5a3.5 3.5 0 0 1 0 5" /><path d="M19.5 7a7 7 0 0 1 0 10" />
+            </svg>
+          </div>
+          <div className="ann-pop-who">
+            <h2 id="ann-pop-title">{t('annTitle')}</h2>
+            <span>{t('annNow')}</span>
+          </div>
+          <button type="button" className="ann-pop-x" aria-label={t('annClose')} onPointerDown={(e) => e.stopPropagation()} onClick={() => setOpen(false)}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M2 2l10 10M12 2L2 12" /></svg>
+          </button>
+        </div>
+        <p>{note}</p>
+        <button type="button" className="ann-pop-ok" onPointerDown={(e) => e.stopPropagation()} onClick={() => setOpen(false)}>
+          <span className="ann-pop-chk" aria-hidden="true">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 6.2l2.5 2.5 4.5-5" /></svg>
+          </span>
+          {t('annOk')}
+        </button>
+        <div className="ann-pop-hint"><span className="ann-pop-pause" aria-hidden="true"><i /><i /></span>{t('annHold')} · {Math.ceil(left / 1000)}s</div>
       </div>
     </div>
   )
