@@ -1,4 +1,6 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { FormEvent, Fragment, ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import Icon from '../components/Icon'
 import { supabase } from '../lib/supabase'
 import { useI18n } from '../lib/i18n'
 import { routeHref } from '../lib/router'
@@ -484,12 +486,49 @@ export function AdminSpam({ onMsg, onChanged }: { onMsg: Msg; onChanged: () => v
 /** Save button in the admin bottom bar: shown in place of the tab's icon only while the tab has unsaved changes. */
 export type SaveSlot = { run: () => void; busy: boolean } | null
 
+type SetSec = 'announcement' | 'popup' | 'maintenance' | 'minversion' | 'freecounters' | 'login' | 'landing'
+/** Phone Settings hub (like the shop owner's Settings): groups of rows; each row opens its own page (?s=<key>). */
+const SET_GROUPS: [Key, [SetSec, string, Key][]][] = [
+  ['admSetGrpAnn', [['announcement', 'bell', 'admSetAnn'], ['popup', 'clock', 'admSetPopup']]],
+  ['admSetGrpApp', [['maintenance', 'alert', 'admSetMaint'], ['minversion', 'phone', 'admMinVersion']]],
+  ['admSetGrpPlans', [['freecounters', 'qr', 'admSetFree']]],
+  ['admSetGrpDesign', [['login', 'lock', 'admLoginDesign'], ['landing', 'image', 'admLandingDesign']]]
+]
+const SET_SECS = SET_GROUPS.flatMap(([, rows]) => rows)
+const isSetSec = (v: string | null): v is SetSec => !!v && SET_SECS.some(([k]) => k === v)
+
+/** Same breakpoint as the admin phone bar (AdminShell / .adm-bar). */
+function useAdminPhone() {
+  const q = '(max-width: 1023.98px)'
+  const [m, setM] = useState(() => typeof window !== 'undefined' && window.matchMedia(q).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(q)
+    const sync = () => setM(mq.matches)
+    sync()
+    mq.addEventListener?.('change', sync)
+    return () => mq.removeEventListener?.('change', sync)
+  }, [])
+  return m
+}
+
 export function AdminSettings({ onMsg, onSaveSlot }: { onMsg: Msg; onSaveSlot?: (slot: SaveSlot) => void }) {
   const { t, teRaw } = useI18n()
   const [s, setS] = useState<AppSettings | null>(null)
   const [orig, setOrig] = useState<AppSettings | null>(null)
   const [busy, setBusy] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
+  // Phone: grouped list; ?s=<section> opens one setting as its own page (Back / Android back returns).
+  const phone = useAdminPhone()
+  const [params, setParams] = useSearchParams()
+  const nav = useNavigate()
+  const sp = params.get('s')
+  const sec: SetSec | null = phone && isSetSec(sp) ? sp : null
+  const openSec = (k: SetSec) => { setParams((p) => { const q = new URLSearchParams(p); q.set('s', k); return q }); window.scrollTo(0, 0) }
+  const back = () => {
+    // Opened straight from a link (no in-app history entry): replace instead of leaving the page.
+    if ((window.history.state as { idx?: number } | null)?.idx) nav(-1)
+    else setParams((p) => { const q = new URLSearchParams(p); q.delete('s'); return q }, { replace: true })
+  }
 
   useEffect(() => {
     supabase.rpc('get_app_settings').then(({ data, error }) => {
@@ -507,11 +546,25 @@ export function AdminSettings({ onMsg, onSaveSlot }: { onMsg: Msg; onSaveSlot?: 
   }, [dirty, busy, onSaveSlot])
   useEffect(() => () => onSaveSlot?.(null), [onSaveSlot])
 
-  if (!s) return <SkelForm n={5} />
+  const backBtn = sec && (
+    <button type="button" className="set-back" onClick={back}><Icon name="chevl" size={22} /> {t('admSettings')}</button>
+  )
+  if (!s) {
+    if (!phone) return <SkelForm n={5} />
+    if (sec) return <section aria-busy="true">{backBtn}<SkelForm n={2} /></section>
+    return <AdminSetHub t={t} onOpen={openSec} />
+  }
   const set = (patch: Partial<AppSettings>) => setS({ ...s, ...patch })
 
   const save = async (e: FormEvent) => {
     e.preventDefault()
+    // The version field may not be on screen (phone: another setting's page), so check its pattern here too.
+    if (s.min_app_version && !/^\d+\.\d+\.\d+$/.test(s.min_app_version)) {
+      if (phone && sec !== 'minversion') openSec('minversion')
+      else document.getElementById('set-minv')?.focus()
+      onMsg({ text: t('admSetBadVersion'), error: true })
+      return
+    }
     if (s.maintenance && !await askConfirm(t('admMaintAsk'))) return
     setBusy(true)
     onMsg(null)
@@ -525,31 +578,34 @@ export function AdminSettings({ onMsg, onSaveSlot }: { onMsg: Msg; onSaveSlot?: 
     onMsg({ text: t('saved') })
   }
 
-  return (
-    <form ref={formRef} className="card admin-settings" onSubmit={save}>
-      <h2 className="admin-sec">{t('admSettings')}</h2>
-
+  const fields: Record<SetSec, ReactNode> = {
+    announcement: (<>
       <label htmlFor="set-ann">{t('admAnnouncement')}</label>
       <textarea id="set-ann" rows={2} maxLength={300} value={s.announcement || ''} onChange={(e) => set({ announcement: e.target.value })} placeholder={t('admAnnouncementPh')} />
       <label htmlFor="set-ann-hi">{t('admAnnouncementHi')}</label>
       <textarea id="set-ann-hi" rows={2} maxLength={300} value={s.announcement_hi || ''} onChange={(e) => set({ announcement_hi: e.target.value })} />
       <p className="small muted">{t('admAnnouncementHint')}</p>
+    </>),
+    popup: (<>
       <label htmlFor="set-ann-secs">{t('admAnnSecs')}</label>
       <input id="set-ann-secs" type="number" min={3} max={120} value={s.announcement_secs ?? 8} onChange={(e) => set({ announcement_secs: Math.max(3, Math.min(120, Math.floor(Number(e.target.value) || 8))) })} />
       <p className="small muted">{t('admAnnSecsHint')}</p>
-
+    </>),
+    maintenance: (<>
       <label className="admin-check">
         <input type="checkbox" checked={s.maintenance} onChange={(e) => set({ maintenance: e.target.checked })} />
         <span>{t('admMaintenance')}</span>
       </label>
       <input type="text" maxLength={300} value={s.maintenance_msg || ''} onChange={(e) => set({ maintenance_msg: e.target.value })} placeholder={t('maintDefault')} aria-label={t('admMaintMsg')} />
       <p className="small muted">{t('admMaintHint')}</p>
-
+    </>),
+    minversion: (<>
       <label htmlFor="set-minv">{t('admMinVersion')}</label>
       <input id="set-minv" type="text" inputMode="decimal" pattern="\d+\.\d+\.\d+" placeholder="1.5.19" value={s.min_app_version || ''} onChange={(e) => set({ min_app_version: e.target.value.trim() })} />
       <p className="small muted">{t('admMinVersionHint')}</p>
-
-      <p className="admin-sub-label"><b>{t('admLoginDesign')}</b></p>
+    </>),
+    login: (<>
+      {!phone && <p className="admin-sub-label"><b>{t('admLoginDesign')}</b></p>}
       {LOGIN_PLATFORMS.map((p) => (
         <div key={p}>
           <label htmlFor={`set-login-${p}`}>{t(LOGIN_PLATFORM_LABEL[p])}</label>
@@ -560,8 +616,9 @@ export function AdminSettings({ onMsg, onSaveSlot }: { onMsg: Msg; onSaveSlot?: 
         </div>
       ))}
       <p className="small muted">{t('admLoginDesignHint')}</p>
-
-      <p className="admin-sub-label"><b>{t('admLandingDesign')}</b></p>
+    </>),
+    landing: (<>
+      {!phone && <p className="admin-sub-label"><b>{t('admLandingDesign')}</b></p>}
       {LOGIN_PLATFORMS.map((p) => (
         <div key={p}>
           <label htmlFor={`set-landing-${p}`}>{t(LOGIN_PLATFORM_LABEL[p])}</label>
@@ -572,12 +629,78 @@ export function AdminSettings({ onMsg, onSaveSlot }: { onMsg: Msg; onSaveSlot?: 
         </div>
       ))}
       <p className="small muted">{t('admLandingDesignHint')}</p>
-
+    </>),
+    freecounters: (<>
       <label htmlFor="set-fcl">{t('admFreeCounters')}</label>
       <input id="set-fcl" type="number" min={0} max={20} value={s.free_counter_limit} onChange={(e) => set({ free_counter_limit: Math.max(0, Math.min(20, Math.floor(Number(e.target.value) || 0))) })} />
       <p className="small muted">{t('admPricesHint', { m: '₹49', y: '₹539' })}</p>
+    </>)
+  }
+  const saveBtn = <button type="submit" className="btn primary" disabled={busy}>{busy ? t('pleaseWait') : t('save')}</button>
 
-      <button type="submit" className="btn primary" disabled={busy}>{busy ? t('pleaseWait') : t('save')}</button>
+  // Computer: one card with every setting, same order as before.
+  if (!phone) {
+    const order: SetSec[] = ['announcement', 'popup', 'maintenance', 'minversion', 'login', 'landing', 'freecounters']
+    return (
+      <form ref={formRef} className="card admin-settings" onSubmit={save}>
+        <h2 className="admin-sec">{t('admSettings')}</h2>
+        {order.map((k) => <Fragment key={k}>{fields[k]}</Fragment>)}
+        {saveBtn}
+      </form>
+    )
+  }
+
+  // Phone: the form stays mounted on the hub too, so the bottom-bar Save works for edits made on any page.
+  const title = sec && SET_SECS.find(([k]) => k === sec)![2]
+  return (
+    <form ref={formRef} onSubmit={save}>
+      {sec ? (<>
+        {backBtn}
+        <div className="card admin-settings">
+          <h2 className="admin-sec">{t(title as Key)}</h2>
+          {fields[sec]}
+          {saveBtn}
+        </div>
+      </>) : <AdminSetHub t={t} s={s} onOpen={openSec} />}
     </form>
+  )
+}
+
+/** The grouped list. Without settings yet (loading): same rows, shimmer where the current values go. */
+function AdminSetHub({ t, s, onOpen }: { t: ReturnType<typeof useI18n>['t']; s?: AppSettings; onOpen: (k: SetSec) => void }) {
+  const onOff = (on: boolean, warn = false) => <span className={`pro-badge adm-set-badge${on ? (warn ? ' is-warn' : '') : ' is-off'}`}>{t(on ? 'admSetOn' : 'admSetOff')}</span>
+  const value = (k: SetSec): ReactNode => {
+    if (!s) return k === 'login' || k === 'landing' ? null : <span className="skel" style={{ width: 44, height: 14, flex: 'none' }} />
+    switch (k) {
+      case 'announcement': return onOff(!!(s.announcement || '').trim() || !!(s.announcement_hi || '').trim())
+      case 'popup': return <span className="set-val">{t('admSetSecs', { n: String(s.announcement_secs ?? 8) })}</span>
+      case 'maintenance': return onOff(!!s.maintenance, true)
+      case 'minversion': return <span className="set-val">{s.min_app_version || t('admSetNoLimit')}</span>
+      case 'freecounters': return <span className="set-val">{s.free_counter_limit}</span>
+      default: return null
+    }
+  }
+  return (
+    <div className="set-hub adm-set-hub" aria-busy={s ? undefined : true}>
+      {SET_GROUPS.map(([g, rows]) => (
+        <Fragment key={g}>
+          <div className="set-grp-lbl">{t(g)}</div>
+          <div className="set-grp">
+            {rows.map(([k, icon, label]) => {
+              const inner = (<>
+                <span className="set-ic"><Icon name={icon} size={18} /></span>
+                <span className="set-lbl">{t(label)}</span>
+                {value(k)}
+                <Icon name="chevr" size={18} />
+              </>)
+              return s
+                ? <button key={k} type="button" className="set-row" onClick={() => onOpen(k)}>{inner}</button>
+                : <div key={k} className="set-row">{inner}</div>
+            })}
+          </div>
+        </Fragment>
+      ))}
+      {!s && <span className="sr-only">{t('loading')}</span>}
+    </div>
   )
 }

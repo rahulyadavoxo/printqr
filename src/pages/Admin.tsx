@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { routeHref } from '../lib/router'
 import { useSession } from '../lib/useSession'
@@ -93,7 +93,13 @@ export default function Admin() {
   const [tierPick, setTierPick] = useState<Record<string, Tier>>({})
   const [reason, setReason] = useState<Record<string, string>>({})
   const [names, setNames] = useState<Record<string, string>>({})
-  const [tab, setTab] = useState<AdminTab>('overview')
+  // ?s=<setting> is a phone Settings page (AdminSettings): reopening that link lands on Settings,
+  // and leaving the Settings tab drops it so Settings opens on its list next time.
+  const [params, setParams] = useSearchParams()
+  const [tab, setTab] = useState<AdminTab>(() => (params.get('s') ? 'settings' : 'overview'))
+  useEffect(() => {
+    if (tab !== 'settings' && params.has('s')) setParams((p) => { const q = new URLSearchParams(p); q.delete('s'); return q }, { replace: true })
+  }, [tab, params, setParams])
   const [health, setHealth] = useState<HealthData | null>(null)
   const [notifOpen, setNotifOpen] = useState(false)
   const [saveSlot, setSaveSlot] = useState<SaveSlot>(null)

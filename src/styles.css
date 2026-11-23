@@ -1653,6 +1653,10 @@ img.shop-avatar { object-fit: cover; padding: 0; }
 .set-val { font-size: 14px; color: var(--c-muted, var(--c-ink-2)); }
 .set-logout { margin-top: 22px; width: 100%; min-height: 54px; display: flex; align-items: center; justify-content: center; gap: 8px; font: inherit; font-size: 16px; font-weight: 700; color: var(--c-red-ink); cursor: pointer; }
 .set-back { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 10px -4px; padding: 6px 8px 6px 2px; border: none; background: none; font: inherit; font-size: 16px; font-weight: 700; color: var(--c-ink-2); cursor: pointer; border-radius: var(--r-sm); }
+/* Admin phone Settings hub: on/off badge beside a row (Off grey, Maintenance on red) */
+.adm-set-badge { flex: none; }
+.adm-set-badge.is-off { background: var(--c-sunken); color: var(--c-ink-2); }
+.adm-set-badge.is-warn { background: var(--c-red-bg); color: var(--c-red-ink); }
 
 /* App-style confirm popup (ConfirmHost) - replaces the raw browser confirm() box */
 .cf-back { position: fixed; inset: 0; z-index: 1500; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(8, 12, 10, .45); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); animation: cf-fade .15s ease-out; }
