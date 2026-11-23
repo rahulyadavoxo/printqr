@@ -2148,9 +2148,18 @@ input[type="password"]::-ms-reveal { display: none; }
 @keyframes lpd-nudge-r{50%{transform:translateX(8px)}}
 .lpd-peek em{font-style:normal;font-size:12px;font-weight:800;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
 .lpd-pn.s .lpd-peek em{color:rgba(13,18,16,.6)}
-.lpd-body{position:absolute;left:0;top:0;bottom:0;width:clamp(560px,57vw,1000px);padding:clamp(26px,3.2vw,56px);display:grid;grid-template-columns:1.15fr .85fr;gap:20px;align-items:center;opacity:0;visibility:hidden;transform:translateX(24px);transition:opacity .35s,transform .5s,visibility 0s .35s}
-.lpd-pn.open .lpd-body{opacity:1;visibility:visible;transform:none;transition:opacity .5s .45s,transform .6s .45s cubic-bezier(.2,.8,.2,1),visibility 0s}
+.lpd-body{position:absolute;left:0;top:0;bottom:0;width:clamp(560px,57vw,1000px);padding:clamp(26px,3.2vw,56px);display:grid;grid-template-columns:1.15fr .85fr;gap:20px;align-items:center;opacity:0;transform:translateX(24px);transition:opacity .35s,transform .5s}
+.lpd-pn.open .lpd-body{opacity:1;transform:none;transition:opacity .5s .45s,transform .6s .45s cubic-bezier(.2,.8,.2,1)}
 .lpd-body>div{min-width:0}
+/* Only the text column (it has the links/buttons) and the shop queue card are hidden in the collapsed panel, so the links
+   can't be clicked or tabbed to and the queue's looping rows aren't composited while unseen.
+   The phone column is NOT toggled: visibility on it re-styled every element of the phone's Upload preview on each switch.
+   It is aria-hidden and has nothing interactive (the preview is inert). Classes, not `div:first-child`: a tag-only selector
+   after `.lpd-pn.open` made Chrome re-style every <div> in the panel (the whole preview) when `open` toggles. */
+.lpd-tx,.lpd-qc{visibility:hidden;transition:visibility 0s .35s}
+.lpd-pn.open .lpd-tx,.lpd-pn.open .lpd-qc{visibility:visible;transition:visibility 0s}
+/* The collapsed panel's mockups are invisible: pause their main-thread (box-shadow / colour) loops so they don't repaint. */
+.lpd-pn:not(.open) .lpd-tag:before,.lpd-pn:not(.open) .lpd-qr .lpd-st{animation-play-state:paused}
 .lpd-tag{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:99px;padding:8px 15px;font-size:13px;font-weight:700}
 .lpd-tag:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 4px rgba(166,226,46,.3);animation:lpd-pulse 1.8s infinite}
 .lpd-pn.s .lpd-tag:before{background:var(--ink);box-shadow:0 0 0 4px rgba(13,18,16,.15)}
@@ -2516,11 +2525,20 @@ html:lang(hi) .lpb h2,html:lang(hi) .lpb h3{line-height:1.25}
    No mask-image / clip-path / backdrop-filter here: inside the bobbing, rotated phone they forced a full repaint of the
    preview every frame and made the duo panel transition lag. Instead a bezel-coloured ring drawn ON TOP of the screen
    (same shape as the phone body) hides the square corners - pure paint, composited once, works in every browser. */
-.lpb-phone .ps,.lpd-scr{position:relative;overflow:hidden;border-radius:30px}
+.lpb-phone .ps,.lpd-scr{position:relative;overflow:hidden;border-radius:0;background:transparent}
 .lpb-phone .ps:after,.lpd-scr:after{content:"";position:absolute;inset:-9px;border:9px solid var(--ink);border-radius:38px;pointer-events:none;z-index:3}
+/* The screen clip is a plain rectangle (the ring above draws the rounded screen corners): any rounded clip inside the
+   rotated, animated phone made Chrome split the preview into extra layers + mask layers. A square screen's corners would
+   poke ~3px out past the phone's 38px outer curve, so nothing is painted there instead: the few things that reach the
+   corners (the screen background, the top bar, the bottom bar) get rounded backgrounds - plain paint, no clip.
+   20px (in the scaled screen's own px; --upv-r is set by UploadPreview) keeps those curves under the ring, whose inner
+   radius is 29px, so no anti-aliased seam shows at its edge; anything >= 8px clears the phone's outer curve. */
 .lpb-phone,.lpd-phone{will-change:transform}
+.upv{contain:strict;border-radius:0;background:transparent}
+.upv:before{content:"";position:absolute;inset:0;border-radius:20px;background:var(--c-bg)}
+.upv .topbar{border-top-left-radius:var(--upv-r,0);border-top-right-radius:var(--upv-r,0)}
+.upv .sticky-bar{border-bottom-left-radius:var(--upv-r,0);border-bottom-right-radius:var(--upv-r,0)}
 .lpd-body{contain:layout style;will-change:opacity,transform}
-.upv{contain:strict}
 .upv .topbar,.upv .sticky-bar,.upv .tabs{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 .upv .topbar{background:#faf9f6}
 .upv .sticky-bar{background:#fff}

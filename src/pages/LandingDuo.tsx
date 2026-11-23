@@ -53,7 +53,21 @@ function useCountUp(target: number) {
 export default function LandingDuo() {
   const { t } = useI18n()
   const root = useRef<HTMLDivElement>(null)
-  const [open, setOpen] = useState<'c' | 's'>('c')
+  /* Which hero panel is open lives in the DOM, not in React state: a setState here re-rendered the whole landing page
+     (estimator, FAQ, ticker...) in the very frame the 0.8s panel transition starts - a visible hitch. React renders the
+     panels' initial class / aria-expanded once and, since those props never change, never touches them again. */
+  const open = useRef<'c' | 's'>('c')
+  const pns = useRef<Record<'c' | 's', HTMLDivElement | null>>({ c: null, s: null })
+  const setOpen = (id: 'c' | 's') => {
+    if (open.current === id) return
+    open.current = id
+    for (const k of ['c', 's'] as const) {
+      const el = pns.current[k]
+      if (!el) continue
+      el.classList.toggle('open', k === id)
+      el.setAttribute('aria-expanded', String(k === id))
+    }
+  }
   const hoverTimer = useRef<number>()
   const [pages, setPages] = useState(24)
   const [copies, setCopies] = useState(2)
@@ -88,10 +102,11 @@ export default function LandingDuo() {
   useEffect(() => () => window.clearTimeout(hoverTimer.current), [])
 
   const panel = (id: 'c' | 's', label: Key) => ({
-    className: `lpd-pn ${id}${open === id ? ' open' : ''}`,
+    ref: (el: HTMLDivElement | null) => { pns.current[id] = el },
+    className: `lpd-pn ${id}${id === 'c' ? ' open' : ''}`,
     role: 'button',
     tabIndex: 0,
-    'aria-expanded': open === id,
+    'aria-expanded': id === 'c',
     'aria-label': t(label),
     onClick: () => setOpen(id),
     onKeyDown: (e: KeyboardEvent) => {
@@ -149,7 +164,7 @@ export default function LandingDuo() {
           <div {...panel('c', 'ldForCustomers')}>
             <div className="lpd-peek" aria-hidden="true"><i>→</i><span>{t('ldPeekCustomer')}</span><em>{t('ldPeekHint')}</em></div>
             <div className="lpd-body">
-              <div>
+              <div className="lpd-tx">
                 <span className="lpd-tag">{t('ldForCustomers')}</span>
                 <h1>
                   <span className="lpd-w" style={{ '--i': 0 } as CSSProperties}>{t('ldH1a')}</span>
@@ -174,7 +189,7 @@ export default function LandingDuo() {
           <div {...panel('s', 'ldForShops')}>
             <div className="lpd-peek" aria-hidden="true"><i>←</i><span>{t('ldPeekShop')}</span><em>{t('ldPeekHint')}</em></div>
             <div className="lpd-body">
-              <div>
+              <div className="lpd-tx">
                 <span className="lpd-tag">{t('ldForShops')}</span>
                 <h2 className="lpd-sh">{t('ldShopH2a')} <em>{t('ldShopH2em')}</em> {t('ldShopH2b')}</h2>
                 <ul className="lpd-ck"><li>{t('ldShop1')}</li><li>{t('ldShop2')}</li><li>{t('ldShop3')}</li></ul>

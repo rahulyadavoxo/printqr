@@ -1,4 +1,4 @@
-import { memo, useLayoutEffect, useRef, useState } from 'react'
+import { CSSProperties, memo, useLayoutEffect, useRef, useState } from 'react'
 import { useI18n } from '../lib/i18n'
 import { filePrice, rupees } from '../lib/pricing'
 import { TopBar } from './TopBar'
@@ -15,6 +15,11 @@ const RATES = { bw_single: 2, bw_double: 1.5, color_single: 10, color_double: 8 
 const PAGES = 12
 const OPTS: UploadOpts = { copies: 2, color: false, duplex: false, binding: false, lamination: false }
 const noop = () => {}
+/* CSS `zoom` scales the screen without a transform. A scale() transform inside the bobbing (animated, composited) phone
+   could not be merged into the phone's GPU layer, so Chrome split the preview into ~7 extra layers + clip masks that were
+   re-layerized every frame of the landing panel switch. `zoom` keeps it all in the phone's one layer.
+   Older browsers without `zoom` (Firefox < 126) fall back to the transform. */
+const ZOOM = typeof CSS !== 'undefined' && !!CSS.supports?.('zoom', '1')
 
 function UploadPreview({ shopName = 'Sharma Xerox', address = 'Main Market' }: { shopName?: string; address?: string }) {
   const { t, tn } = useI18n()
@@ -48,7 +53,7 @@ function UploadPreview({ shopName = 'Sharma Xerox', address = 'Main Market' }: {
 
   return (
     <div className="upv" ref={box} aria-hidden="true" {...inert}>
-      <div className="upv-screen" style={{ width: W, height: fit.h, transform: `scale(${fit.s})` }}>
+      <div className="upv-screen" style={{ width: W, height: fit.h, ...(ZOOM ? { zoom: fit.s } : { transform: `scale(${fit.s})` }), ['--upv-r' as string]: `${20 / fit.s}px` } as CSSProperties}>
         <div className="app-page has-sticky">
           <TopBar to={null} />
           <main className="page narrow">
