@@ -61,8 +61,8 @@ export function AdminShell({ children, tab, onTab, onRefresh, refreshing = false
       <div className="adm-d"><TopBar to="/dashboard" wide /></div>
       <header className="topbar adm-bar no-print">
         <div className="topbar-in wide">
-          <button type="button" className="menu-btn" onClick={() => nav('/dashboard')} aria-label={t('edBack')}>
-            <Icon name="back" size={22} />
+          <button type="button" className="menu-btn" onClick={() => nav('/dashboard')} aria-label={t('admHome')}>
+            <Icon name="homeStack" size={22} />
           </button>
           <div className="adm-bar-title"><Icon name="shield" size={18} /><span>{t('admTitle')}</span></div>
           {bell && (
