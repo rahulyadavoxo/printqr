@@ -2725,3 +2725,13 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 .adm-mfa-secret code { flex: 1 1 200px; min-width: 0; padding: 8px 10px; border-radius: 8px; background: var(--c-surface-2, rgba(127,127,127,.12)); font-size: 14px; letter-spacing: .06em; word-break: break-all; user-select: all; }
 .adm-mfa .field { margin: 4px 0 0; }
 .adm-mfa-help { text-align: center; }
+
+/* QR loading mark (components/QrLoader.tsx): where layout/content is unknown, instead of a skeleton */
+.qr-load-page { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; color: var(--c-ink); }
+.qr-loader { display: block; color: inherit; }
+.qr-loader .px { fill: currentColor; opacity: .12; transform-box: fill-box; transform-origin: center; animation: qrl-pulse 1.8s ease-in-out infinite; }
+.qr-loader .fnd { fill: none; stroke: currentColor; stroke-width: 3.6; animation: qrl-breathe 1.8s ease-in-out infinite; }
+.qr-loader .core { fill: currentColor; animation: qrl-breathe 1.8s ease-in-out infinite; }
+@keyframes qrl-pulse { 0%, 100% { opacity: .12; transform: scale(.6); } 40% { opacity: 1; transform: scale(1); } }
+@keyframes qrl-breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .qr-loader * { animation: none !important; } .qr-loader .px { opacity: .6; } }

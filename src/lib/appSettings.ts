@@ -119,6 +119,23 @@ export function useAppSettings(): AppSettings {
   return s
 }
 
+/** True once the admin's settings are known: loaded this session, or a design remembered from an earlier visit.
+ *  First visit (nothing remembered): false until get_app_settings answers, so Home / Login show the QR loader
+ *  instead of flashing the default design. */
+function rememberedDesigns(): boolean {
+  try { return localStorage.getItem(LD_KEY) !== null && localStorage.getItem(LAND_KEY) !== null } catch { return false }
+}
+export function useSettingsKnown(): boolean {
+  const [known, setKnown] = useState<boolean>(() => cache !== null || rememberedDesigns())
+  useEffect(() => {
+    if (known) return
+    let alive = true
+    loadAppSettings().then(() => { if (alive) setKnown(true) }, () => { if (alive) setKnown(true) })
+    return () => { alive = false }
+  }, [known])
+  return known
+}
+
 /** a < b for x.y.z versions */
 export function versionLess(a: string, b: string): boolean {
   const p = (v: string) => (/^v?(\d+)\.(\d+)\.(\d+)$/.exec(v.trim()) || []).slice(1).map(Number)

@@ -5,7 +5,8 @@ import { Key, useI18n } from '../lib/i18n'
 import { LogoMark, TopBar } from '../components/TopBar'
 import { LegalLinks } from './Legal'
 import { AppDownloadButton } from '../components/AppDownload'
-import { LANDING_DESIGNS, LandingDesign, landingDesignFor, useAppSettings } from '../lib/appSettings'
+import { LANDING_DESIGNS, LandingDesign, landingDesignFor, useAppSettings, useSettingsKnown } from '../lib/appSettings'
+import { QrLoadPage } from '../components/QrLoader'
 import LandingDuo from './LandingDuo'
 import LandingBold from './LandingBold'
 
@@ -88,6 +89,7 @@ const FEATURES: { icon: string; title: Key; body: Key }[] = [
 /** The landing page: the design the admin picked in Settings (default = the classic page below). */
 export default function Home() {
   const settings = useAppSettings()
+  const known = useSettingsKnown()
   const { session } = useSession()
   const nav = useNavigate()
   const [params] = useSearchParams()
@@ -97,6 +99,8 @@ export default function Home() {
   // Preview without saving: /#/?landing=duo, /#/?landing=bold or /#/?landing=classic
   const preview = params.get('landing')
   const design = (LANDING_DESIGNS as readonly string[]).includes(preview ?? '') ? (preview as LandingDesign) : landingDesignFor(settings)
+  // First visit: the admin's design is not known yet, so the QR loader instead of flashing another design.
+  if (!preview && !known) return <QrLoadPage />
   if (design === 'duo') return <LandingDuo />
   if (design === 'bold') return <LandingBold />
   return <ClassicLanding />

@@ -4,6 +4,7 @@ import { LogoMark, TopBar } from './TopBar'
 import Icon from './Icon'
 import BarStory from './BarStory'
 import { AdminShell } from './AdminShell'
+import { QrLoadPage } from './QrLoader'
 import { Key, useI18n } from '../lib/i18n'
 import { IN_APP, ON_ANDROID } from '../lib/app'
 import { routeQuery } from '../lib/router'
@@ -533,5 +534,6 @@ export function RouteSkeleton() {
   if (pathname.startsWith('/legal')) return <LegalSkeleton />
   if (pathname.startsWith('/o/')) return <StatusSkeleton />
   if (pathname.startsWith('/s/') || pathname.startsWith('/q/')) return <UploadSkeleton />
-  return <div className="app-page" aria-busy="true"><TopBar to={null} /></div>
+  // Home, login and anything else: the design is the admin's choice (or unknown), so no skeleton guess.
+  return <QrLoadPage />
 }

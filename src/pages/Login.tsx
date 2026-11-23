@@ -9,7 +9,8 @@ import { clearAuthUrlError, peekAuthUrlError, sendResetEmail } from '../lib/reco
 import { useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
 import { isCaptchaError, Turnstile } from '../components/Turnstile'
-import { LOGIN_DESIGNS, LoginDesign, loginDesignFor, useAppSettings } from '../lib/appSettings'
+import { LOGIN_DESIGNS, LoginDesign, loginDesignFor, useAppSettings, useSettingsKnown } from '../lib/appSettings'
+import { QrLoadPage } from '../components/QrLoader'
 
 type Via = 'email' | 'phone'
 type PhoneKind = 'signup' | 'reset'
@@ -28,7 +29,15 @@ function cleanMobile(v: string): string {
   return d.slice(0, 10)
 }
 
+/** First visit: wait for the admin's login design (QR loader) instead of flashing the default one. */
 export default function Login() {
+  const [params] = useSearchParams()
+  const known = useSettingsKnown()
+  if (!known && !params.get('design')) return <QrLoadPage />
+  return <LoginPage />
+}
+
+function LoginPage() {
   const [params] = useSearchParams()
   const { t, te, lang, setLang } = useI18n()
   // Admin picks the design (Settings > Login page design); ?design=modern|classic previews one.

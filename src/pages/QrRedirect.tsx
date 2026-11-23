@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
-import { UploadSkeleton } from '../components/Skeletons'
+import { QrLoadPage } from '../components/QrLoader'
 
 /** /q/:code — a Pro shop's dynamic QR. Looks up where the code points now, then opens that queue. */
 export default function QrRedirect() {
@@ -22,8 +22,8 @@ export default function QrRedirect() {
     })
     return () => { alive = false }
   }, [code, nav, t])
-  // While it looks up the code, show the upload page's skeleton: that is the page it opens next.
-  if (!err) return <UploadSkeleton />
+  // While it looks up the code we don't know yet where it leads (queue, paused, not found): QR loader, no skeleton.
+  if (!err) return <QrLoadPage />
   return (
     <div className="app-page">
       <TopBar to={null} />
