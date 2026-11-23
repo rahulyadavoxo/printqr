@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { memo, useLayoutEffect, useRef, useState } from 'react'
 import { useI18n } from '../lib/i18n'
 import { filePrice, rupees } from '../lib/pricing'
 import { TopBar } from './TopBar'
@@ -16,7 +16,7 @@ const PAGES = 12
 const OPTS: UploadOpts = { copies: 2, color: false, duplex: false, binding: false, lamination: false }
 const noop = () => {}
 
-export default function UploadPreview({ shopName = 'Sharma Xerox', address = 'Main Market' }: { shopName?: string; address?: string }) {
+function UploadPreview({ shopName = 'Sharma Xerox', address = 'Main Market' }: { shopName?: string; address?: string }) {
   const { t, tn } = useI18n()
   const box = useRef<HTMLDivElement>(null)
   const [fit, setFit] = useState({ s: 212 / W, h: 776 })
@@ -25,15 +25,21 @@ export default function UploadPreview({ shopName = 'Sharma Xerox', address = 'Ma
   useLayoutEffect(() => {
     const el = box.current
     if (!el) return
+    let lw = 0, lh = 0, raf = 0
     const measure = () => {
+      raf = 0
       const w = el.clientWidth, h = el.clientHeight
-      if (w > 0 && h > 0) setFit({ s: w / W, h: h / (w / W) })
+      // Ignore sub-pixel jitter so the (heavy) preview doesn't re-render during the landing panel transitions.
+      if (w <= 0 || h <= 0 || (Math.abs(w - lw) < 1 && Math.abs(h - lh) < 1)) return
+      lw = w
+      lh = h
+      setFit({ s: w / W, h: h / (w / W) })
     }
     measure()
     if (typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(measure)
+    const ro = new ResizeObserver(() => { if (!raf) raf = requestAnimationFrame(measure) })
     ro.observe(el)
-    return () => ro.disconnect()
+    return () => { ro.disconnect(); cancelAnimationFrame(raf) }
   }, [])
 
   const price = filePrice(RATES, PAGES, OPTS.copies, OPTS.color, OPTS.duplex)
@@ -119,3 +125,6 @@ export default function UploadPreview({ shopName = 'Sharma Xerox', address = 'Ma
     </div>
   )
 }
+
+/** Memoised: the landing pages re-render on every panel/estimator change; the preview has no changing props. */
+export default memo(UploadPreview)

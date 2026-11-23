@@ -2530,6 +2530,15 @@ html:lang(hi) .lpb h2,html:lang(hi) .lpb h3{line-height:1.25}
 .upv.upv.upv h2{margin:0;font-size:var(--fs-md);line-height:1.2;letter-spacing:-.02em;font-weight:750;color:var(--c-ink);max-width:none}
 .upv .shop-addr{margin:3px 0 0}
 
-/* Phone preview: keep the real Upload screen inside the rounded screen (no corners poking out of the frame) */
-.lpb-phone .ps,.lpd-scr{position:relative;overflow:hidden;border-radius:30px;isolation:isolate;-webkit-mask-image:-webkit-radial-gradient(white,black)}
-.lpb-phone .ps .upv,.lpd-scr .upv{border-radius:30px;clip-path:inset(0 round 30px)}
+/* Phone preview: keep the real Upload screen inside the rounded screen (no corners poking out of the frame).
+   No mask-image / clip-path / backdrop-filter here: inside the bobbing, rotated phone they forced a full repaint of the
+   preview every frame and made the duo panel transition lag. Instead a bezel-coloured ring drawn ON TOP of the screen
+   (same shape as the phone body) hides the square corners - pure paint, composited once, works in every browser. */
+.lpb-phone .ps,.lpd-scr{position:relative;overflow:hidden;border-radius:30px}
+.lpb-phone .ps:after,.lpd-scr:after{content:"";position:absolute;inset:-9px;border:9px solid var(--ink);border-radius:38px;pointer-events:none;z-index:3}
+.lpb-phone,.lpd-phone{will-change:transform}
+.lpd-body{contain:layout style;will-change:opacity,transform}
+.upv{contain:strict}
+.upv .topbar,.upv .sticky-bar,.upv .tabs{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.upv .topbar{background:#faf9f6}
+.upv .sticky-bar{background:#fff}
