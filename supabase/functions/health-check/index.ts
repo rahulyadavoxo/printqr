@@ -119,7 +119,7 @@ async function pushAdmins(title: string, body: string, tag: string): Promise<num
         webpush: {
           headers: { Urgency: 'high', TTL: '3600' },
           notification: { title, body, icon: 'https://print.receipto.in/icon-192.png', badge: 'https://print.receipto.in/badge-96.png', tag },
-          fcm_options: { link: 'https://print.receipto.in/#/admin' }
+          fcm_options: { link: 'https://print.receipto.in/admin' }
         }
       } })
     })

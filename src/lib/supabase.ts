@@ -188,13 +188,13 @@ export type QrLink = {
   last_scan_at: string | null
 }
 
-/** Link printed in a dynamic QR. */
+/** Link printed in a dynamic QR (path form; old #/q/ codes still open via normalizeRouteUrl). */
 export function qrCodeUrl(code: string): string {
-  return `${PUBLIC_BASE}#/q/${code}`
+  return `${PUBLIC_BASE}q/${code}`
 }
 
 /** Customer link for the shop. With a counter id the order is tagged with that counter (?c=<id>). */
 export function shopUrl(slug: string, counterId?: string | null): string {
-  const base = `${PUBLIC_BASE}#/s/${slug}`
+  const base = `${PUBLIC_BASE}s/${slug}`
   return counterId ? `${base}?c=${counterId}` : base
 }

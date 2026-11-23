@@ -94,6 +94,7 @@ import java.util.regex.Pattern;
  */
 public class MainActivity extends Activity implements PaymentResultWithDataListener {
     private static final String APP_HOST = "appassets.androidplatform.net";
+    // The app keeps #/ routes (HashRouter): serveAsset only serves real files, so /dashboard would 404 here.
     private static final String START = "https://" + APP_HOST + "/#/dashboard";
     private static final int PICK_FILES = 1001;
 

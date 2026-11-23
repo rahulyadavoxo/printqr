@@ -5,7 +5,7 @@ import { useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
 import { UploadSkeleton } from '../components/Skeletons'
 
-/** #/q/:code — a Pro shop's dynamic QR. Looks up where the code points now, then opens that queue. */
+/** /q/:code — a Pro shop's dynamic QR. Looks up where the code points now, then opens that queue. */
 export default function QrRedirect() {
   const { code = '' } = useParams()
   const nav = useNavigate()

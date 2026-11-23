@@ -21,14 +21,15 @@ self.addEventListener('push', (e) => {
     renotify: true,
     requireInteraction: false,
     vibrate: n.vibrate || [200, 100, 200],
-    data: { link: (d.fcmOptions && d.fcmOptions.link) || data.link || '/#/dashboard' }
+    data: { link: (d.fcmOptions && d.fcmOptions.link) || data.link || '/dashboard' }
   }
   const ready = data.kind === 'ready'
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       // The page that would show it is open and visible (it rings by itself): skip the system notification.
       // New order -> the dashboard; order ready (customer) -> that order's status page.
-      const page = ready ? '#/o/' + data.order_id : '#/dashboard'
+      // Matches both URL forms: /o/<id>/... and /#/o/<id>/... (older links, hash hosts).
+      const page = ready ? '/o/' + data.order_id : '/dashboard'
       if (list.some((c) => c.visibilityState === 'visible' && c.url.includes(page))) return
       return self.registration.showNotification(title, opts)
     })
@@ -37,7 +38,7 @@ self.addEventListener('push', (e) => {
 
 self.addEventListener('notificationclick', (e) => {
   e.notification.close()
-  const link = (e.notification.data && e.notification.data.link) || '/#/dashboard'
+  const link = (e.notification.data && e.notification.data.link) || '/dashboard'
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       const c = list.find((w) => w.url.includes(self.location.origin))

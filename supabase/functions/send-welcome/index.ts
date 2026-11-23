@@ -46,10 +46,10 @@ Deno.serve(async (req) => {
       para('आपका अकाउंट बन गया है। अब ग्राहक सिर्फ़ QR स्कैन करके प्रिंट के लिए फ़ाइल भेज सकते हैं।', true),
       `<div style="margin:22px 0 4px;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#586274">3 steps mein shuru karein</div>`,
       stepList(steps),
-      button(`${SITE}#/dashboard`, 'Open dashboard'),
+      button(`${SITE}dashboard`, 'Open dashboard'),
       note('Koi sawaal ho to bas is mail ka reply kar dijiye, hum madad karenge. / कोई सवाल हो तो इस मेल का जवाब दें।')
     ].join('\n'), { icon: '🎉', subtitle: 'PrintQR में आपका स्वागत है', preheader: 'Your shop is ready. 3 quick steps to get your first print order.' })
-    const text = `Welcome to PrintQR!\n\nAapka account ban gaya hai.\n\n${steps.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\nDashboard: ${SITE}#/dashboard\n\nKoi sawaal ho to is mail ka reply kar dijiye.`
+    const text = `Welcome to PrintQR!\n\nAapka account ban gaya hai.\n\n${steps.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\nDashboard: ${SITE}dashboard\n\nKoi sawaal ho to is mail ka reply kar dijiye.`
     await sendMail(user.email, 'Welcome to PrintQR 🎉', html, text)
     return reply({ ok: true })
   } catch (e) {

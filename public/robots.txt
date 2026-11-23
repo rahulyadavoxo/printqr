@@ -1,2 +1,4 @@
 User-agent: *
 Allow: /
+
+Sitemap: https://print.receipto.in/sitemap.xml

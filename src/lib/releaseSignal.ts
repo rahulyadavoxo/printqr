@@ -5,13 +5,14 @@
 // (not on customer upload pages) to keep Realtime connections low. Polling stays as the fallback.
 import { IN_APP } from './app'
 import { isConfigured, supabase } from './supabase'
+import { ROUTE_EVENT, routePath } from './router'
 
 type Kind = 'web' | 'app'
 const subs = new Set<(k: Kind) => void>()
 let started = false
 
 function want() {
-  return IN_APP || /^#\/dashboard/.test(location.hash)
+  return IN_APP || /^\/dashboard/.test(routePath())
 }
 
 function connect() {
@@ -30,6 +31,10 @@ function connect() {
 export function onRelease(fn: (k: Kind) => void): () => void {
   subs.add(fn)
   connect()
-  if (!started && typeof window !== 'undefined') window.addEventListener('hashchange', connect)
+  if (!started && typeof window !== 'undefined') {
+    window.addEventListener('hashchange', connect)
+    window.addEventListener('popstate', connect)
+    window.addEventListener(ROUTE_EVENT, connect) // BrowserRouter navigation (useRouteMeta)
+  }
   return () => { subs.delete(fn) }
 }

@@ -5,9 +5,9 @@
     <meta charset="UTF-8" />
     <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self' https://*.razorpay.com; script-src 'self' 'sha256-SFMSVFvRO/WbDBWHWHV9i8frl+2vgLd54omKh0zFKb0=' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net https://*.razorpay.com https://challenges.cloudflare.com https://*.googlesyndication.com https://*.google.com https://*.gstatic.com https://*.doubleclick.net https://*.googleadservices.com https://*.googletagservices.com https://*.adtrafficquality.google https://www.googletagmanager.com; worker-src 'self' blob:; upgrade-insecure-requests" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
-    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
-    <link rel="alternate icon" href="./favicon.ico" sizes="any" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="alternate icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#faf9f6" />
     <!-- CSP: this inline theme script is allowed by its sha256 in script-src. Edit it and the hash must change. -->
@@ -25,6 +25,22 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
     <title>Print by Receipto – Scan, upload, print</title>
+    <!-- SEO: canonical + link previews. useRouteMeta (src/lib/useRouteMeta.ts) updates canonical, og:url and the title per route. -->
+    <link rel="canonical" href="https://print.receipto.in/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Print by Receipto" />
+    <meta property="og:title" content="Print by Receipto – Scan, upload, print" />
+    <meta property="og:description" content="Customers scan a QR at the cyber cafe counter, upload PDFs or photos, see the price and get a token number." />
+    <meta property="og:url" content="https://print.receipto.in/" />
+    <meta property="og:image" content="https://print.receipto.in/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Print by Receipto logo" />
+    <meta property="og:locale" content="en_IN" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Print by Receipto – Scan, upload, print" />
+    <meta name="twitter:description" content="Customers scan a QR at the cyber cafe counter, upload PDFs or photos, see the price and get a token number." />
+    <meta name="twitter:image" content="https://print.receipto.in/og.png" />
   </head>
   <body>
     <div id="root"></div>

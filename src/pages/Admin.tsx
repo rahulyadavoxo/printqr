@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { Navigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { routeHref } from '../lib/router'
 import { useSession } from '../lib/useSession'
 import { Key, useI18n } from '../lib/i18n'
 import { ADMIN_TABS, ADMIN_TAB_KEYS, AdminShell, type AdminTab } from '../components/AdminShell'
@@ -331,7 +332,7 @@ export default function Admin() {
               {open === s.id && (
                 <div className="admin-shop-body">
                   <dl className="admin-facts">
-                    <dt>{t('admLink')}</dt><dd><a href={`#/s/${s.slug}`} target="_blank" rel="noreferrer">/s/{s.slug}</a></dd>
+                    <dt>{t('admLink')}</dt><dd><a href={routeHref(`/s/${s.slug}`)} target="_blank" rel="noreferrer">/s/{s.slug}</a></dd>
                     <dt>{t('admPhone')}</dt><dd>{s.phone || '—'}</dd>
                     <dt>{t('admJoined')}</dt><dd>{fmtDate(s.created_at, lang)}</dd>
                     <dt>{t('admPlan')}</dt><dd>{s.is_pro ? `${paidTier(s) === 'plus' ? t('admTagPlus') : t('admTagPro')} · ${t('admUntil', { date: fmtDate(s.plan_expires_at, lang) })}` : t('admTagFree')}{s.paid && s.plan_period ? ` · ${s.plan_period}` : ''}{s.subscription_status ? ` · ${s.subscription_status}` : ''}</dd>

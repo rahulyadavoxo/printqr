@@ -3,6 +3,7 @@ import Icon from './Icon'
 import { ask as askConfirm } from './ConfirmHost'
 import { Key, useI18n } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
+import { routeHref } from '../lib/router'
 import {
   checkPin, deviceName, hasPin, IDLE_CHOICES, IdleMins, idleMins, onLockChange, PIN_RE, removePin, saveLocked, setIdle, setPin, wasLocked
 } from '../lib/appLock'
@@ -108,7 +109,7 @@ export function LockOverlay({ uid, shopName, onUnlock }: { uid: string; shopName
     // Local sign-out only: other devices stay logged in. The PIN of this login is removed from this device.
     removePin(uid)
     await supabase.auth.signOut({ scope: 'local' }).catch(() => {})
-    window.location.hash = '#/login'
+    window.location.replace(routeHref('/login'))
   }
 
   return (
