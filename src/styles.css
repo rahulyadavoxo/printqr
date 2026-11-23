@@ -2842,3 +2842,51 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 .lock-pop-body .lock-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .lock-pop-body .lock-actions .btn { flex: 1; }
 .lock-pop-body .notice { margin: 6px 0; }
+
+/* ---------- v39 admin tools (AdminTools.tsx) + shop notices / support / coupon (ShopSupport.tsx) ---------- */
+.adx-sheet { max-width: 560px; }
+.adx-sheet-body { padding: 0 14px 14px; }
+.adx-tap { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.adx-tap:hover { border-color: var(--c-lime-600); }
+.adx-err-msg { min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+.adx-mono-wrap { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; word-break: break-word; }
+.adx-pre { margin: 6px 0 0; padding: 8px; max-height: 260px; overflow: auto; background: var(--c-surface); border-radius: 8px; font-size: 11.5px; white-space: pre; }
+.adx-facts { margin: 4px 0; grid-template-columns: minmax(70px, max-content) minmax(0, 1fr); font-size: 13px; }
+.adx-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 10px; }
+.adx-chart { margin: 0; padding: 12px 14px; min-width: 0; }
+.adx-chart-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.adx-chart-top b { font-size: 20px; }
+.adx-chart-sel { min-height: 18px; }
+.adx-svg { display: block; width: 100%; height: 110px; margin-top: 4px; touch-action: pan-y; }
+.adx-axis { stroke: var(--c-line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.adx-bar { fill: var(--c-ink); opacity: .72; }
+.adx-bar.on { fill: var(--c-lime-600); opacity: 1; }
+.adx-chart-axis { display: flex; justify-content: space-between; gap: 6px; margin-top: 4px; }
+.adx-reply { border-left: 3px solid var(--c-lime-600); padding-left: 8px; }
+.adx-ro { margin: 0 2px 6px; color: var(--c-muted); }
+.adx-table-wrap { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+.adx-table { border-collapse: collapse; width: 100%; min-width: 360px; }
+.adx-table th, .adx-table td { text-align: left; padding: 5px 8px 5px 0; border-bottom: 1px solid var(--c-line); white-space: nowrap; }
+.adx-table th { color: var(--c-muted); font-weight: 600; }
+.adx-role-row { align-items: center; justify-content: space-between; }
+.adx-role-row > span:first-child { min-width: 0; flex: 1; }
+.adx-role-row select { width: auto; flex: none; }
+.admin-item textarea { width: 100%; min-width: 0; }
+@media (max-width: 420px) {
+  .admin-settings .grid2 { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}
+.shop-notices { display: grid; gap: 8px; margin-bottom: 10px; }
+.shop-notice { display: flex; align-items: flex-start; gap: 10px; margin: 0; }
+.shop-notice > svg { flex: none; margin-top: 2px; }
+.shop-notice-txt { flex: 1; min-width: 0; display: grid; gap: 2px; overflow-wrap: anywhere; justify-items: start; }
+.shop-notice-q { font-style: italic; }
+.shop-notice-body { white-space: pre-wrap; }
+.shop-notice .menu-btn { flex: none; margin: -6px -6px 0 0; }
+.sup-list { display: grid; gap: 8px; margin-top: 16px; }
+.sup-item { padding: 10px 12px; border-radius: 12px; background: var(--c-sunken); overflow-wrap: anywhere; }
+.sup-msg { margin: 4px 0 0; white-space: pre-wrap; }
+.sup-reply { margin: 6px 0 0; padding-left: 8px; border-left: 3px solid var(--c-lime-600); white-space: pre-wrap; }
+.sup-ok { color: var(--c-lime-600); font-weight: 700; }
+.coupon-row { display: flex; gap: 8px; }
+.coupon-row input { flex: 1; min-width: 0; text-transform: uppercase; }
+.coupon-row .btn { flex: none; }

@@ -15,6 +15,7 @@ import { rupees } from '../lib/pricing'
 import { FILE_REPORT_REASON_KEY } from '../lib/fileReports'
 import { SkelForm, SkelList, SkelLog, SkelStats } from '../components/Skeletons'
 import { ask as askConfirm } from '../components/ConfirmHost'
+import { AdminRoles } from './AdminTools'
 
 /* Admin panel tabs: Users, Orders, Payments, Spam watch, Settings. Every RPC checks is_admin() in SQL;
    the admin-action Edge Function checks public.admins too. */
@@ -61,7 +62,7 @@ type UserRow = {
   confirmed: boolean; banned: boolean; shop_id: string | null; shop_name: string | null; is_admin: boolean
 }
 
-export function AdminUsers({ onMsg }: { onMsg: Msg }) {
+export function AdminUsers({ onMsg, owner = true }: { onMsg: Msg; owner?: boolean }) {
   const { t, teRaw, lang } = useI18n()
   const dt = useDateTime()
   const [q, setQ] = useState('')
@@ -99,6 +100,7 @@ export function AdminUsers({ onMsg }: { onMsg: Msg }) {
   return (
     <>
       <h2 className="admin-sec adm-tab-h">{t('admUsers')}</h2>
+      {owner && <AdminRoles onMsg={onMsg} />}
       <Search value={q} onChange={setQ} onSubmit={() => setQuery(q.trim())} placeholder={t('admUserSearch')} />
       {!rows ? <SkelList /> : rows.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
         <div className="admin-list">
@@ -115,7 +117,7 @@ export function AdminUsers({ onMsg }: { onMsg: Msg }) {
               <div className="small muted">
                 {t('admUserLine', { shop: u.shop_name || t('admNoShop'), joined: fmtDate(u.created_at, lang), last: dt(u.last_sign_in_at) })}
               </div>
-              {!u.is_admin && (
+              {!u.is_admin && owner && (
                 <div className="admin-row">
                   {/* Mobile-number (OTP) accounts have no email and no password to reset. */}
                   {u.email?.includes('@') && <button type="button" className="btn small soft" disabled={busy === u.user_id} onClick={() => act(u, 'send_reset')}>{t('admSendReset')}</button>}
@@ -140,7 +142,7 @@ type OrderRow = {
   files_deleted: boolean; counter_name: string | null; created_at: string; updated_at: string
 }
 
-export function AdminOrders({ onMsg }: { onMsg: Msg }) {
+export function AdminOrders({ onMsg, owner = true }: { onMsg: Msg; owner?: boolean }) {
   const { t, teRaw } = useI18n()
   const dt = useDateTime()
   const [q, setQ] = useState('')
@@ -199,7 +201,7 @@ export function AdminOrders({ onMsg }: { onMsg: Msg }) {
                 {dt(o.created_at)} · {rupees(Number(o.total))} · {t('admFilesLine', { n: o.files, size: fmtBytes(Number(o.bytes)) })}
                 {o.counter_name ? ` · ${o.counter_name}` : ''}{o.files_deleted ? ` · ${t('admFilesGone')}` : ''}
               </div>
-              {!o.files_deleted && (
+              {!o.files_deleted && owner && (
                 <div className="admin-row">
                   <button type="button" className="btn small danger-outline" disabled={busy === o.id} onClick={() => delFiles(o)}>{t('admDelFiles')}</button>
                 </div>

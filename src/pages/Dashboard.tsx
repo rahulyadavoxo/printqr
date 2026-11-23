@@ -31,6 +31,7 @@ import { BillingPayment, downloadReceipt, money } from '../lib/receipt'
 import { SELLER } from '../lib/seller'
 import { FILE_REPORT_REASONS, FILE_REPORT_REASON_KEY, FileReportReason } from '../lib/fileReports'
 import { AppLockCard, DevicesCard, LockOverlay, useAppLock } from '../components/AppLock'
+import { CouponBox, ShopNotices, SupportCard } from '../components/ShopSupport'
 
 // The document editor is a separate chunk, loaded only when the Edit tab opens.
 const Editor = lazy(() => import('./editor/Editor'))
@@ -893,6 +894,7 @@ export default function Dashboard() {
 
       <div className="page wide dash-main">
         <AppDownloadBanner />
+        {!staff && <ShopNotices onPlan={goPlan} />}
         {shop.blocked && (
           <div className="notice error" role="alert">
             <strong>{t('blockedTitle')}</strong> {t('blockedBody')}{shop.blocked_reason ? ` ${t('blockedReason', { r: shop.blocked_reason })}` : ''}
@@ -936,6 +938,7 @@ export default function Dashboard() {
               onShowQr={(c) => setParams({ tab: 'qr', c })} />}
             {(!bottomNav || setSub === 'lock') && session && <AppLockCard uid={session.user.id} />}
             {(!bottomNav || setSub === 'devices') && <DevicesCard />}
+            {(!bottomNav || setSub === 'support') && !staff && <SupportCard />}
           </>
         )}
         {tab === 'settings' && !bottomNav && (
@@ -2321,7 +2324,7 @@ function Report({ shop, onUpgrade }: { shop: Shop; onUpgrade: () => void }) {
 
 const KEEP_OPTIONS = [1, 3, 6, 12, 24, 48, 72, 168]
 
-type SetKey = 'shop' | 'hours' | 'paper' | 'counters' | 'brand' | 'staff' | 'lock' | 'devices'
+type SetKey = 'shop' | 'hours' | 'paper' | 'counters' | 'brand' | 'staff' | 'lock' | 'devices' | 'support'
 /** Android phone Settings: grouped list (iOS-style); each row opens its section. */
 function SettingsHub({ plus, onOpen, onPlan, onLogout, version }: {
   plus: boolean; onOpen: (k: SetKey) => void; onPlan: () => void; onLogout: () => void; version: string
@@ -2365,6 +2368,7 @@ function SettingsHub({ plus, onOpen, onPlan, onLogout, version }: {
       </div>
       <div className="set-grp-lbl">{t('setGrpHelp')}</div>
       <div className="set-grp">
+        <Row icon="mail" label={t('supTitle')} onClick={() => onOpen('support')} />
         <Row icon="shield" label={t('setPrivacy')} onClick={() => nav('/legal/privacy')} />
         <Row icon="info" label={t('setTerms')} onClick={() => nav('/legal/terms')} />
       </div>
@@ -3065,6 +3069,7 @@ function PlanTab({ shop, email, contact, onChanged }: { shop: Shop; email?: stri
 
       {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
       {shown.length > 0 && <p className="small muted">{t('planPayNote')}</p>}
+      <CouponBox onDone={onChanged} />
       <PlanCompare current={plus ? 'plus' : pro ? 'pro' : 'free'} />
       <PaymentsList shop={shop} />
 

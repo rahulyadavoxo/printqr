@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabase'
 import { routeHref } from '../lib/router'
 import { useSession } from '../lib/useSession'
 import { Key, useI18n } from '../lib/i18n'
-import { ADMIN_TABS, ADMIN_TAB_KEYS, AdminShell, type AdminTab } from '../components/AdminShell'
+import { ADMIN_TABS, ADMIN_TAB_KEYS, AdminShell, SUPPORT_TABS, type AdminTab } from '../components/AdminShell'
+import { AdminCoupons, AdminErrors, AdminGrowth, AdminReach, AdminShopView, AdminSupport, BackupCard, recordAdminDevice } from './AdminTools'
 import { callFn } from '../lib/billing'
 import { AdminOrders, AdminPayments, AdminSettings, AdminSpam, AdminUsers, fmtBytes, fmtDate, type SaveSlot } from './AdminTabs'
 import { AdminSkelBody, AdminSkeleton, SkelList, SkelLog, SkelStats } from '../components/Skeletons'
@@ -19,13 +20,13 @@ import OtpInput from '../components/OtpInput'
    first shows "Set up 2-step login" (first visit) or "Enter code" and loads admin data only at aal2. */
 
 /** v36 admin_status(): admin = listed in public.admins (no aal check), mfa_required, aal of this login. */
-type AdminStatus = { admin: boolean; mfa_required: boolean; aal: string }
+type AdminStatus = { admin: boolean; mfa_required: boolean; aal: string; role?: string }
 
 async function loadAdminStatus(): Promise<AdminStatus> {
   const { data, error } = await supabase.rpc('admin_status')
   if (!error && data && typeof data === 'object') {
     const d = data as Partial<AdminStatus>
-    return { admin: d.admin === true, mfa_required: d.mfa_required === true, aal: String(d.aal || 'aal1') }
+    return { admin: d.admin === true, mfa_required: d.mfa_required === true, aal: String(d.aal || 'aal1'), role: d.role ? String(d.role) : 'owner' }
   }
   // Before v36 SQL: no admin_status(), no 2-step login.
   const r = await supabase.rpc('is_admin')
@@ -70,7 +71,11 @@ const LOG_KEYS: Record<string, Key> = {
   qr_reset: 'admLogQrReset', shop_edited: 'admLogShopEdited', settings: 'admLogSettings', ip_blocked: 'admLogIpBlocked',
   ip_unblocked: 'admLogIpUnblocked', report_resolved: 'admLogReport', user_disabled: 'admLogUserDisabled',
   user_enabled: 'admLogUserEnabled', reset_sent: 'admLogResetSent', sub_cancelled: 'admLogSubCancelled', files_deleted: 'admLogFilesDeleted',
-  file_report_dismissed: 'frLogDismissed', file_report_files_deleted: 'frLogDeleted'
+  file_report_dismissed: 'frLogDismissed', file_report_files_deleted: 'frLogDeleted',
+  // v39
+  push_sent: 'adxLogPush', reminder_sent: 'adxLogReminder', nudge_sent: 'adxLogNudge', coupon_saved: 'adxLogCoupon',
+  coupon_redeemed: 'adxLogRedeemed', support_reply: 'adxLogSupport', role_changed: 'adxLogRole', shop_viewed: 'adxLogViewed',
+  export: 'adxLogExport', admin_new_device: 'adxLogDevice'
 }
 
 
@@ -80,6 +85,15 @@ export default function Admin() {
   const [status, setStatus] = useState<AdminStatus | null>(null)
   // Admin data loads only when this login may read it (aal2 while 2-step login is required).
   const allowed: boolean | null = status === null ? null : status.admin && (!status.mfa_required || status.aal === 'aal2')
+  // v39 roles: 'support' sees only SUPPORT_TABS and no plan / block / money actions (SQL enforces the same)
+  const owner = status?.role !== 'support'
+  const tabs = owner ? ADMIN_TABS : SUPPORT_TABS
+  const [viewShop, setViewShop] = useState<string | null>(null)
+  const deviceDone = useRef(false)
+  useEffect(() => {
+    // v39: this browser / phone is recorded for the admin (also before the 2-step code); a new one alerts all admins
+    if (status?.admin && !deviceDone.current) { deviceDone.current = true; recordAdminDevice() }
+  }, [status])
   const [ov, setOv] = useState<Overview | null>(null)
   const [shops, setShops] = useState<ShopRow[] | null>(null)
   const [more, setMore] = useState(false)
@@ -140,18 +154,20 @@ export default function Admin() {
 
   useEffect(() => {
     if (!allowed) return
-    loadOverview()
+    if (owner) loadOverview()
     loadLog()
     loadHealth()
     setupPush() // v30: this phone / browser gets health alerts for admins
-  }, [allowed, loadOverview, loadLog, loadHealth])
+  }, [allowed, owner, loadOverview, loadLog, loadHealth])
 
   useEffect(() => {
     if (!allowed) return
     loadShops(query, 0)
   }, [allowed, query, loadShops])
 
-  const refreshAll = () => Promise.all([loadOverview(), loadShops(query, 0), loadLog(), loadHealth()])
+  const refreshAll = () => Promise.all([owner ? loadOverview() : null, loadShops(query, 0), loadLog(), loadHealth()])
+  // A support admin lands on the Support inbox (Overview is owner-only).
+  useEffect(() => { if (status && !tabs.includes(tab)) setTab(tabs[0]) }, [status, tabs, tab])
 
   // Refresh button: clear the old notice, reload overview/shops/log, and remount the open tab
   // (Users, Orders, Payments, Spam) so it fetches fresh data too. Settings is not remounted (unsaved edits).
@@ -224,8 +240,9 @@ export default function Admin() {
   const bell = health ? { count: alertCount, onClick: () => { setNotifOpen(true); void loadHealth() } } : undefined
   const shell = (body: ReactElement, nav = false) => (
     nav
-      ? <AdminShell tab={tab} onTab={setTab} onRefresh={onRefresh} refreshing={refreshing} bell={bell} save={saveSlot}>
+      ? <AdminShell tab={tab} onTab={setTab} onRefresh={onRefresh} refreshing={refreshing} bell={bell} save={saveSlot} tabs={tabs}>
           {body}
+          {viewShop && <AdminShopView shopId={viewShop} onClose={() => setViewShop(null)} />}
           {notifOpen && health && <AdminNotifications h={health} onClose={() => setNotifOpen(false)} />}
         </AdminShell>
       : <AdminShell>{body}</AdminShell>
@@ -258,7 +275,7 @@ export default function Admin() {
       {msg && !msg.error && <AdminToast key={msg.text + toastId} text={msg.text} onDone={() => setMsg((m) => (m && !m.error ? null : m))} />}
 
       <nav className="tabs admin-tabs" aria-label={t('admTitle')}>
-        {ADMIN_TABS.map((x) => (
+        {tabs.map((x) => (
           <button type="button" key={x} className={tab === x ? 'on' : ''} aria-current={tab === x ? 'page' : undefined} onClick={() => setTab(x)}>{t(ADMIN_TAB_KEYS[x])}</button>
         ))}
       </nav>
@@ -311,6 +328,7 @@ export default function Admin() {
               </div>
             </>
           )}
+          <BackupCard />
         </div>
       )}
 
@@ -351,6 +369,11 @@ export default function Admin() {
                     <dt>{t('admOpenNow')}</dt><dd>{s.is_open ? t('admYes') : t('admNo')}</dd>
                     {s.blocked && <><dt>{t('admReason')}</dt><dd>{s.blocked_reason || '—'}</dd></>}
                   </dl>
+                  <div className="admin-row">
+                    <button type="button" className="btn small soft" onClick={() => setViewShop(s.id)}><Icon name="eye" size={16} /> {t('adxViewShop')}</button>
+                  </div>
+
+                  {owner && (
 
                   <div className="admin-actions">
                     <div className="small muted">{t('admGivePro')}</div>
@@ -398,6 +421,7 @@ export default function Admin() {
                       )}
                     </div>
                   </div>
+                  )}
                 </div>
               )}
             </div>
@@ -408,8 +432,13 @@ export default function Admin() {
 
       </>)}
 
-      {tab === 'users' && <AdminUsers key={refreshKey} onMsg={setMsg} />}
-      {tab === 'orders' && <AdminOrders key={refreshKey} onMsg={setMsg} />}
+      {tab === 'users' && <AdminUsers key={refreshKey} onMsg={setMsg} owner={owner} />}
+      {tab === 'orders' && <AdminOrders key={refreshKey} onMsg={setMsg} owner={owner} />}
+      {tab === 'growth' && <AdminGrowth key={refreshKey} onMsg={setMsg} />}
+      {tab === 'support' && <AdminSupport key={refreshKey} onMsg={setMsg} onView={setViewShop} />}
+      {tab === 'reach' && <AdminReach key={refreshKey} onMsg={setMsg} onView={setViewShop} />}
+      {tab === 'coupons' && <AdminCoupons key={refreshKey} onMsg={setMsg} />}
+      {tab === 'errors' && <AdminErrors key={refreshKey} onMsg={setMsg} />}
       {tab === 'payments' && <AdminPayments key={refreshKey} onMsg={setMsg} />}
       {tab === 'spam' && <AdminSpam key={refreshKey} onMsg={setMsg} onChanged={loadLog} />}
       {tab === 'settings' && <AdminSettings onMsg={setMsg} onSaveSlot={setSaveSlot} />}

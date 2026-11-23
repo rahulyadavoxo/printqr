@@ -9,21 +9,26 @@ import { setTopColor } from '../lib/theme'
    Phone/tablet (< 1024px): app-style bar (back, title, refresh) and a bottom bar like the Dashboard,
    with the less used tabs in a "More" sheet. Shared by the Admin page and its loading skeleton. */
 
-export type AdminTab = 'overview' | 'shops' | 'users' | 'orders' | 'payments' | 'spam' | 'settings' | 'log'
-export const ADMIN_TABS: AdminTab[] = ['overview', 'shops', 'users', 'orders', 'payments', 'spam', 'settings', 'log']
+export type AdminTab = 'overview' | 'growth' | 'shops' | 'users' | 'orders' | 'payments' | 'support' | 'reach' | 'coupons' | 'spam' | 'errors' | 'settings' | 'log'
+export const ADMIN_TABS: AdminTab[] = ['overview', 'growth', 'shops', 'users', 'orders', 'payments', 'support', 'reach', 'coupons', 'spam', 'errors', 'settings', 'log']
+/** v39: what a 'support' admin sees (the SQL functions enforce the same). */
+export const SUPPORT_TABS: AdminTab[] = ['support', 'shops', 'users', 'orders', 'spam', 'errors']
 export const ADMIN_TAB_KEYS: Record<AdminTab, Key> = {
-  overview: 'admOverview', shops: 'admShops', users: 'admUsers', orders: 'admOrders', payments: 'admPayments',
-  spam: 'admSpam', settings: 'admSettings', log: 'admLog'
+  overview: 'admOverview', growth: 'adxGrowth', shops: 'admShops', users: 'admUsers', orders: 'admOrders', payments: 'admPayments',
+  support: 'adxSupport', reach: 'adxReachTab', coupons: 'adxCoupons', spam: 'admSpam', errors: 'adxErrors', settings: 'admSettings', log: 'admLog'
 }
 const ICONS: Record<AdminTab, string> = {
-  overview: 'chart', shops: 'store', users: 'user', orders: 'inbox', payments: 'rupee', spam: 'shield', settings: 'settings', log: 'note'
+  overview: 'chart', growth: 'earnings', shops: 'store', users: 'user', orders: 'inbox', payments: 'rupee', support: 'mail', reach: 'bell',
+  coupons: 'ticket', spam: 'shield', errors: 'alert', settings: 'settings', log: 'note'
 }
-/** Bottom bar, left to right (Orders in the centre); the rest live behind More. */
-const BOTTOM: AdminTab[] = ['overview', 'shops', 'orders', 'users']
-const MORE: AdminTab[] = ['payments', 'spam', 'settings', 'log']
+/** Bottom bar, left to right (Orders in the centre); the rest live behind More. Support admins: Support first. */
+const BOTTOM_OWNER: AdminTab[] = ['overview', 'shops', 'orders', 'users']
+const BOTTOM_SUPPORT: AdminTab[] = ['support', 'shops', 'orders', 'users']
 
-export function AdminShell({ children, tab, onTab, onRefresh, refreshing = false, bell, save }: {
+export function AdminShell({ children, tab, onTab, onRefresh, refreshing = false, bell, save, tabs = ADMIN_TABS }: {
   children: ReactNode; tab?: AdminTab; onTab?: (t: AdminTab) => void; onRefresh?: () => void; refreshing?: boolean
+  /** v39: tabs this admin's role may open (default all) */
+  tabs?: AdminTab[]
   /** v30: health alerts bell left of refresh; count = open problems */
   bell?: { count: number; onClick: () => void }
   /** The open tab has unsaved changes: its bottom-bar button (or More, for More tabs) turns into Save. */
@@ -32,6 +37,8 @@ export function AdminShell({ children, tab, onTab, onRefresh, refreshing = false
   const { t } = useI18n()
   const nav = useNavigate()
   const [more, setMore] = useState(false)
+  const BOTTOM = (tabs.includes('overview') ? BOTTOM_OWNER : BOTTOM_SUPPORT).filter((x) => tabs.includes(x))
+  const MORE = tabs.filter((x) => !BOTTOM.includes(x))
   // Phone/tablet: status bar (app) and browser bar match the grey admin top bar, like the Dashboard.
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1023.98px)')

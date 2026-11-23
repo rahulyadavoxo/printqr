@@ -3,6 +3,7 @@
 // Never throws, never sends personal data (the server masks emails / tokens and cuts to 300 characters).
 import { serverErrorHook, supabase } from './supabase'
 import { currentLoginPlatform } from './appSettings'
+import { nativeBridge } from './app'
 
 const MAX_PER_PAGE = 8
 const sent = new Set<string>()
@@ -17,10 +18,18 @@ function platform(): 'web' | 'app' | 'desktop' {
   try { const p = currentLoginPlatform(); return p === 'app' ? 'app' : p === 'desktop' ? 'desktop' : 'web' } catch { return 'web' }
 }
 
+/** v39: app version (Android / Windows app) or the web build time, for the Admin error viewer. */
+function appVersion(): string {
+  try {
+    const v = nativeBridge()?.appVersion?.() || (navigator.userAgent.match(/PrintQR(?:App)?\/(\d[\d.]*)/i) || [])[1] || ''
+    return (v ? v + ' · ' : 'web · ') + __BUILD__
+  } catch { return '' }
+}
+
 export function reportError(err: unknown, where?: string): void {
   try {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return
-    const e = err as { message?: unknown; code?: unknown } | null
+    const e = err as { message?: unknown; code?: unknown; stack?: unknown } | null
     const msg = String((e && typeof e === 'object' && e.message) || err || '').trim()
     if (!msg || IGNORE.some((r) => r.test(msg))) return
     const code = e && typeof e === 'object' && e.code ? ` [${String(e.code)}]` : ''
@@ -29,7 +38,15 @@ export function reportError(err: unknown, where?: string): void {
     const k = text + '|' + place
     if (sent.has(k) || sent.size >= MAX_PER_PAGE) return
     sent.add(k)
-    void supabase.rpc('report_client_error', { p_source: platform(), p_message: text, p_where: place }).then(() => undefined, () => undefined)
+    // v39: route, version, device and stack go with it (only the page path: no ?query or #hash with tokens)
+    const stack = e && typeof e === 'object' && typeof e.stack === 'string' ? e.stack.slice(0, 1500) : null
+    void supabase.rpc('report_client_error', {
+      p_source: platform(), p_message: text, p_where: place,
+      p_route: location.pathname.slice(0, 120), p_version: appVersion(), p_ua: navigator.userAgent.slice(0, 300), p_stack: stack
+    }).then(({ error }) => {
+      // Before the v39 SQL the function has only 3 arguments: send it the old way.
+      if (error) return supabase.rpc('report_client_error', { p_source: platform(), p_message: text, p_where: place })
+    }).then(() => undefined, () => undefined)
   } catch { /* never break the page */ }
 }
 
