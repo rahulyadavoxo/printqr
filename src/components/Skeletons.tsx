@@ -6,6 +6,7 @@ import BarStory from './BarStory'
 import { AdminShell } from './AdminShell'
 import { Key, useI18n } from '../lib/i18n'
 import { IN_APP, ON_ANDROID } from '../lib/app'
+import { routeQuery } from '../lib/router'
 import { BOTTOM, isTab, NAV, savedSidebar, Tab, TABS } from '../lib/dashNav'
 
 /* Loading skeletons, one per page. Each one uses the page's own layout classes (cards, grids, top bar,
@@ -22,7 +23,7 @@ const Busy = () => {
 }
 
 /* ------------------------------------------------------------------ */
-/* Customer pages: Upload (#/s/:slug), dynamic QR (#/q/:code), Status (#/o/:id/:key) */
+/* Customer pages: Upload (/s/:slug), dynamic QR (/q/:code), Status (/o/:id/:key) */
 
 /** Body of the upload page: shop header card, 3-step flow, drop zone. */
 export function UploadSkelBody() {
@@ -102,7 +103,7 @@ export function StatusSkeleton() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Auth-style pages: Setup (#/setup), Reset password (#/reset) */
+/* Auth-style pages: Setup (/setup), Reset password (/reset) */
 
 function FieldSkel({ hint = false, label = '34%' }: { hint?: boolean; label?: string }) {
   return (
@@ -172,7 +173,7 @@ export function ResetSkeleton() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Legal pages (#/legal/:doc) */
+/* Legal pages (/legal/:doc) */
 
 export function LegalSkeleton() {
   return (
@@ -191,7 +192,7 @@ export function LegalSkeleton() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Admin (#/admin) */
+/* Admin (/admin) */
 
 /** Stat cards (Admin overview, Dashboard report). */
 export function SkelStats({ n = 4 }: { n?: number }) {
@@ -273,7 +274,7 @@ export function AdminSkeleton() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Dashboard (#/dashboard?tab=...) */
+/* Dashboard (/dashboard?tab=...) */
 
 /** Orders tab: the queue card with its status pills and two order cards (token, name, files, buttons). */
 export function OrdersSkel() {
@@ -444,7 +445,7 @@ export function DashTabSkel({ tab }: { tab: Tab }) {
       // Android phone: Settings is the grouped list (SettingsHub); ?s=<section> opens one card
       const narrow = typeof window !== 'undefined' && window.matchMedia('(max-width: 1023.98px)').matches
       if (ON_ANDROID && narrow) {
-        const sub = new URLSearchParams(window.location.hash.split('?')[1] || '').get('s')
+        const sub = routeQuery().get('s')
         return sub ? <section aria-busy="true"><Busy /><B w={110} h={22} style={{ margin: '6px 0 14px' }} /><FormCardSkel fields={4} /></section> : <SettingsHubSkel />
       }
       return <section aria-busy="true"><Busy /><FormCardSkel fields={5} /><FormCardSkel fields={2} /></section>

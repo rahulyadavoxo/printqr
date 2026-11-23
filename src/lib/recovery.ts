@@ -1,4 +1,5 @@
 import { PUBLIC_BASE } from './app'
+import { replaceRoute } from './router'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { SUPABASE_KEY, SUPABASE_URL, supabase } from './supabase'
 
@@ -10,7 +11,8 @@ import { SUPABASE_KEY, SUPABASE_URL, supabase } from './supabase'
  * Supabase then redirects to the site root with the tokens in the URL hash:
  *   https://site/#access_token=...&refresh_token=...&type=recovery
  * HashRouter would read that as a route, so captureAuthHash() runs in main.tsx BEFORE the router
- * renders: it takes the tokens, rewrites the hash to #/reset and starts the session.
+ * renders: it takes the tokens, rewrites the URL to /reset (#/reset on hash hosts) and starts the session.
+ * normalizeRouteUrl() then turns any remaining #/x route into the path form on print.receipto.in.
  * A PKCE-style link (?code=...) is still handled by the main client, which fires PASSWORD_RECOVERY;
  * App listens for that event and opens /reset.
  */
@@ -21,9 +23,8 @@ let sessionPromise: Promise<boolean> | null = null
 let urlError: string | null = null
 let recoveryClient: SupabaseClient | null = null
 
-function setHash(route: string) {
-  window.history.replaceState(null, '', window.location.pathname + window.location.search + '#' + route)
-}
+// Path routes on print.receipto.in (history.replaceState to /reset), #/reset on hash hosts - see router.ts
+const setHash = replaceRoute
 
 const AUTH_LINK_TYPES = new Set(['recovery', 'signup', 'invite', 'magiclink', 'email_change'])
 

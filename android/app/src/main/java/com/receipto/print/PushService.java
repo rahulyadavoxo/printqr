@@ -94,7 +94,8 @@ public class PushService extends FirebaseMessagingService {
         if (!validOrderPath(path)) return;
         // That order's status page is on screen: it rings by itself.
         String url = currentUrl == null ? "" : currentUrl;
-        if (foreground && url.contains("#" + path)) return;
+        // Both URL forms: app (#/o/ID/KEY, HashRouter) and website (/o/ID/KEY).
+        if (foreground && url.contains(path)) return;
         showReady(msg, path, d.get("order_id"), d.get("lang"));
     }
 

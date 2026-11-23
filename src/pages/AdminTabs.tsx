@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useI18n } from '../lib/i18n'
+import { routeHref } from '../lib/router'
 import { callFn } from '../lib/billing'
 import { AppSettings, DEFAULT_SETTINGS, DESIGNS_FOR, LOGIN_PLATFORMS, LoginDesign, LoginPlatform, loginDesignFor, setAppSettingsCache } from '../lib/appSettings'
 import type { Key } from '../lib/i18n'
@@ -340,7 +341,7 @@ export function AdminSpam({ onMsg, onChanged }: { onMsg: Msg; onChanged: () => v
           {data.reports.map((r) => (
             <div className={`card admin-item${r.resolved ? ' is-done' : ''}`} key={r.id}>
               <div className="admin-item-top">
-                <b className="admin-ellipsis"><a href={`#/s/${r.slug}`} target="_blank" rel="noreferrer">{r.name}</a></b>
+                <b className="admin-ellipsis"><a href={routeHref(`/s/${r.slug}`)} target="_blank" rel="noreferrer">{r.name}</a></b>
                 <span className="small muted">{dt(r.created_at)}</span>
               </div>
               <p className="small admin-quote">{r.reason}</p>

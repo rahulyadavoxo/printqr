@@ -85,7 +85,7 @@ async function sendReady(sa: ServiceAccount, orderId: string): Promise<Record<st
   // v18: only the language the customer ordered in (both when unknown: older orders / apps).
   const title = o.lang === 'hi' ? `ऑर्डर #${o.token} तैयार है` : o.lang === 'en' ? `Order #${o.token} is ready` : `Order #${o.token} is ready · ऑर्डर तैयार है`
   const body = o.lang === 'hi' ? `${shop}: अपने प्रिंट ले लें` : o.lang === 'en' ? `${shop}: please collect your prints` : `${shop}: please collect your prints · अपने प्रिंट ले लें`
-  const link = `https://print.receipto.in/#/o/${o.id}/${o.access_key}`
+  const link = `https://print.receipto.in/o/${o.id}/${o.access_key}`
   const access = await googleToken(sa)
   let sent = 0
   let lastErr = ''
@@ -154,7 +154,7 @@ async function sendPaperLow(sa: ServiceAccount, shopId: string): Promise<Record<
       webpush: {
         headers: { Urgency: 'high', TTL: '86400' },
         notification: { title, body, icon: 'https://print.receipto.in/icon-192.png', badge: 'https://print.receipto.in/badge-96.png', tag: `paper-${shopId}` },
-        fcm_options: { link: 'https://print.receipto.in/#/dashboard?tab=settings' }
+        fcm_options: { link: 'https://print.receipto.in/dashboard?tab=settings' }
       }
     })
     if (r.ok) sent++
@@ -272,7 +272,7 @@ Deno.serve(async (req) => {
             webpush: {
               headers: { Urgency: 'high', TTL: '3600' },
               notification: { title, body, icon: 'https://print.receipto.in/icon-192.png', badge: 'https://print.receipto.in/badge-96.png', tag: `order-${o.id}` },
-              fcm_options: { link: 'https://print.receipto.in/#/dashboard' }
+              fcm_options: { link: 'https://print.receipto.in/dashboard' }
             }
           }
         })

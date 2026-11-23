@@ -7,6 +7,7 @@ import UpdateGate from './components/UpdateGate'
 import ConfirmHost from './components/ConfirmHost'
 import AppNotices from './components/AppNotices'
 import { RouteSkeleton } from './components/Skeletons'
+import { useRouteMeta } from './lib/useRouteMeta'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Upload from './pages/Upload'
@@ -22,6 +23,7 @@ const Admin = lazy(() => import('./pages/Admin'))
 export default function App() {
   const { t } = useI18n()
   const nav = useNavigate()
+  useRouteMeta()
   // PKCE-style recovery links (?code=...) are exchanged by supabase-js, which then fires PASSWORD_RECOVERY.
   useEffect(() => {
     if (!isConfigured) return

@@ -24,7 +24,7 @@ export default defineConfig({
         theme_color: '#0b1210',
         background_color: '#ffffff',
         display: 'standalone',
-        start_url: base + '#/dashboard',
+        start_url: base + 'dashboard',
         scope: base,
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
@@ -35,7 +35,9 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,mjs}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-        navigateFallbackDenylist: [/^\/rest\//, /^\/storage\//]
+        // Path routes (/s/shop, /dashboard) open the cached app shell; real files (sitemap.xml, robots.txt, ads.txt) don't
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/rest\//, /^\/storage\//, /\/[^/?]+\.[a-z0-9]+$/i]
       }
     })
   ]
