@@ -98,7 +98,7 @@ export function AdminUsers({ onMsg }: { onMsg: Msg }) {
 
   return (
     <>
-      <h2 className="admin-sec">{t('admUsers')}</h2>
+      <h2 className="admin-sec adm-tab-h">{t('admUsers')}</h2>
       <Search value={q} onChange={setQ} onSubmit={() => setQuery(q.trim())} placeholder={t('admUserSearch')} />
       {!rows ? <SkelList /> : rows.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
         <div className="admin-list">
@@ -177,7 +177,7 @@ export function AdminOrders({ onMsg }: { onMsg: Msg }) {
 
   return (
     <>
-      <h2 className="admin-sec">{t('admOrders')}</h2>
+      <h2 className="admin-sec adm-tab-h">{t('admOrders')}</h2>
       <p className="small muted">{t('admOrdersPrivacy')}</p>
       <Search value={q} onChange={setQ} onSubmit={() => setQuery(q.trim())} placeholder={t('admOrderSearch')} />
       <div className="seg" role="group" aria-label={t('admOrders')}>

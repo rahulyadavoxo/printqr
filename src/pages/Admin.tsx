@@ -264,7 +264,7 @@ export default function Admin() {
       </nav>
 
       {tab === 'overview' && (<>
-      <h2 className="admin-sec">{t('admOverview')}</h2>
+      <h2 className="admin-sec adm-tab-h">{t('admOverview')}</h2>
       {!ov ? <SkelStats n={8} /> : (
         <div className="stats">
           <div className="card stat accent stat-wide">
@@ -317,7 +317,7 @@ export default function Admin() {
       </>)}
 
       {tab === 'shops' && (<>
-      <h2 className="admin-sec">{t('admShops')}</h2>
+      <h2 className="admin-sec adm-tab-h">{t('admShops')}</h2>
       <form className="admin-search" onSubmit={(e) => { e.preventDefault(); setQuery(q.trim()) }}>
         <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('admSearch')} aria-label={t('admSearch')} />
         <button type="submit" className="btn">{t('admSearchBtn')}</button>
@@ -415,7 +415,7 @@ export default function Admin() {
       {tab === 'settings' && <AdminSettings onMsg={setMsg} onSaveSlot={setSaveSlot} />}
 
       {tab === 'log' && (<>
-      <h2 className="admin-sec">{t('admLog')}</h2>
+      <h2 className="admin-sec adm-tab-h">{t('admLog')}</h2>
       {!log ? <SkelLog /> : log.length === 0 ? <p className="muted">{t('admLogEmpty')}</p> : (
         <div className="card admin-log">
           {log.map((l, i) => (

@@ -1758,8 +1758,13 @@ input[type="password"]::-ms-reveal { display: none; }
   .adm-refresh:disabled { opacity: 1; cursor: default; }
   .adm-refresh.is-busy svg { animation: adm-spin .8s linear infinite; }
   @keyframes adm-spin { to { transform: rotate(360deg); } }
-  .admin-app .page { padding-top: 6px; }
-  .admin-app .admin-sec:first-of-type { margin-top: 14px; }
+  /* No tab title on phone (the bottom bar shows the tab): content starts at the normal page padding */
+  .admin-app .page { padding-top: var(--sp-4); }
+  .admin-app .adm-tab-h { display: none; }
+  .admin-app .adm-tab-h + * { margin-top: 0; }
+  .admin-app .admin-sec:first-of-type { margin-top: 0; }
+  .admin-app .adm-set-hub { padding-top: 0; }
+  .admin-app .adm-set-hub .set-grp-lbl:first-child { padding-top: 0; }
   .admin-app.has-bnav .page { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
   .admin-app .adm-bnav { display: flex; }
   .admin-app .adm-sheet-back { display: flex; }
