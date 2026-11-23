@@ -2722,3 +2722,13 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 /* Main loader (page frame known, content not): centred on the screen itself, under the top/side/bottom bars */
 .qr-load-block:not(.small) { position: fixed; inset: 0; z-index: 1; pointer-events: none; min-height: 0; }
 .qr-load-block.small { min-height: 160px; }
+.skel-tabs-row { pointer-events: none; }
+.skel-tabs-row .skel { flex: none; }
+
+/* Admin list skeleton rows */
+.skel-row { display: flex; align-items: center; gap: 14px; margin: 0; padding: 16px 18px; }
+.skel-row-text { flex: 1; display: grid; gap: 8px; }
+.skel-dot { width: 40px; height: 40px; border-radius: 12px; flex: none; }
+.skel-pill { width: 72px; height: 28px; border-radius: var(--r-pill); flex: none; }
+.skel-time { width: 90px; flex: none; }
+.skel-row { display: flex; align-items: center; gap: 12px; }

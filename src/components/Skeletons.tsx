@@ -167,14 +167,35 @@ export function SkelStats({ n = 4 }: { n?: number }) {
   )
 }
 
-/** Lists (shops, users, orders, reports, log): how many rows, or none, is not known, so the QR loader
- *  instead of guessed rows (user rule 2026-11-23). */
-export function SkelList(_: { n?: number } = {}) {
-  return <QrLoadBlock small />
+/* Admin lists: skeleton rows (admin panel uses skeletons only, user 2026-11-23). */
+export function SkelList({ n = 5 }: { n?: number }) {
+  return (
+    <div className="admin-list skeleton-wrap" aria-busy="true">
+      {Array.from({ length: n }, (_, i) => (
+        <div key={i} className="card skel-row">
+          <div className="skel skel-dot" />
+          <div className="skel-row-text">
+            <div className="skel skel-line w60" />
+            <div className="skel skel-line w40" />
+          </div>
+          <div className="skel skel-pill" />
+        </div>
+      ))}
+    </div>
+  )
 }
 
-export function SkelLog(_: { n?: number } = {}) {
-  return <QrLoadBlock small />
+export function SkelLog({ n = 6 }: { n?: number }) {
+  return (
+    <div className="card admin-log skeleton-wrap" aria-busy="true">
+      {Array.from({ length: n }, (_, i) => (
+        <div key={i} className="admin-log-row">
+          <div className="skel skel-line skel-time" />
+          <div className="skel skel-line" style={{ width: `${45 + ((i * 17) % 40)}%` }} />
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export function SkelForm({ n = 4 }: { n?: number }) {
@@ -187,6 +208,28 @@ export function SkelForm({ n = 4 }: { n?: number }) {
         </div>
       ))}
     </div>
+  )
+}
+
+/* Admin panel: layout is fixed (tabs + Overview's 8 stat cards), so a skeleton, not the QR loader (user, 2026-11-23). */
+/** Admin body: title + Refresh, the 8 tab pills, the Overview heading and its 8 stat cards. */
+export function AdminSkelBody() {
+  return (
+    <div aria-busy="true">
+      <Busy />
+      <div className="admin-head"><B w={170} h={30} /><B w={84} h={36} r={10} /></div>
+      <div className="tabs admin-tabs skel-tabs-row" aria-hidden="true">
+        {[82, 64, 60, 66, 82, 58, 74, 48].map((w, i) => <B key={i} w={w} h={40} r={999} />)}
+      </div>
+      <B w={130} h={20} style={{ margin: '26px 0 12px' }} />
+      <SkelStats n={8} />
+    </div>
+  )
+}
+
+export function AdminSkeleton() {
+  return (
+    <AdminShell tab="overview"><AdminSkelBody /></AdminShell>
   )
 }
 
@@ -420,8 +463,7 @@ export function RouteSkeleton() {
     const tab = new URLSearchParams(search).get('tab')
     return <DashSkeleton tab={isTab(tab) ? tab : 'orders'} />
   }
-  // Admin: checking access first (panel, 2-step login or no access), so the frame + QR loader.
-  if (pathname.startsWith('/admin')) return <AdminShell><QrLoadBlock /></AdminShell>
+  if (pathname.startsWith('/admin')) return <AdminSkeleton />
   if (pathname.startsWith('/setup')) return <SetupSkeleton />
   if (pathname.startsWith('/reset')) return <ResetSkeleton />
   if (pathname.startsWith('/legal')) return <LegalSkeleton />
