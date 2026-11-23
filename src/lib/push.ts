@@ -75,6 +75,15 @@ export function pushStatus(): string {
   }
 }
 
+/** Plain push state for shop owners: on, blocked, or not ready yet ('' outside the app). The raw text is pushStatus(), admins only. */
+export function pushState(): '' | 'on' | 'blocked' | 'pending' {
+  const raw = pushStatus()
+  if (!raw) return ''
+  if (raw === 'ok') return 'on'
+  if (raw === 'notifications blocked') return 'blocked'
+  return 'pending'
+}
+
 // ---------------- Customer "order ready" alert inside the Android app (v18) ----------------
 const APP_READY_KEY = 'pq-ready-app'
 

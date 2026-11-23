@@ -17,7 +17,7 @@ import { Key, useI18n } from '../lib/i18n'
 import { useAppSettings } from '../lib/appSettings'
 import { canDirectPrint, DesktopPrinter, desktopApi, savedPrinter, savePrinter } from '../lib/desktop'
 import noOrdersArt from '../assets/no-orders-waiting.svg'
-import { pushStatus, removePush, setupPush } from '../lib/push'
+import { pushState, pushStatus, removePush, setupPush } from '../lib/push'
 import { LangToggle, LogoMark, TopBar, Wordmark } from '../components/TopBar'
 import { ThemePref, useTheme } from '../lib/theme'
 import Icon from '../components/Icon'
@@ -817,7 +817,9 @@ export default function Dashboard() {
         {tab === 'settings' && !bottomNav && (
           <>
             <button type="button" className="btn danger block lg logout-btn" onClick={logout}><Icon name="logout" size={18} /> {t('logout')}</button>
-            {appVer && <p className="app-version">PrintQR {appVer}{pushStatus() ? ' · push: ' + pushStatus() : ''}</p>}
+            {appVer && <p className="app-version">PrintQR {appVer}{isAdmin
+              ? (pushStatus() ? ' · push: ' + pushStatus() : '')
+              : ({ on: ' · ' + t('pushOn'), blocked: ' · ' + t('pushBlocked'), pending: ' · ' + t('pushNotReady'), '': '' } as const)[pushState()]}</p>}
           </>
         )}
         {tab === 'plan' && <PlanTab shop={shop} email={session?.user.email || undefined} contact={accountPhone(session?.user)} onChanged={loadShop} />}
