@@ -1712,9 +1712,7 @@ input[type="password"]::-ms-reveal { display: none; }
 .lx-hero { background:#a6e22e; color:#0d1210; padding:18px 20px 72px; border-radius:0 0 32px 32px; position:relative; overflow:hidden; }
 .lx-top { display:flex; align-items:center; justify-content:space-between; }
 .lx-logo { display:flex; align-items:center; gap:10px; }
-.lx-logo i { width:40px; height:40px; border-radius:12px; background:#0d1210; color:#a6e22e; display:grid; place-items:center; font-style:normal; font-weight:800; font-size:22px; }
-.lx-logo b { font-size:24px; letter-spacing:-.5px; line-height:1; display:block; }
-.lx-logo small { font-size:9px; letter-spacing:.2em; font-weight:700; opacity:.7; }
+.lx-logo img { display:block; height:40px; width:auto; }
 .lx-lang { display:flex; background:rgba(13,18,16,.12); border-radius:99px; padding:3px; }
 .lx-lang button { border:0; background:transparent; font:inherit; font-weight:700; font-size:13px; padding:7px 12px; border-radius:99px; color:#0d1210; cursor:pointer; min-height:0; }
 .lx-lang button[aria-pressed="true"] { background:#0d1210; color:#a6e22e; }
@@ -1828,9 +1826,7 @@ input[type="password"]::-ms-reveal { display: none; }
 .lxd .lx-g { height:54px; background:#fff; }
 .lxd .lx-g:hover { background:var(--lx-field); }
 .lxd .auth-terms { margin:22px 0 0; font-size:12.5px; }
-.lxd .lx-logo i { background:#a6e22e; color:#0d1210; width:44px; height:44px; border-radius:14px; font-size:24px; box-shadow:0 6px 14px rgba(120,170,20,.35); }
-.lxd .lx-logo b { font-size:26px; letter-spacing:-.6px; }
-.lxd .lx-logo small { font-size:9.5px; letter-spacing:.22em; color:var(--lx-muted); opacity:1; }
+.lxd .lx-logo img { height:44px; }
 .lxd .lx-lang { background:#fff; border:1px solid var(--lx-line); }
 .lxd .lx-lang button { color:var(--lx-muted); padding:7px 14px; }
 .lxd .lx-lang button[aria-pressed="true"] { background:#0d1210; color:#a6e22e; }
@@ -1862,9 +1858,7 @@ input[type="password"]::-ms-reveal { display: none; }
 .lxs-brand { background:#a6e22e; color:#0d1210; padding:40px 56px; display:flex; flex-direction:column; position:relative; overflow:hidden; animation:lxd-wipe 1s cubic-bezier(.7,0,.2,1) both; }
 .lxs-brand::before { content:""; position:absolute; width:420px; height:420px; border-radius:50%; background:radial-gradient(circle,rgba(255,255,255,.38),transparent 65%); left:-140px; top:-140px; animation:lxd-drift 12s ease-in-out infinite alternate; pointer-events:none; }
 .lxd-split .lx-logo { position:relative; z-index:2; animation:lxd-rise .7s cubic-bezier(.2,.8,.2,1) .5s both; }
-.lxd-split .lx-logo i { background:#0d1210; color:#a6e22e; width:46px; height:46px; font-size:26px; box-shadow:none; }
-.lxd-split .lx-logo b { font-size:28px; }
-.lxd-split .lx-logo small { color:#0d1210; opacity:.7; font-size:10px; }
+.lxd-split .lx-logo img { height:50px; }
 .lxs-copy { margin:auto 0; padding:40px 0; max-width:460px; position:relative; z-index:2; }
 .lxs-copy h2 { margin:0; font-size:clamp(38px,4.2vw,58px); line-height:1.12; letter-spacing:-2px; font-weight:800; color:#0d1210; }
 .lxs-copy h2 .w:nth-child(1)::after { content:""; position:absolute; top:8%; bottom:8%; left:.14em; width:.07em; background:#fff; border-radius:3px; box-shadow:0 0 18px 4px rgba(255,255,255,.85); opacity:0; animation:lxd-sweep 4.5s ease-in-out 2s infinite; }
@@ -1882,7 +1876,7 @@ input[type="password"]::-ms-reveal { display: none; }
   animation:lxd-receipt 1s cubic-bezier(.2,.9,.3,1.15) 1s both, lxd-bobr 6s ease-in-out 2.2s infinite; }
 .lxs-receipt::after { content:""; position:absolute; left:50%; margin-left:-62px; width:124px; height:3px; bottom:50px; border-radius:3px; background:#a6e22e; box-shadow:0 0 14px #a6e22e; opacity:0; animation:lxd-scan 2.2s ease-in-out 3.4s infinite; }
 .lxs-receipt .rh { display:flex; justify-content:space-between; align-items:center; font-size:12px; margin-bottom:14px; transform-origin:left; animation:lxd-grow .5s ease-out 1.5s both; }
-.lxs-receipt .rh b { font-size:15px; letter-spacing:-.4px; }
+.lxs-receipt .rh img { display:block; height:24px; width:auto; }
 .lxs-receipt .rh span { color:#6a716b; font-weight:700; }
 .lxs-receipt .l { height:9px; border-radius:5px; background:#e4e7dc; margin-bottom:11px; transform-origin:left; animation:lxd-grow .5s ease-out both; }
 .lxs-receipt .l.s { width:60%; }
