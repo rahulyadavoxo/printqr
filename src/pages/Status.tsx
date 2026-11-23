@@ -353,7 +353,7 @@ function StatusPage({ id, orderKey: key }: { id: string; orderKey: string }) {
                     <input type="checkbox" checked={c.on && f.allowed} disabled={!f.allowed || reBusy} onChange={(e) => set(f.id, { on: e.target.checked })} aria-label={t('reInclude')} />
                     <strong>{f.item_kind === 'passport' ? t('ppSheetLabel') : f.item_kind === 'idcard' ? t('idSheetLabel') : f.file_name}</strong>
                   </label>
-                  {!f.allowed ? <span className="small muted">🔒 {t('reLocked')}</span> : (
+                  {!f.allowed ? <span className="small muted"><Icon name="lock" size={14} className="ico-inl" />{t('reLocked')}</span> : (
                     <div className="re-opts">
                       <span className="small muted">
                         {f.item_kind === 'passport' ? t('ppCalc', { n: f.photos ?? '?', s: f.pages })

@@ -142,19 +142,19 @@ Deno.serve(async (req) => {
       const cur = open.find((a) => a.key === c.key)
       if (c.bad === null) { if (cur) await call(`/rest/v1/ops_alerts?id=eq.${cur.id}`, { method: 'PATCH', body: JSON.stringify({ last_seen: now }) }); continue }
       if (c.bad && !cur) {
-        const sent = await pushAdmins(`⚠️ PrintQR: ${c.title}`, c.detail, `alert-${c.key}`).catch(() => 0)
+        const sent = await pushAdmins(`PrintQR alert: ${c.title}`, c.detail, `alert-${c.key}`).catch(() => 0)
         await call('/rest/v1/ops_alerts', { method: 'POST', body: JSON.stringify({ key: c.key, title: c.title, detail: c.detail, notified_at: sent ? now : null }) })
         results.push(`open ${c.key} (push ${sent})`)
       } else if (c.bad && cur) {
         const patch: Record<string, unknown> = { last_seen: now, detail: c.detail }
         if (!cur.notified_at || now.getTime() - new Date(cur.notified_at).getTime() > REMIND_MS) {
-          const sent = await pushAdmins(`⚠️ PrintQR: ${c.title} (still)`, c.detail, `alert-${c.key}`).catch(() => 0)
+          const sent = await pushAdmins(`PrintQR alert: ${c.title} (still)`, c.detail, `alert-${c.key}`).catch(() => 0)
           if (sent) patch.notified_at = now
         }
         await call(`/rest/v1/ops_alerts?id=eq.${cur.id}`, { method: 'PATCH', body: JSON.stringify(patch) })
       } else if (!c.bad && cur) {
         await call(`/rest/v1/ops_alerts?id=eq.${cur.id}`, { method: 'PATCH', body: JSON.stringify({ closed_at: now }) })
-        if (cur.notified_at) await pushAdmins(`✅ PrintQR: ${c.title} fixed`, 'Back to normal.', `alert-${c.key}`).catch(() => 0)
+        if (cur.notified_at) await pushAdmins(`PrintQR: ${c.title} fixed`, 'Back to normal.', `alert-${c.key}`).catch(() => 0)
         results.push(`closed ${c.key}`)
       }
     }
@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
     let sent = 0
     try {
       await call('/rest/v1/ops_alerts', { method: 'POST', body: JSON.stringify({ key: 'health_check', title: 'Health check failed', detail: msg }) })
-      sent = await pushAdmins('⚠️ PrintQR: health check failed', msg, 'alert-health').catch(() => 0)
+      sent = await pushAdmins('PrintQR alert: health check failed', msg, 'alert-health').catch(() => 0)
     } catch { /* already open, or the database is unreachable */ }
     return reply(500, { error: 'health_failed', push: sent })
   }

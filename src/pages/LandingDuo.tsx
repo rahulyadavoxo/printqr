@@ -1,9 +1,10 @@
-import { CSSProperties, KeyboardEvent, MouseEvent, useEffect, useRef, useState } from 'react'
+import { CSSProperties, KeyboardEvent, ReactNode, MouseEvent, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Key, useI18n } from '../lib/i18n'
 import { LangToggle, LogoMark, Wordmark } from '../components/TopBar'
 import { AppDownloadButton } from '../components/AppDownload'
 import UploadPreview from '../components/UploadPreview'
+import Icon from '../components/Icon'
 
 /* Landing design "duo" (admin picks it in Settings -> Landing page design). All styles are under `.lpd`. */
 
@@ -17,7 +18,7 @@ function go(id: string) {
   }
 }
 
-const WHY: [string, Key, Key][] = [['◎', 'ldW1T', 'ldW1B'], ['⚡', 'ldW2T', 'ldW2B'], ['₹', 'ldW3T', 'ldW3B'], ['हि', 'ldW4T', 'ldW4B']]
+const WHY: [ReactNode, Key, Key][] = [['◎', 'ldW1T', 'ldW1B'], [<Icon name="bolt" size={26} />, 'ldW2T', 'ldW2B'], ['₹', 'ldW3T', 'ldW3B'], ['हि', 'ldW4T', 'ldW4B']]
 const FAQ: [Key, Key][] = [['ldQ1', 'ldA1'], ['ldQ2', 'ldA2'], ['ldQ3', 'ldA3'], ['ldQ4', 'ldA4'], ['ldQ5', 'ldA5']]
 const TICKER: [string, Key][] = [
   ['Rahul · Notes.pdf', 'ldStPrinting'], ['Anjali · Resume.docx', 'ldStReady'], ['Sumit · Photo.jpg', 'ldStQueued'],

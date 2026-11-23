@@ -2732,3 +2732,7 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 .skel-pill { width: 72px; height: 28px; border-radius: var(--r-pill); flex: none; }
 .skel-time { width: 90px; flex: none; }
 .skel-row { display: flex; align-items: center; gap: 12px; }
+
+/* Small icon that sits inside a line of text (replaced emoji, 2026-11-23) */
+.ico-inl { vertical-align: -0.15em; margin-right: 4px; }
+.pill .ico-inl { margin-right: 3px; }

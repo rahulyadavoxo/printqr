@@ -456,14 +456,14 @@ function AdminNotifications({ h, onClose }: { h: HealthData; onClose: () => void
         <div className="adm-notif-list">
           {open.map((a) => (
             <div key={a.key} className="adm-notif-item bad">
-              <div>⚠️ <b>{a.title}</b></div>
+              <div><Icon name="alert" size={15} className="ico-inl" /><b>{a.title}</b></div>
               <div className="small muted">{t('admHealthSince', { d: when(a.opened_at) })}</div>
               <div className="small">{a.detail}</div>
             </div>
           ))}
           {fixed.map((a) => (
             <div key={a.key + a.closed_at} className="adm-notif-item">
-              <div>✅ {a.title}</div>
+              <div><Icon name="check" size={15} className="ico-inl" />{a.title}</div>
               <div className="small muted">{t('admHealthSince', { d: when(a.opened_at) })} · {t('admHealthFixed', { d: when(a.closed_at) })}</div>
             </div>
           ))}

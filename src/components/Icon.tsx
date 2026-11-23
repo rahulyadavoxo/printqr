@@ -77,6 +77,12 @@ const PATHS: Record<string, ReactElement> = {
   bold: <path d="M7 4h6a4 4 0 0 1 0 8H7zM7 12h7a4 4 0 0 1 0 8H7z" />,
   compare: <path d="M12 3v18M4 5h5v14H4zM15 5h5v14h-5" />,
   full: <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />,
+  receipt: <path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21zM9 8h6M9 12h6M9 16h3" />,
+  bolt: <path d="M13 2L4 14h7l-1 8 9-12h-7z" />,
+  phone: <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" />,
+  mail: <path d="M3 5h18v14H3zM3 6l9 7 9-7" />,
+  key: <path d="M8 15a4 4 0 1 1 0-8 4 4 0 0 1 0 8zM12 11h9M18 11v3M21 11v3" />,
+  ticket: <path d="M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4zM14 7v10" />,
   magic: <path d="M15 4V2M15 10V8M11 6h2M17 6h2M3 21l12-12M18 13v2M17 14h2" />
 }
 

@@ -1450,7 +1450,7 @@ function OrderCard(props: {
           <strong>{o.customer_name || t('customer')}</strong>
           <div className="order-meta">
             <span className="order-time"><Icon name="clock" size={14} /> {timeText(o.created_at)}</span>
-            {o.counter_name && <span className="pill tiny counter-pill">🧾 {o.counter_name}</span>}
+            {o.counter_name && <span className="pill tiny counter-pill"><Icon name="receipt" size={12} className="ico-inl" />{o.counter_name}</span>}
           </div>
         </div>
         <div className="order-right">
@@ -1476,13 +1476,13 @@ function OrderCard(props: {
             ) : <div className="fname">{f.file_name}</div>}
             {f.item_kind === 'passport' ? (
               <div className="file-meta">
-                <span className="pill tiny pp-pill">🪪 {t('ppSheetLabel')}</span>
+                <span className="pill tiny pp-pill"><Icon name="idcard" size={12} className="ico-inl" />{t('ppSheetLabel')}</span>
                 <span>{t('ppCalc', { n: f.photos ?? '?', s: f.pages_to_print })}{f.copies > 1 ? ` × ${f.copies}` : ''}</span>
                 <b>{rupees(Number(f.price))}</b>
               </div>
             ) : f.item_kind === 'idcard' ? (
               <div className="file-meta">
-                <span className="pill tiny pp-pill">🪪 {t('idSheetLabel')}</span>
+                <span className="pill tiny pp-pill"><Icon name="idcard" size={12} className="ico-inl" />{t('idSheetLabel')}</span>
                 <span className={`mchip${f.color ? ' is-color' : ''}`}>{f.color ? t('color') : t('bw')}</span>
                 <span>{t('idCalc', { c: f.copies })} · {t('idPrintHint')}</span>
                 <b>{rupees(Number(f.price))}</b>
@@ -1600,7 +1600,7 @@ function RatesTab({ shop, v2, passportLocked, onUpgrade, onSaved }: {
           <div className="field locked-field" key={label}>
             <span>{t(label)} <span className="pro-badge">{t('planPro')}</span></span>
             <div className="input-affix">
-              <span className="affix">🔒</span>
+              <span className="affix"><Icon name="lock" size={16} /></span>
               <input value="" disabled placeholder={t('proFeature')} aria-label={t(label)} />
             </div>
             <small className="hint">
@@ -1813,6 +1813,35 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, plus, onUpgrad
 
     g.textAlign = 'center'
     g.textBaseline = 'middle'
+    // Line icons drawn on the card (same paths as components/Icon), not emoji: emoji look different on every phone.
+    const IC: Record<string, string> = {
+      pin: 'M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21zM12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+      receipt: 'M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21zM9 8h6M9 12h6M9 16h3',
+      scan: 'M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M7 12h10',
+      upload: 'M12 16V4M7 9l5-5 5 5M4 16v4h16v-4',
+      printer: 'M7 9V3h10v6M7 17H4v-8h16v8h-3M7 14h10v7H7z',
+    }
+    const drawIco = (name: string, x: number, cy: number, s: number, color: string) => {
+      g.save()
+      g.translate(x, cy - s / 2)
+      g.scale(s / 24, s / 24)
+      g.strokeStyle = color
+      g.lineWidth = 2.2
+      g.lineCap = 'round'
+      g.lineJoin = 'round'
+      g.stroke(new Path2D(IC[name]))
+      g.restore()
+    }
+    /** Icon + text centred on cx as one group (uses the current font and fillStyle). */
+    const iconText = (name: string, text: string, cx: number, y: number, maxW: number, s: number) => {
+      const gap = s * 0.35
+      const tw = Math.min(g.measureText(text).width, maxW - s - gap)
+      const x0 = cx - (s + gap + tw) / 2
+      drawIco(name, x0, y, s, String(g.fillStyle))
+      g.textAlign = 'left'
+      g.fillText(text, x0 + s + gap, y, tw)
+      g.textAlign = 'center'
+    }
 
     // Tag pill
     // Plus: no PrintQR branding on the card
@@ -1832,14 +1861,15 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, plus, onUpgrad
     if (shop.address) {
       g.font = `500 36px ${font}`
       g.fillStyle = pal.muted
-      g.fillText('📍 ' + shop.address, W / 2, 268, W - 140)
+      iconText('pin', shop.address, W / 2, 268, W - 140, 34)
     }
 
     // Counter name pill
     if (counterName) {
-      const label = '🧾 ' + counterName
-      fitText(label, 800, 40, 26, W - 260)
-      const cw = Math.min(g.measureText(label).width + 80, W - 160)
+      const label = counterName
+      fitText(label, 800, 40, 26, W - 310)
+      const icS = 36
+      const cw = Math.min(g.measureText(label).width + icS + 13 + 80, W - 160)
       const grad = g.createLinearGradient((W - cw) / 2, 0, (W + cw) / 2, 0)
       grad.addColorStop(0, pal.pillFrom)
       grad.addColorStop(1, pal.pillTo)
@@ -1847,7 +1877,7 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, plus, onUpgrad
       g.fillStyle = grad
       g.fill()
       g.fillStyle = inkOn(pal.pillTo)
-      g.fillText(label, W / 2, 335, cw - 50)
+      iconText('receipt', label, W / 2, 335, cw - 50, icS)
     }
 
     // White QR card with shadow
@@ -1920,9 +1950,10 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, plus, onUpgrad
 
     // Steps row
     y += 100
-    const steps = ['📷  ' + t('cardScan'), '📄  ' + t('cardUpload'), '🖨️  ' + t('cardCollect')]
+    const steps = [t('cardScan'), t('cardUpload'), t('cardCollect')]
+    const stepIco = ['scan', 'upload', 'printer']
     g.font = `700 32px ${font}`
-    const widths = steps.map((s) => g.measureText(s).width + 56)
+    const widths = steps.map((s) => g.measureText(s).width + 32 + 11 + 56)
     const gap = 40
     let x = (W - (widths.reduce((a, b) => a + b, 0) + gap * (steps.length - 1))) / 2
     steps.forEach((s, i) => {
@@ -1933,7 +1964,7 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, plus, onUpgrad
       g.lineWidth = 2
       g.stroke()
       g.fillStyle = pal.stepInk
-      g.fillText(s, x + widths[i] / 2, y + 1)
+      iconText(stepIco[i], s, x + widths[i] / 2, y + 1, widths[i], 32)
       if (i < steps.length - 1) {
         g.fillStyle = pal.arrow
         g.fillText('›', x + widths[i] + gap / 2, y)
@@ -2017,7 +2048,7 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, plus, onUpgrad
         )}
         <div className={`qr-design${canDesign ? '' : ' is-locked'}`}>
           <div className="dyn-head">
-            <strong>{canDesign ? '' : '🔒 '}{t('qdTitle')} <span className="pro-badge">{t('planPro')}</span></strong>
+            <strong>{canDesign ? null : <Icon name="lock" size={14} className="ico-inl" />}{t('qdTitle')} <span className="pro-badge">{t('planPro')}</span></strong>
           </div>
           <p className="small muted">{canDesign ? t('qdSub') : t('qdLocked')}</p>
           <fieldset disabled={!canDesign} className="qd-fields">
@@ -2052,7 +2083,7 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, plus, onUpgrad
             <button type="button" className="btn primary small" onClick={() => void saveDesign()}>{t('save')}</button>
           ) : (
             <div className="upgrade-prompt">
-              <span>🔒 {t('qdLocked')} <span className="pro-badge">{t('planPro')}</span></span>
+              <span><Icon name="lock" size={14} className="ico-inl" />{t('qdLocked')} <span className="pro-badge">{t('planPro')}</span></span>
               <button type="button" className="btn primary small" onClick={onUpgrade}>{t('seePlans')}</button>
             </div>
           )}
@@ -2075,7 +2106,7 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, plus, onUpgrad
           ? <img src={import.meta.env.BASE_URL + 'logo-dark.svg'} height={34} width={85} alt="Print by Receipto" style={{ display: 'block' }} />
           : <Wordmark height={34} light />}</div>
         <div className="poster-top">{shop.name}</div>
-        {counterName && <div className="poster-counter">🧾 {counterName}</div>}
+        {counterName && <div className="poster-counter"><Icon name="receipt" size={16} className="ico-inl" />{counterName}</div>}
         <h2>{headline}</h2>
         <div className="poster-qr">{img && dynReady ? <img src={img} alt="Shop QR code" /> : <div className="skel skel-qr" aria-busy="true" />}</div>
         <div className="poster-rates">
@@ -2087,7 +2118,7 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, plus, onUpgrad
           <li><b>2</b><span>{t('posterStep2')}</span></li>
           <li><b>3</b><span>{t('posterStep3')}</span></li>
         </ol>
-        {shop.phone && <div className="poster-phone">📞 {shop.phone}</div>}
+        {shop.phone && <div className="poster-phone"><Icon name="phone" size={16} className="ico-inl" />{shop.phone}</div>}
         {footer && <div className="poster-footer">{footer}</div>}
         <div className="poster-url">{url}</div>
       </div>
@@ -2231,7 +2262,7 @@ function Report({ shop, onUpgrade }: { shop: Shop; onUpgrade: () => void }) {
         </div>
         {locked && lockedTier && (
           <div className="upgrade-prompt">
-            <span>🔒 {t('histLocked', { n: t(HIST_RANGES.find((r) => r.days === locked)!.label) })} <span className="pro-badge">{lockedTier === 'plus' ? t('planPlus') : t('planPro')}</span></span>
+            <span><Icon name="lock" size={14} className="ico-inl" />{t('histLocked', { n: t(HIST_RANGES.find((r) => r.days === locked)!.label) })} <span className="pro-badge">{lockedTier === 'plus' ? t('planPlus') : t('planPro')}</span></span>
             <button type="button" className="btn primary small" onClick={onUpgrade}>{t('seePlans')}</button>
           </div>
         )}
@@ -2378,7 +2409,7 @@ function Settings({ shop, onSaved, onUpgrade }: { shop: Shop; onSaved: (s: Shop)
             const need = tierFor(FILE_HOURS, h)
             return (
               <option key={h} value={h} disabled={h > cap && h !== f.auto_delete_hours}>
-                {keepText(h)}{h > cap ? ` · 🔒 ${need === 'plus' ? t('planPlus') : t('planPro')}` : ''}
+                {keepText(h)}{h > cap ? ` · ${need === 'plus' ? t('planPlus') : t('planPro')}` : ''}
               </option>
             )
           })}
@@ -2547,7 +2578,7 @@ function BrandCard({ shop, plus, onSaved, onUpgrade }: { shop: Shop; plus: boole
   }
   return (
     <div className={`card form-card${plus ? '' : ' is-locked'}`}>
-      <h2 className="card-title">{plus ? '' : '🔒 '}{t('brandTitle')} <span className="pro-badge">{t('planPlus')}</span></h2>
+      <h2 className="card-title">{plus ? null : <Icon name="lock" size={14} className="ico-inl" />}{t('brandTitle')} <span className="pro-badge">{t('planPlus')}</span></h2>
       <p className="small muted">{t('brandSub')}</p>
       <fieldset disabled={!plus} className="qd-fields">
         <div className="field">
@@ -2571,7 +2602,7 @@ function BrandCard({ shop, plus, onSaved, onUpgrade }: { shop: Shop; plus: boole
       </fieldset>
       {!plus && (
         <div className="upgrade-prompt">
-          <span>🔒 {t('brandLocked')} <span className="pro-badge">{t('planPlus')}</span></span>
+          <span><Icon name="lock" size={14} className="ico-inl" />{t('brandLocked')} <span className="pro-badge">{t('planPlus')}</span></span>
           <button type="button" className="btn primary small" onClick={onUpgrade}>{t('seePlans')}</button>
         </div>
       )}
@@ -2615,7 +2646,7 @@ function StaffCard({ shop, plus, onUpgrade }: { shop: Shop; plus: boolean; onUpg
   }
   return (
     <div className={`card form-card${plus ? '' : ' is-locked'}`}>
-      <h2 className="card-title">{plus ? '' : '🔒 '}{t('staffTitle')} <span className="pro-badge">{t('planPlus')}</span></h2>
+      <h2 className="card-title">{plus ? null : <Icon name="lock" size={14} className="ico-inl" />}{t('staffTitle')} <span className="pro-badge">{t('planPlus')}</span></h2>
       <p className="small muted">{t('staffSub')}</p>
       {plus ? (
         <>
@@ -2639,7 +2670,7 @@ function StaffCard({ shop, plus, onUpgrade }: { shop: Shop; plus: boolean; onUpg
         </>
       ) : (
         <div className="upgrade-prompt">
-          <span>🔒 {t('staffLocked')} <span className="pro-badge">{t('planPlus')}</span></span>
+          <span><Icon name="lock" size={14} className="ico-inl" />{t('staffLocked')} <span className="pro-badge">{t('planPlus')}</span></span>
           <button type="button" className="btn primary small" onClick={onUpgrade}>{t('seePlans')}</button>
         </div>
       )}
@@ -2727,7 +2758,7 @@ function CountersCard({ shop, counters, usable, locked, limit, needPlus, v2, onC
                 </li>
               ) : (
                 <li key={c.id} className="counter-locked">
-                  <span className="counter-locked-name">🔒 {c.name} <span className="small muted">· {t('cLocked')}</span></span>
+                  <span className="counter-locked-name"><Icon name="lock" size={14} className="ico-inl" />{c.name} <span className="small muted">· {t('cLocked')}</span></span>
                   <div className="counter-actions">
                     <button type="button" className="btn small soft" onClick={onUpgrade}>{t('seePlans')}</button>
                     <button type="button" className="btn small danger-outline" onClick={() => remove(c)} disabled={busy}>{t('cDelete')}</button>
@@ -2738,7 +2769,7 @@ function CountersCard({ shop, counters, usable, locked, limit, needPlus, v2, onC
           )}
           {counters.length >= limit ? (
             <div className="upgrade-prompt">
-              <span>🔒 {needPlus ? t('cUpgradePlus') : t('cUpgradePrompt')} <span className="pro-badge">{needPlus ? t('planPlus') : t('planPro')}</span></span>
+              <span><Icon name="lock" size={14} className="ico-inl" />{needPlus ? t('cUpgradePlus') : t('cUpgradePrompt')} <span className="pro-badge">{needPlus ? t('planPlus') : t('planPro')}</span></span>
               <button type="button" className="btn primary small" onClick={onUpgrade}>{t('seePlans')}</button>
             </div>
           ) : counters.length < MAX_COUNTERS && (

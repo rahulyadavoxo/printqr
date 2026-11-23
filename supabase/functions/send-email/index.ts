@@ -8,6 +8,7 @@
 // Optional: MAIL_FROM_NAME (default "PrintQR")
 // Deployed with --no-verify-jwt; every request is checked with the Standard Webhooks signature instead.
 
+import type { MailIcon } from '../_shared/gmail.ts'
 import { button, codeBox, fallbackLink, layout, note, para, sendMail } from '../_shared/gmail.ts'
 import { logOps } from '../_shared/ops.ts'
 
@@ -56,43 +57,43 @@ async function verify(req: Request, body: string): Promise<void> {
 
 /* ---------------- Email content ---------------- */
 
-type Copy = { subject: string; icon: string; title: string; subtitle: string; line: string; lineHi: string; button: string; codeLabel: string; preheader: string; safety: string }
+type Copy = { subject: string; icon: MailIcon; title: string; subtitle: string; line: string; lineHi: string; button: string; codeLabel: string; preheader: string; safety: string }
 
 const SAFETY = 'Ye aapne nahi maanga tha? To is mail ko ignore kar dein, aapka account safe hai. / If this was not you, ignore this email.'
 
 const COPY: Record<string, Copy> = {
   signup: {
-    subject: 'Your PrintQR code', icon: '🔐', title: 'Confirm your email', subtitle: 'अपना ईमेल कन्फ़र्म करें',
+    subject: 'Your PrintQR code', icon: 'mail', title: 'Confirm your email', subtitle: 'अपना ईमेल कन्फ़र्म करें',
     line: 'Bas ek step aur! Ye code PrintQR mein daalein ya neeche button dabayein, aapka shop account ready ho jayega.',
     lineHi: 'नीचे दिया कोड PrintQR में डालें या बटन दबाएँ।',
     button: 'Confirm email', codeLabel: 'Your code · आपका कोड', preheader: 'Your PrintQR signup code is inside', safety: SAFETY
   },
   recovery: {
-    subject: 'Reset your PrintQR password', icon: '🔑', title: 'Reset your password', subtitle: 'नया पासवर्ड बनाएँ',
+    subject: 'Reset your PrintQR password', icon: 'key', title: 'Reset your password', subtitle: 'नया पासवर्ड बनाएँ',
     line: 'Password bhool gaye? Koi baat nahi. Neeche button dabake naya password set kar lijiye.',
     lineHi: 'नया पासवर्ड बनाने के लिए बटन दबाएँ।',
     button: 'Set new password', codeLabel: 'Code', preheader: 'Tap to set a new PrintQR password', safety: SAFETY
   },
   magiclink: {
-    subject: 'Your PrintQR login link', icon: '✨', title: 'Log in to PrintQR', subtitle: 'PrintQR में लॉग इन करें',
+    subject: 'Your PrintQR login link', icon: 'magic', title: 'Log in to PrintQR', subtitle: 'PrintQR में लॉग इन करें',
     line: 'Ek tap mein login karein, password ki zaroorat nahi.',
     lineHi: 'लॉग इन करने के लिए बटन दबाएँ।',
     button: 'Log in', codeLabel: 'Code', preheader: 'Your one-tap login link', safety: SAFETY
   },
   invite: {
-    subject: 'You are invited to PrintQR', icon: '🎟️', title: 'You are invited', subtitle: 'आपको PrintQR पर बुलाया गया है',
+    subject: 'You are invited to PrintQR', icon: 'ticket', title: 'You are invited', subtitle: 'आपको PrintQR पर बुलाया गया है',
     line: 'Aapko PrintQR par invite kiya gaya hai. Button dabake invite accept karein aur apna password banayein.',
     lineHi: 'इनवाइट स्वीकार करने के लिए बटन दबाएँ।',
     button: 'Accept invite', codeLabel: 'Code', preheader: 'Accept your PrintQR invite', safety: 'Aap is invite ko nahi jaante? To ignore kar dein. / Not expecting this? Ignore it.'
   },
   email_change: {
-    subject: 'Confirm your new email for PrintQR', icon: '📧', title: 'Confirm email change', subtitle: 'ईमेल बदलने की पुष्टि करें',
+    subject: 'Confirm your new email for PrintQR', icon: 'mail', title: 'Confirm email change', subtitle: 'ईमेल बदलने की पुष्टि करें',
     line: 'Aapke PrintQR account ka email badla ja raha hai. Pakka karne ke liye button dabayein.',
     lineHi: 'ईमेल बदलने की पुष्टि के लिए बटन दबाएँ।',
     button: 'Confirm change', codeLabel: 'Code', preheader: 'Confirm your new PrintQR email', safety: 'Ye badlaav aapne nahi kiya? To turant apna password badlein. / Not you? Change your password now.'
   },
   reauthentication: {
-    subject: 'Your PrintQR confirmation code', icon: '🛡️', title: 'Confirmation code', subtitle: 'पुष्टि कोड',
+    subject: 'Your PrintQR confirmation code', icon: 'shield', title: 'Confirmation code', subtitle: 'पुष्टि कोड',
     line: 'Ye aap hi hain, ye pakka karne ke liye ye code daalein.',
     lineHi: 'पुष्टि के लिए यह कोड डालें।',
     button: '', codeLabel: 'Your code · आपका कोड', preheader: 'Your PrintQR confirmation code', safety: SAFETY

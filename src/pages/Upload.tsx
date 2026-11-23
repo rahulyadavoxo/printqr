@@ -543,7 +543,7 @@ export default function Upload() {
             <span className="open-dot" aria-hidden="true" />{shop.is_open ? t('shopOpen') : t('shopClosed')}
           </span>
         </div>
-        {counterName && <p className="counter-tag">🧾 {t('uCounter', { name: counterName })}</p>}
+        {counterName && <p className="counter-tag"><Icon name="receipt" size={14} className="ico-inl" />{t('uCounter', { name: counterName })}</p>}
         <div className="shop-head-foot">
           <RatePapers bw={shop.rates.bw_single} color={shop.rates.color_single} />
           <img className="shop-standee" src={shop.is_open ? standeeUrl : closedStandeeUrl} alt="" aria-hidden="true" width={160} height={132} />

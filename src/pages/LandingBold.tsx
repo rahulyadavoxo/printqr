@@ -4,6 +4,7 @@ import { Key, useI18n } from '../lib/i18n'
 import { LangToggle, LogoMark, Wordmark } from '../components/TopBar'
 import { AppDownloadButton } from '../components/AppDownload'
 import UploadPreview from '../components/UploadPreview'
+import Icon from '../components/Icon'
 
 /* Landing design "bold" (admin picks it in Settings -> Landing page design): big "Scan. Upload. Print."
    headline, animated live-queue scene, marquee, 3 steps, bento tiles, customer/shop cards, FAQ.
@@ -145,7 +146,7 @@ export default function LandingBold() {
             </div>
             <div className="lpb-t B lpb-rv"><h3>{t('lbBT')}</h3><p>{t('lbBB')}</p><div className="big">₹</div></div>
             <div className="lpb-t C lpb-rv"><h3>{t('ldW4T')}</h3><p>{t('lbCB')}</p><div className="big" lang="hi">हि</div></div>
-            <div className="lpb-t D lpb-rv"><h3>{t('ldW2T')}</h3><p>{t('lbDB')}</p><div className="big">⚡</div></div>
+            <div className="lpb-t D lpb-rv"><h3>{t('ldW2T')}</h3><p>{t('lbDB')}</p><div className="big"><Icon name="bolt" size={88} stroke={2.2} /></div></div>
             <div className="lpb-t E lpb-rv"><h3>{t('lbET')}</h3><p>{t('lbEB')}</p><div className="big">◎</div></div>
           </div>
         </div></section>

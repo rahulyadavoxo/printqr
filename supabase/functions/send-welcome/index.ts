@@ -48,9 +48,9 @@ Deno.serve(async (req) => {
       stepList(steps),
       button(`${SITE}dashboard`, 'Open dashboard'),
       note('Koi sawaal ho to bas is mail ka reply kar dijiye, hum madad karenge. / कोई सवाल हो तो इस मेल का जवाब दें।')
-    ].join('\n'), { icon: '🎉', subtitle: 'PrintQR में आपका स्वागत है', preheader: 'Your shop is ready. 3 quick steps to get your first print order.' })
+    ].join('\n'), { icon: 'store', subtitle: 'PrintQR में आपका स्वागत है', preheader: 'Your shop is ready. 3 quick steps to get your first print order.' })
     const text = `Welcome to PrintQR!\n\nAapka account ban gaya hai.\n\n${steps.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\nDashboard: ${SITE}dashboard\n\nKoi sawaal ho to is mail ka reply kar dijiye.`
-    await sendMail(user.email, 'Welcome to PrintQR 🎉', html, text)
+    await sendMail(user.email, 'Welcome to PrintQR', html, text)
     return reply({ ok: true })
   } catch (e) {
     console.error('send-welcome', e)

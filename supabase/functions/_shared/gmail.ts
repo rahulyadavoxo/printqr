@@ -115,11 +115,13 @@ const LIME = '#a6e22e'
 const BRAND = '#3f6212'
 const FONT = "'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 
+export type MailIcon = 'mail' | 'key' | 'magic' | 'ticket' | 'shield' | 'store'
+
 export type LayoutOpts = {
   /** Hidden one-line preview text shown in the inbox list. */
   preheader?: string
-  /** Big emoji/icon above the title in the dark header. */
-  icon?: string
+  /** Icon above the title in the dark header: a name from public/mail/<name>.png (lime line icon, no emoji). */
+  icon?: MailIcon
   /** Small line under the title in the header (e.g. Hindi title). */
   subtitle?: string
 }
@@ -144,7 +146,7 @@ export function layout(title: string, bodyHtml: string, opts: LayoutOpts = {}): 
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
     <td style="vertical-align:middle"><img src="${LOGO}" width="140" height="56" alt="Print by Receipto" style="display:block;border:0"></td>
   </tr></table>
-  ${opts.icon ? `<div style="font-size:40px;line-height:1;padding-top:26px">${opts.icon}</div>` : ''}
+  ${opts.icon ? `<div style="padding-top:26px"><img src="${SITE_URL}mail/${opts.icon}.png" width="40" height="40" alt="" style="display:block;border:0"></div>` : ''}
   <h1 style="margin:${opts.icon ? '12px' : '26px'} 0 0;font-family:${FONT};font-size:26px;line-height:1.25;font-weight:800;color:#ffffff">${esc(title)}</h1>
   ${opts.subtitle ? `<div style="font-family:${FONT};font-size:15px;color:#c9ec8a;padding-top:6px">${esc(opts.subtitle)}</div>` : ''}
 </td></tr>
