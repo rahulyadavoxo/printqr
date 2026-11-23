@@ -717,10 +717,11 @@ export default function Dashboard() {
                 const x = TABS.find((y) => y.id === id)!
                 return (
                   <button key={id} type="button" className={`drawer-item${tab === id ? ' on' : ''}${id === 'orders' && activeCount ? ' has-fold' : ''}`}
-                    aria-current={tab === id ? 'page' : undefined} onClick={() => go(id)}>
+                    aria-current={tab === id ? 'page' : undefined} title={t(x.label)} onClick={() => go(id)}>
                     <Icon name={x.icon} size={22} />
                     <span>{t(x.label)}</span>
                     {id === 'orders' && !!activeCount && <FoldCorner n={activeCount} corner="tr" size={34} />}
+                    {id === 'orders' && !!activeCount && <b className="dock-badge" aria-hidden="true">{activeCount}</b>}
                   </button>
                 )
               })}
@@ -768,6 +769,15 @@ export default function Dashboard() {
           </button>
         </div>
       </aside>
+
+      {/* Desktop web + Windows app only (CSS hides it below 1024px and in the Android app): VS Code style status bar */}
+      {!IN_APP && (
+        <footer className="dash-status no-print" aria-label={t('menu')}>
+          {!staff && <span className={shop.is_open ? 'is-on' : 'is-off'}>{shop.is_open ? t('shopOpen') : t('shopClosed')}</span>}
+          <span>{t('dActive')}: {activeCount}</span>
+          {!staff && ready && <span className="end">{planLabel}</span>}
+        </footer>
+      )}
 
       <div className="page wide dash-main">
         <AppDownloadBanner />
