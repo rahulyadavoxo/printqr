@@ -6,7 +6,7 @@ import { filePrice, rupees } from '../lib/pricing'
 import { idcardPreview, idcardSheetPdf, imagesToPdf, PASSPORT_OPTIONS, passportPreview, passportSheetPdf, passportSheets } from '../lib/imagePdf'
 import { useI18n } from '../lib/i18n'
 import { ShopBrand, TopBar } from '../components/TopBar'
-import { UploadSkelBody } from '../components/Skeletons'
+import { QrLoadBlock } from '../components/QrLoader'
 import { brandStyle } from '../lib/brand'
 import { nextOpening, normHours, timeLabel } from '../lib/hours'
 import AdSlot from '../components/AdSlot'
@@ -514,7 +514,8 @@ export default function Upload() {
   }
   if (!shop) {
     return shell(
-      <UploadSkelBody />
+      // Shop open, closed, paused or Pro-only parts: not known until it loads
+      <QrLoadBlock />
     )
   }
 

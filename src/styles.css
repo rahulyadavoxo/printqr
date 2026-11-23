@@ -193,17 +193,11 @@ input:focus, select:focus { outline: none; border-color: var(--c-brand); box-sha
 .skel-line { height: 14px; width: 100%; }
 .skel-line.w60 { width: 60%; }
 .skel-line.w40 { width: 40%; }
-.skel-block { height: 140px; width: 100%; border-radius: var(--r-sm); }
 .skel-token { width: 140px; height: 72px; border-radius: var(--r-sm); }
 .skel-title { height: 26px; margin: 12px 0; }
 .skel-tabs { height: 50px; border-radius: var(--r-pill); margin-bottom: 8px; }
 .skel-num { height: 34px; width: 50%; margin: 10px 0 8px; border-radius: 8px; }
 .stat .skel-line + .skel-num { margin-top: 10px; }
-.skel-row { display: flex; align-items: center; gap: 14px; margin: 0; padding: 16px 18px; }
-.skel-row-text { flex: 1; display: grid; gap: 8px; }
-.skel-dot { width: 40px; height: 40px; border-radius: 12px; flex: none; }
-.skel-pill { width: 72px; height: 28px; border-radius: var(--r-pill); flex: none; }
-.skel-time { width: 90px; flex: none; }
 .admin-log-row .skel-line { height: 12px; }
 .skel-form-admin { display: grid; gap: 18px; }
 .skel-field { display: grid; gap: 8px; }
@@ -939,7 +933,6 @@ body.no-scroll { overflow: hidden; }
 
 /* More loading skeletons */
 .skel-order { display: grid; gap: 12px; }
-.skel-row { display: flex; align-items: center; gap: 12px; }
 .skel-chip { width: 64px; height: 40px; border-radius: var(--r-sm); flex: none; }
 .skel-btn { height: 48px; width: 100%; border-radius: var(--r-sm); }
 .skel-stat { display: grid; gap: 12px; }
@@ -1572,17 +1565,11 @@ img.shop-avatar { object-fit: cover; padding: 0; }
    ===================================================================== */
 .skel-stack { display: grid; gap: 8px; align-content: start; }
 .skel-inline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.skel-dropzone { cursor: default; border-color: var(--c-line-2); background: var(--c-surface); }
-.skel-dropzone:hover { border-color: var(--c-line-2); background: var(--c-surface); }
-.skel-dropzone:active { transform: none; }
-.skel-dropzone .skel-inline { justify-content: center; margin-top: 6px; }
 .skel-ticket { --st: var(--c-line-2); --st-bg: var(--c-surface-2); }
 .skel-ticket .ticket-band { gap: 16px; }
 .skel-ticket .tracker .dot { border-color: var(--c-line); }
 .hint-line .skel { margin: 0 auto; }
 .skel-field-real { margin: var(--sp-4) 0; }
-.skel-tabs-row { pointer-events: none; }
-.skel-tabs-row .skel { flex: none; }
 .skel-poster { border-color: var(--c-line-2); }
 .skel-poster .poster-qr { border-color: var(--c-line-2); }
 .skel-poster .poster-steps .skel-inline { flex-wrap: nowrap; }
@@ -2731,4 +2718,7 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 @keyframes qrl-pulse { 0%, 100% { opacity: .12; transform: scale(.6); } 40% { opacity: 1; transform: scale(1); } }
 @keyframes qrl-breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .qr-loader * { animation: none !important; } .qr-loader .px { opacity: .6; } }
-.qr-load-block { min-height: 46vh; display: grid; place-items: center; color: var(--c-ink); }
+.qr-load-block { display: grid; place-items: center; color: var(--c-ink); }
+/* Main loader (page frame known, content not): centred on the screen itself, under the top/side/bottom bars */
+.qr-load-block:not(.small) { position: fixed; inset: 0; z-index: 1; pointer-events: none; min-height: 0; }
+.qr-load-block.small { min-height: 160px; }

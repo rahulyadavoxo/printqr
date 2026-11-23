@@ -4,7 +4,7 @@ import { LogoMark, TopBar } from './TopBar'
 import Icon from './Icon'
 import BarStory from './BarStory'
 import { AdminShell } from './AdminShell'
-import { QrLoader, QrLoadPage } from './QrLoader'
+import { QrLoadBlock, QrLoadPage } from './QrLoader'
 import { Key, useI18n } from '../lib/i18n'
 import { IN_APP, ON_ANDROID } from '../lib/app'
 import { routeQuery } from '../lib/router'
@@ -24,51 +24,8 @@ const Busy = () => {
 }
 
 /* ------------------------------------------------------------------ */
-/* Customer pages: Upload (/s/:slug), dynamic QR (/q/:code), Status (/o/:id/:key) */
-
-/** Body of the upload page: shop header card, 3-step flow, drop zone. */
-export function UploadSkelBody() {
-  return (
-    <div className="skeleton-wrap" aria-busy="true">
-      <Busy />
-      <header className="shop-head card">
-        <div className="shop-head-row">
-          <B w={52} h={52} r={15} />
-          <div className="shop-head-text skel-stack">
-            <B w="62%" h={22} />
-            <B w="44%" h={13} />
-          </div>
-          <B w={66} h={24} r={999} style={{ alignSelf: 'flex-start' }} />
-        </div>
-        <div className="shop-head-foot">
-          <B w={210} h={34} r={999} style={{ marginTop: 14, maxWidth: '70%' }} />
-          <B w={96} h={64} r={12} style={{ opacity: 0.6 }} />
-        </div>
-      </header>
-      <ol className="flow" aria-hidden="true">
-        {[0, 1, 2].map((i) => (
-          <li key={i}><span className="flow-dot" /><B w={54} h={11} /></li>
-        ))}
-      </ol>
-      <div className="dropzone skel-dropzone" aria-hidden="true">
-        <B w={60} h={60} r={18} />
-        <B w="52%" h={18} style={{ marginTop: 6 }} />
-        <B w="70%" h={12} />
-        <div className="skel-inline"><B w={38} h={20} r={6} /><B w={38} h={20} r={6} /><B w={38} h={20} r={6} /></div>
-      </div>
-    </div>
-  )
-}
-
-/** Whole upload page (used before the page code loads, and by the dynamic QR redirect). */
-export function UploadSkeleton() {
-  return (
-    <div className="app-page">
-      <TopBar to={null} />
-      <main className="page narrow"><UploadSkelBody /></main>
-    </div>
-  )
-}
+/* Customer pages. Upload (/s/:slug) and dynamic QR (/q/:code) use the QR loader: the shop may be open, closed,
+   paused or missing, so the layout is not known. Status (/o/:id/:key) is always the same ticket: skeleton. */
 
 /** Body of the order status page: the token ticket and the hint lines under it. */
 export function StatusSkelBody() {
@@ -210,34 +167,14 @@ export function SkelStats({ n = 4 }: { n?: number }) {
   )
 }
 
-export function SkelList({ n = 5 }: { n?: number }) {
-  return (
-    <div className="admin-list skeleton-wrap" aria-busy="true">
-      {Array.from({ length: n }, (_, i) => (
-        <div key={i} className="card skel-row">
-          <div className="skel skel-dot" />
-          <div className="skel-row-text">
-            <div className="skel skel-line w60" />
-            <div className="skel skel-line w40" />
-          </div>
-          <div className="skel skel-pill" />
-        </div>
-      ))}
-    </div>
-  )
+/** Lists (shops, users, orders, reports, log): how many rows, or none, is not known, so the QR loader
+ *  instead of guessed rows (user rule 2026-11-23). */
+export function SkelList(_: { n?: number } = {}) {
+  return <QrLoadBlock small />
 }
 
-export function SkelLog({ n = 6 }: { n?: number }) {
-  return (
-    <div className="card admin-log skeleton-wrap" aria-busy="true">
-      {Array.from({ length: n }, (_, i) => (
-        <div key={i} className="admin-log-row">
-          <div className="skel skel-line skel-time" />
-          <div className="skel skel-line" style={{ width: `${45 + ((i * 17) % 40)}%` }} />
-        </div>
-      ))}
-    </div>
-  )
+export function SkelLog(_: { n?: number } = {}) {
+  return <QrLoadBlock small />
 }
 
 export function SkelForm({ n = 4 }: { n?: number }) {
@@ -253,39 +190,13 @@ export function SkelForm({ n = 4 }: { n?: number }) {
   )
 }
 
-/** Admin body: title + Refresh, the 8 tab pills, the Overview heading and its 8 stat cards. */
-export function AdminSkelBody() {
-  return (
-    <div aria-busy="true">
-      <Busy />
-      <div className="admin-head"><B w={170} h={30} /><B w={84} h={36} r={10} /></div>
-      <div className="tabs admin-tabs skel-tabs-row" aria-hidden="true">
-        {[82, 64, 60, 66, 82, 58, 74, 48].map((w, i) => <B key={i} w={w} h={40} r={999} />)}
-      </div>
-      <B w={130} h={20} style={{ margin: '26px 0 12px' }} />
-      <SkelStats n={8} />
-    </div>
-  )
-}
-
-export function AdminSkeleton() {
-  return (
-    <AdminShell tab="overview"><AdminSkelBody /></AdminShell>
-  )
-}
-
 /* ------------------------------------------------------------------ */
 /* Dashboard (/dashboard?tab=...) */
 
 /** Orders tab: how many orders (or none) is not known until the queue loads, so the QR loading mark
  *  instead of guessed order cards (user rule 2026-11-23). */
 export function OrdersSkel() {
-  return (
-    <div className="qr-load-block" role="status" aria-busy="true">
-      <Busy />
-      <QrLoader />
-    </div>
-  )
+  return <QrLoadBlock />
 }
 
 /** A form card: title, subtitle, then fields (in a 2-column grid when `grid`), and a save button. */
@@ -350,7 +261,7 @@ function ReportSkel() {
         <B w="40%" h={22} style={{ marginBottom: 8 }} />
         <B w="66%" h={13} />
         <B h={46} r={999} style={{ margin: '16px 0' }} />
-        <B h={140} r={12} />
+        <QrLoadBlock small />
       </div>
     </section>
   )
@@ -509,12 +420,13 @@ export function RouteSkeleton() {
     const tab = new URLSearchParams(search).get('tab')
     return <DashSkeleton tab={isTab(tab) ? tab : 'orders'} />
   }
-  if (pathname.startsWith('/admin')) return <AdminSkeleton />
+  // Admin: checking access first (panel, 2-step login or no access), so the frame + QR loader.
+  if (pathname.startsWith('/admin')) return <AdminShell><QrLoadBlock /></AdminShell>
   if (pathname.startsWith('/setup')) return <SetupSkeleton />
   if (pathname.startsWith('/reset')) return <ResetSkeleton />
   if (pathname.startsWith('/legal')) return <LegalSkeleton />
   if (pathname.startsWith('/o/')) return <StatusSkeleton />
-  if (pathname.startsWith('/s/') || pathname.startsWith('/q/')) return <UploadSkeleton />
+  if (pathname.startsWith('/s/') || pathname.startsWith('/q/')) return <QrLoadPage />
   // Home, login and anything else: the design is the admin's choice (or unknown), so no skeleton guess.
   return <QrLoadPage />
 }

@@ -24,6 +24,7 @@ import Icon from '../components/Icon'
 import { ImageLightbox, isImageName, StoredImageThumb, ViewImg } from '../components/ImagePreview'
 import { BOTTOM, isTab, NAV, savedSidebar, SbMode, Tab, TABS } from '../lib/dashNav'
 import { DashSkeleton, EditorSkel, OrdersSkel } from '../components/Skeletons'
+import { QrLoadBlock } from '../components/QrLoader'
 import { Period, startUpgrade, callFn, Tier, TIER_PRICES, yearlyOff } from '../lib/billing'
 import { ask as askConfirm } from '../components/ConfirmHost'
 import { BillingPayment, downloadReceipt, money } from '../lib/receipt'
@@ -2235,7 +2236,7 @@ function Report({ shop, onUpgrade }: { shop: Shop; onUpgrade: () => void }) {
           </div>
         )}
         {histErr && <p className="notice error">{histErr}</p>}
-        {!hist && !histErr && <div className="skel skel-block" aria-busy="true" />}
+        {!hist && !histErr && <QrLoadBlock small />}
         {hist && !hist.length && <p className="muted small">{t('histEmpty')}</p>}
         {groups.map((g) => (
           <div className="hist-day" key={g.day}>

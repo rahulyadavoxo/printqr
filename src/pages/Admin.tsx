@@ -7,7 +7,8 @@ import { Key, useI18n } from '../lib/i18n'
 import { ADMIN_TABS, ADMIN_TAB_KEYS, AdminShell, type AdminTab } from '../components/AdminShell'
 import { callFn } from '../lib/billing'
 import { AdminOrders, AdminPayments, AdminSettings, AdminSpam, AdminUsers, fmtBytes, fmtDate, type SaveSlot } from './AdminTabs'
-import { AdminSkelBody, AdminSkeleton, SkelList, SkelLog, SkelStats } from '../components/Skeletons'
+import { SkelList, SkelLog, SkelStats } from '../components/Skeletons'
+import { QrLoadBlock } from '../components/QrLoader'
 import { ask as askConfirm } from '../components/ConfirmHost'
 import { setupPush } from '../lib/push'
 import Icon from '../components/Icon'
@@ -210,7 +211,7 @@ export default function Admin() {
     }
   }
 
-  if (loading) return <AdminSkeleton />
+  if (loading) return <AdminShell><QrLoadBlock /></AdminShell>
   if (!session) return <Navigate to="/login" replace />
 
   const alertCount = health ? health.alerts.filter((a) => !a.closed_at).length + (healthStale(health) ? 1 : 0) : 0
@@ -224,7 +225,8 @@ export default function Admin() {
       : <AdminShell>{body}</AdminShell>
   )
 
-  if (allowed === null) return shell(<AdminSkelBody />, true)
+  // Panel, 2-step login or no access: not known yet, so frame + QR loader (no tab skeleton)
+  if (allowed === null) return shell(<QrLoadBlock />)
   if (status && status.admin && !allowed) return shell(<AdminMfa onDone={recheck} />)
   if (!allowed) return shell(<div className="card"><h2>{t('admNoAccess')}</h2><p className="muted">{t('admNoAccessHint')}</p></div>)
 
@@ -569,7 +571,7 @@ function AdminMfa({ onDone }: { onDone: () => void }) {
     })
   }
 
-  if (mode === 'loading') return <AdminSkelBody />
+  if (mode === 'loading') return <QrLoadBlock />
   if (mode === 'error') {
     return (
       <div className="card adm-mfa">

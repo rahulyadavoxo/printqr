@@ -39,6 +39,18 @@ export function QrLoader({ size = 64 }: { size?: number }) {
   )
 }
 
+/** Loader inside a page whose frame is known but whose content is not (a list, a queue, an unknown screen).
+ *  `small` for a section inside a card or below known stats. */
+export function QrLoadBlock({ small = false }: { small?: boolean }) {
+  const { t } = useI18n()
+  return (
+    <div className={`qr-load-block${small ? ' small' : ''}`} role="status" aria-busy="true">
+      <QrLoader size={small ? 48 : 64} />
+      <span className="sr-only">{t('loading')}</span>
+    </div>
+  )
+}
+
 /** Full-screen centred loader with a screen-reader "Loading…". */
 export function QrLoadPage() {
   const { t } = useI18n()
