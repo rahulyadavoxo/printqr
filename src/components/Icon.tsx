@@ -4,6 +4,9 @@ import { ReactElement } from 'react'
 const PATHS: Record<string, ReactElement> = {
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   sidebar: <path d="M4 4h16v16H4zM9 4v16" />,
+  // sidebar control (user's icons, 2026-11-23): window with dashed divider + arrow
+  sbClose: <path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM3 8h18M5.8 6h.01M8.2 6h.01M10.6 6h.01M15.5 10.5v1M15.5 13.5v1M15.5 16.5v1M11.5 14H6.5M8.5 12l-2 2 2 2" />,
+  sbOpen: <path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM3 8h18M5.8 6h.01M8.2 6h.01M10.6 6h.01M8.5 10.5v1M8.5 13.5v1M8.5 16.5v1M12 14h5.5M15.5 12l2 2-2 2" />,
   sun: <path d="M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />,
   moon: <path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z" />,
   auto: <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 3v18" />,

@@ -851,7 +851,7 @@ export default function Dashboard() {
             </div>
           )}
           <button type="button" className="sb-btn" onClick={() => setSbMenu((v) => !v)} aria-label={t('sbControl')} aria-expanded={sbMenu} title={t('sbControl')}>
-            <Icon name="sidebar" size={18} />
+            <Icon name={sb === 'expanded' ? 'sbClose' : 'sbOpen'} size={18} />
           </button>
         </div>
       </aside>
