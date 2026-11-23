@@ -37,13 +37,13 @@ export default function AppNotices() {
       {s.maintenance && (
         <div className="app-notice warn" role="status">
           <Icon name="info" size={18} />
-          <span>{s.maintenance_msg || t('maintDefault')}</span>
+          <span title={s.maintenance_msg || t('maintDefault')}>{s.maintenance_msg || t('maintDefault')}</span>
         </div>
       )}
       {owner && note && (
         <div className="app-notice" role="status">
           <Icon name="info" size={18} />
-          <span>{note}</span>
+          <span title={note}>{note}</span>
         </div>
       )}
     </div>

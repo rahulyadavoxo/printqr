@@ -2616,6 +2616,12 @@ html:lang(hi) .lpb h2,html:lang(hi) .lpb h3{line-height:1.25}
   html:not(.in-app) .dash .dash-status .is-on { color: var(--c-green); font-weight: 650; }
   html:not(.in-app) .dash .dash-status .is-off { color: var(--c-muted); font-weight: 650; }
   html:not(.in-app) .dash .dash-status .end { margin-left: auto; }
+  /* admin notice/maintenance message: a full pill centred inside the 44px top bar (it was in page flow, half under the bar and the content panel) */
+  html:not(.in-app) body:has(.dash) .app-notices { position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 63; height: var(--vs-top, 44px);
+    display: flex; align-items: center; gap: 6px; padding: 0; margin: 0; max-width: min(560px, 42vw); pointer-events: auto; }
+  html:not(.in-app) body:has(.dash) .app-notice { min-width: 0; height: 32px; align-items: center; padding: 0 12px; border-radius: 8px; font-size: 13.5px; gap: 8px; }
+  html:not(.in-app) body:has(.dash) .app-notice svg { flex: none; width: 16px; height: 16px; }
+  html:not(.in-app) body:has(.dash) .app-notice span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 @media print {
   html:not(.in-app) .dash .dash-main { position: static !important; border: 0 !important; overflow: visible !important; }
