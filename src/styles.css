@@ -2871,7 +2871,12 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 .adx-role-row { align-items: center; justify-content: space-between; }
 .adx-role-row > span:first-child { min-width: 0; flex: 1; }
 .adx-role-row select { width: auto; flex: none; }
-.admin-item textarea { width: 100%; min-width: 0; }
+.adx-ta { display: block; width: 100%; min-width: 0; min-height: 64px; padding: 10px 12px; font: inherit; font-size: 16px; color: var(--c-ink);
+  border: 1.5px solid var(--c-line-2); border-radius: var(--r-sm); background: var(--c-surface); resize: vertical; }
+.adx-ta:focus { outline: none; border-color: var(--c-brand); box-shadow: 0 0 0 4px var(--brand-ring); }
+.adx-sheet-body { grid-template-columns: minmax(0, 1fr); }
+.adx-sheet-body > *, .adx-sheet-body .adm-notif-item > * { min-width: 0; }
+.adx-sheet-body details summary { cursor: pointer; }
 @media (max-width: 420px) {
   .admin-settings .grid2 { grid-template-columns: minmax(0, 1fr); gap: 0; }
 }

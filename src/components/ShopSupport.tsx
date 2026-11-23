@@ -100,7 +100,7 @@ export function SupportCard() {
       </label>
       <label className="field">
         <span>{t('supMessage')}</span>
-        <textarea rows={4} maxLength={2000} value={text} disabled={busy} placeholder={t('supMessagePh')} onChange={(e) => setText(e.target.value)} />
+        <textarea className="adx-ta" rows={4} maxLength={2000} value={text} disabled={busy} placeholder={t('supMessagePh')} onChange={(e) => setText(e.target.value)} />
       </label>
       {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
       <button className="btn primary block lg" disabled={busy || text.trim().length < 3}>{busy ? t('pleaseWait') : t('supSend')}</button>

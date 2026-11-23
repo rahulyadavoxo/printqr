@@ -355,7 +355,7 @@ export function AdminSupport({ onMsg, onView }: { onMsg: Msg; onView: (shopId: s
               <div className="small muted admin-ellipsis">{dt(r.created_at)} · {r.owner_email || '—'}{r.phone ? ` · ${r.phone}` : ''}{r.app ? ` · ${r.app}` : ''}</div>
               <p className="small admin-quote">{r.message}</p>
               {r.reply && <p className="small admin-quote adx-reply"><b>{t('adxYourReply')}</b> {r.reply} <span className="muted">· {dt(r.replied_at)}</span></p>}
-              <textarea rows={2} maxLength={2000} value={draft[r.id] || ''} placeholder={t('adxReplyPh')} disabled={busy === r.id}
+              <textarea className="adx-ta" rows={2} maxLength={2000} value={draft[r.id] || ''} placeholder={t('adxReplyPh')} disabled={busy === r.id}
                 onChange={(e) => setDraft((m) => ({ ...m, [r.id]: e.target.value }))} aria-label={t('adxReplyPh')} />
               <div className="admin-row">
                 <button type="button" className="btn small" disabled={busy === r.id || !(draft[r.id] || '').trim()} onClick={() => void act(r, null)}>{t('adxSendReply')}</button>
@@ -515,7 +515,7 @@ function PushCompose({ onMsg }: { onMsg: Msg }) {
       </div>
       {seg === 'city' && <label className="field"><span>{t('adxCity')}</span><input value={city} maxLength={60} onChange={(e) => setCity(e.target.value)} placeholder={t('adxCityPh')} /></label>}
       <label className="field"><span>{t('adxPushTitle')}</span><input required minLength={2} maxLength={80} value={title} onChange={(e) => setTitle(e.target.value)} /></label>
-      <label className="field"><span>{t('adxPushBody')}</span><textarea required minLength={2} maxLength={300} rows={3} value={body} onChange={(e) => setBody(e.target.value)} /></label>
+      <label className="field"><span>{t('adxPushBody')}</span><textarea className="adx-ta" required minLength={2} maxLength={300} rows={3} value={body} onChange={(e) => setBody(e.target.value)} /></label>
       <label className="admin-check"><input type="checkbox" checked={inApp} onChange={(e) => setInApp(e.target.checked)} /> <span>{t('adxAlsoInApp')}</span></label>
       <p className="small muted">{count ? t('adxReach', { s: count.shops, d: count.devices }) : '…'}</p>
       <button className="btn primary" disabled={busy || !count?.shops || title.trim().length < 2 || body.trim().length < 2}>{busy ? t('pleaseWait') : t('adxSend')}</button>
