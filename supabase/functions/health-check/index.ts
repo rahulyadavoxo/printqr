@@ -3,6 +3,7 @@
 // Same checks as the "Health check" GitHub workflow. A new problem is saved in public.ops_alerts and
 // sent as a push notification to every admin's phones / browsers (push_tokens of public.admins).
 // Still there after 6 hours: one reminder. Fixed: one "resolved" notification.
+// v39: {"mode":"push"} body = only push waiting alerts (admin new-device login); backup age check.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (auto), FCM_SERVICE_ACCOUNT (same as push-new-order).
 
 const URL_ = Deno.env.get('SUPABASE_URL') || ''
@@ -82,6 +83,19 @@ async function checks(): Promise<Check[]> {
   const stLim = s?.storage_limit_mb || 1024, dbLim = s?.db_limit_mb || 500
   const stP = Math.floor((stMb * 100) / stLim), dbP = Math.floor((dbMb * 100) / dbLim)
   out.push({ key: 'storage', bad: stP >= 70, title: 'Storage almost full', detail: `File storage ${stMb} MB of ${stLim} MB (${stP}%). New uploads stop at the limit.` })
+  // v39: the nightly GitHub backup reports each run (backup_report); alert when no good backup for 36 hours.
+  // No rows yet (v39 just ran, or backups not set up: GitHub shows that alert) = no change.
+  try {
+    const runs = (await call('/rest/v1/backup_runs?select=ran_at,status&order=ran_at.desc&limit=200')) as { ran_at: string; status: string }[]
+    const ok = runs.find((r) => r.status === 'ok')
+    const ageH = ok ? (Date.now() - new Date(ok.ran_at).getTime()) / 3600000 : Infinity
+    const last = runs[0]
+    out.push({
+      key: 'backup', bad: runs.length ? ageH > 36 : null, title: 'No database backup for 36 hours',
+      detail: ok ? `Last good backup ${Math.floor(ageH)} hours ago. Last run: ${last?.status || '?'}. Check the "Daily database backup" workflow in GitHub Actions.`
+        : `No good backup recorded. Last run: ${last?.status || '?'}. Check the "Daily database backup" workflow in GitHub Actions.`
+    })
+  } catch { /* before v39 SQL: no backup_runs table */ }
   out.push({ key: 'database', bad: dbP >= 70, title: 'Database almost full', detail: `Database ${dbMb} MB of ${dbLim} MB (${dbP}%). At the limit it becomes read-only.` })
   return out
 }
@@ -142,10 +156,40 @@ async function pushAdmins(title: string, body: string, tag: string): Promise<num
   return sent
 }
 
+/** Open alerts that nobody was told about yet: GitHub workflow failures (gh_*) and admin new-device logins. */
+async function pushPending(now: Date, open?: Alert[]): Promise<number> {
+  const list = open || ((await call('/rest/v1/ops_alerts?closed_at=is.null&select=id,key,title,notified_at')) as Alert[])
+  let n = 0
+  for (const a of list.filter((x) => (x.key.startsWith('gh_') || x.key.startsWith('admin_login_')) && !x.notified_at)) {
+    let body = 'Open the Admin panel bell for details.'
+    if (a.key.startsWith('admin_login_')) {
+      const d = (await call(`/rest/v1/ops_alerts?id=eq.${a.id}&select=detail`).catch(() => [])) as { detail: string }[]
+      body = (d[0]?.detail || body).slice(0, 240)
+    }
+    const sent = await pushAdmins(a.key.startsWith('admin_login_') ? `PrintQR: ${a.title}` : `PrintQR alert: ${a.title}`, body, `alert-${a.key}`).catch(() => 0)
+    if (sent) {
+      n += sent
+      await call(`/rest/v1/ops_alerts?id=eq.${a.id}`, { method: 'PATCH', body: JSON.stringify({ notified_at: now }) })
+    }
+  }
+  return n
+}
+
 Deno.serve(async (req) => {
   const token = req.headers.get('x-cron-token') || ''
   const ok = await rpc<boolean>('check_cron_token', { p_name: 'health', p_token: token }).catch(() => false)
   if (!ok) return reply(401, { error: 'unauthorized' })
+  const reqBody = (await req.json().catch(() => ({}))) as { mode?: string }
+  // v39: push-only run, asked by admin_device_seen() (admin login from a new device): send the waiting alerts now.
+  if (reqBody.mode === 'push') {
+    try {
+      const sent = await pushPending(new Date())
+      return reply(200, { ok: true, pushed: sent })
+    } catch (e) {
+      console.error(e)
+      return reply(500, { error: 'push_failed' })
+    }
+  }
   try {
     const list = await checks()
     const open = (await call('/rest/v1/ops_alerts?closed_at=is.null&select=id,key,title,notified_at')) as Alert[]
@@ -171,11 +215,11 @@ Deno.serve(async (req) => {
         results.push(`closed ${c.key}`)
       }
     }
-    // v38: alerts opened by GitHub workflows (alerts.yml, key gh_*) get their push here
-    for (const a of open.filter((x) => x.key.startsWith('gh_') && !x.notified_at)) {
-      const sent = await pushAdmins(`PrintQR alert: ${a.title}`, 'Open the Admin panel bell for details.', `alert-${a.key}`).catch(() => 0)
-      if (sent) await call(`/rest/v1/ops_alerts?id=eq.${a.id}`, { method: 'PATCH', body: JSON.stringify({ notified_at: now }) })
-    }
+    // v38: alerts opened by GitHub workflows (alerts.yml, key gh_*) get their push here; v39: admin new-device logins too
+    await pushPending(now, open)
+    // v39: "admin login from new device" is a notice, not a problem to fix: it leaves the open list after 24 hours.
+    await call(`/rest/v1/ops_alerts?key=like.admin_login_*&closed_at=is.null&opened_at=lt.${new Date(now.getTime() - 24 * 3600 * 1000).toISOString()}`,
+      { method: 'PATCH', body: JSON.stringify({ closed_at: now }) }).catch(() => null)
     if (open.some((a) => a.key === 'health_check')) {
       await call('/rest/v1/ops_alerts?key=eq.health_check&closed_at=is.null', { method: 'PATCH', body: JSON.stringify({ closed_at: now }) })
     }

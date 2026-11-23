@@ -104,6 +104,7 @@ jobs:
           # Self-check: the file decrypts (integrity OK) and the archive is readable
           printf '%s' "$BACKUP_PASSWORD" | gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 0 --decrypt "$NAME" | tar -tzf - > /dev/null
           echo "NAME=$NAME" >> "$GITHUB_ENV"
+          echo "BACKUP_BYTES=$(stat -c %s "$NAME")" >> "$GITHUB_ENV"
           echo "Encrypted OK ($(du -h "$NAME" | cut -f1))"
 
       - name: Upload to R2
@@ -144,3 +145,23 @@ jobs:
         run: |
           curl -sSfL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/scripts/gh-alert.sh" -o gh-alert.sh && chmod +x gh-alert.sh
           ./gh-alert.sh open "Database backup is not set up" "The nightly backup is skipped because some secrets are missing (see the run log for their names): ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+      # v39: last backup time / size / result for the Admin panel Overview (public.backup_runs via backup_report).
+      # Same Supabase secrets as alerts.yml (no new secret). Prints only the HTTP code. Never fails the job.
+      - name: Record backup status in the Admin panel
+        if: always()
+        env:
+          SB_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SB_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          READY: ${{ steps.check.outputs.ready }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          if [ -z "$SB_URL" ] || [ -z "$SB_KEY" ]; then echo "::warning::Supabase secrets missing, status not recorded"; exit 0; fi
+          if [ "$READY" != "true" ]; then st=skipped; elif [ "$JOB_STATUS" = "success" ]; then st=ok; else st=failed; fi
+          size="${BACKUP_BYTES:-}"; [ "$st" = "ok" ] || size=""
+          body=$(jq -n --arg s "$st" --arg z "$size" '{p_status:$s, p_size:(if $z=="" then null else ($z|tonumber) end), p_detail:null}')
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$SB_URL/rest/v1/rpc/backup_report" \
+            -H "apikey: $SB_KEY" -H "Authorization: Bearer $SB_KEY" -H "Content-Type: application/json" -d "$body" || echo 000)
+          echo "backup_report ($st) -> HTTP $code"
+          [ "$code" = "404" ] && echo "::warning::backup_report missing: run migration v39"
+          exit 0

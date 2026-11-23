@@ -7,8 +7,12 @@
 //   delete_files { order_id }                            -> delete an order's files from storage now
 //   report_dismiss { report_id }                         -> file report (v34): nothing wrong; ends the order's hold
 //   report_delete_files { report_id }                    -> file report (v34): delete the reported files (takedown)
+//   push_send { segment, city?, title, body, in_app? }   -> v39: push (+ in-app notice) to all / pro / free / city shops
+//   notify_shop { shop_id, kind: 'expiring'|'nudge' }    -> v39: plan-ending reminder or "we miss you" nudge to one shop
+// v39 roles: 'support' admins may only use the file report actions; everything else needs role 'owner'.
 // Every action is written to public.admin_log.
 import { corsHeaders, db, fail, HttpError, json, rzp, Subscription, updateShop } from '../_shared/billing.ts'
+import { pushReady, pushUsers } from '../_shared/fcm.ts'
 
 const URL_ = Deno.env.get('SUPABASE_URL') || ''
 const KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
@@ -22,6 +26,16 @@ async function call(path: string, init: RequestInit = {}): Promise<unknown> {
   const text = await res.text()
   if (!res.ok) throw new Error(`${res.status} ${path}: ${text}`)
   return text ? JSON.parse(text) : null
+}
+
+/** v39 admin role. Before the v39 SQL has run there is no role column: every admin is an owner. */
+async function adminRole(uid: string): Promise<string> {
+  try {
+    const rows = await db<{ role: string | null }[]>(`admins?user_id=eq.${encodeURIComponent(uid)}&select=role`)
+    return rows[0]?.role || 'owner'
+  } catch {
+    return 'owner'
+  }
 }
 
 async function adminId(req: Request): Promise<string> {
@@ -56,6 +70,9 @@ async function mfaRequired(): Promise<boolean> {
   const rows = await db<{ admin_mfa_required: boolean | null }[]>('app_settings?id=eq.1&select=admin_mfa_required')
   return rows[0]?.admin_mfa_required !== false
 }
+
+// v39: actions a 'support' admin may use (file reports, like the Spam tab). Everything else is owner-only.
+const SUPPORT_OK = ['report_dismiss', 'report_delete_files']
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 function id(v: unknown, name: string): string {
@@ -101,6 +118,54 @@ Deno.serve(async (req) => {
     isAdmin = true
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
     const action = String(body.action || '')
+    if (!SUPPORT_OK.includes(action) && (await adminRole(admin)) !== 'owner') throw new HttpError(403, 'not_allowed', 'not allowed')
+
+    if (action === 'push_send') {
+      const segment = String(body.segment || '')
+      const city = String(body.city || '').trim().slice(0, 60)
+      const title = String(body.title || '').trim().slice(0, 80)
+      const text = String(body.body || '').trim().slice(0, 300)
+      const inApp = body.in_app !== false
+      if (!['all', 'pro', 'free', 'city'].includes(segment)) throw new HttpError(400, 'bad_request', 'Pick who gets it')
+      if (segment === 'city' && city.length < 2) throw new HttpError(400, 'bad_request', 'Type a city')
+      if (title.length < 2 || text.length < 2) throw new HttpError(400, 'bad_request', 'Write a title and a message')
+      const targets = (await call('/rest/v1/rpc/push_segment_owners', { method: 'POST', body: JSON.stringify({ p_segment: segment, p_city: city || null }) })) as { shop_id: string; owner_id: string }[]
+      if (inApp && targets.length) {
+        for (let i = 0; i < targets.length; i += 500) {
+          await db('shop_notices', { method: 'POST', prefer: 'return=minimal',
+            body: JSON.stringify(targets.slice(i, i + 500).map((t) => ({ shop_id: t.shop_id, kind: 'admin', title, body: text, created_by: admin }))) })
+        }
+      }
+      const r = await pushUsers(targets.map((t) => t.owner_id), () => ({ title, body: text }), { tag: `admin-${Date.now()}`, path: '/dashboard', kind: 'admin_notice' })
+      await log(admin, 'push_sent', null, { segment, city: segment === 'city' ? city : null, title, shops: targets.length, devices: r.devices, sent: r.sent, in_app: inApp })
+      return json({ ok: true, shops: targets.length, devices: r.devices, sent: r.sent, push_ready: pushReady() })
+    }
+
+    if (action === 'notify_shop') {
+      const shopId = id(body.shop_id, 'shop_id')
+      const kind = String(body.kind || '')
+      if (kind !== 'expiring' && kind !== 'nudge') throw new HttpError(400, 'bad_request', 'Unknown reminder')
+      const rows = await db<{ id: string; owner_id: string; plan_expires_at: string | null }[]>(`shops?id=eq.${shopId}&select=id,owner_id,plan_expires_at`)
+      const s = rows[0]
+      if (!s) throw new HttpError(404, 'not_found', 'Shop not found')
+      const until = s.plan_expires_at ? new Date(s.plan_expires_at) : null
+      const dEn = until ? until.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' }) : ''
+      const dHi = until ? until.toLocaleDateString('hi-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' }) : ''
+      await db('shop_notices', { method: 'POST', prefer: 'return=minimal',
+        body: JSON.stringify({ shop_id: shopId, kind, data: kind === 'expiring' ? { until: s.plan_expires_at } : {}, created_by: admin }) })
+      const words = (l: string) => {
+        const en = kind === 'expiring'
+          ? { title: 'Your PrintQR plan ends soon', body: `It ends on ${dEn}. Renew in the Plan tab to keep your features.` }
+          : { title: 'Customers are waiting', body: 'Show your PrintQR QR code at the counter: customers send files from their phone, no WhatsApp needed.' }
+        const hi = kind === 'expiring'
+          ? { title: 'आपका PrintQR प्लान जल्द खत्म होगा', body: `यह ${dHi} को खत्म होगा। सुविधाएँ चालू रखने के लिए प्लान टैब में रिन्यू करें।` }
+          : { title: 'ग्राहक इंतज़ार कर रहे हैं', body: 'काउंटर पर अपना PrintQR QR कोड लगाएँ: ग्राहक फ़ोन से फ़ाइल भेजें, WhatsApp की ज़रूरत नहीं।' }
+        return l === 'hi' ? hi : l === 'en' ? en : { title: `${en.title} · ${hi.title}`, body: en.body }
+      }
+      const r = await pushUsers([s.owner_id], words, { tag: `${kind}-${shopId}`, path: kind === 'expiring' ? '/dashboard?tab=plan' : '/dashboard', kind: `shop_${kind}` })
+      await log(admin, kind === 'expiring' ? 'reminder_sent' : 'nudge_sent', shopId, { devices: r.devices, sent: r.sent })
+      return json({ ok: true, devices: r.devices, sent: r.sent, push_ready: pushReady() })
+    }
 
     if (action === 'disable_user' || action === 'enable_user') {
       const uid = id(body.user_id, 'user_id')
