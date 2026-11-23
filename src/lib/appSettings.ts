@@ -12,6 +12,25 @@ export type AppSettings = {
   login_design: LoginDesign
   /** Per platform (v28); a missing key uses login_design. */
   login_designs: Partial<Record<LoginPlatform, LoginDesign>>
+  /** Landing (home) page design (v31), same pattern as the login design; a missing key uses landing_design. */
+  landing_design: LandingDesign
+  landing_designs: Partial<Record<LoginPlatform, LandingDesign>>
+}
+
+/** classic = the current landing page, duo = two big panels (customer / shop) + cost estimator. */
+export const LANDING_DESIGNS = ['classic', 'duo'] as const
+export type LandingDesign = typeof LANDING_DESIGNS[number]
+const isLanding = (v: unknown): v is LandingDesign => (LANDING_DESIGNS as readonly unknown[]).includes(v)
+export function landingDesignFor(s: AppSettings, p: LoginPlatform = currentLoginPlatform()): LandingDesign {
+  const v = s.landing_designs?.[p]
+  if (isLanding(v)) return v
+  if (isLanding(s.landing_design)) return s.landing_design
+  return 'classic'
+}
+const LAND_KEY = 'pq_landing_design'
+/** Last known landing design, so the home page does not flash the other design while settings load. */
+function storedLanding(): LandingDesign {
+  try { const v = localStorage.getItem(LAND_KEY); return isLanding(v) ? v : 'classic' } catch { return 'classic' }
 }
 
 /** classic = old card, modern = lime phone card, split = lime brand panel + card, bento = card + tiles,
@@ -53,10 +72,12 @@ function storedDesign(): LoginDesign {
 }
 function remember(s: AppSettings) {
   try { localStorage.setItem(LD_KEY, loginDesignFor(s)) } catch { /* private mode */ }
+  try { localStorage.setItem(LAND_KEY, landingDesignFor(s)) } catch { /* private mode */ }
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  announcement: null, announcement_hi: null, maintenance: false, maintenance_msg: null, min_app_version: null, free_counter_limit: 0, login_design: storedDesign(), login_designs: {}
+  announcement: null, announcement_hi: null, maintenance: false, maintenance_msg: null, min_app_version: null, free_counter_limit: 0, login_design: storedDesign(), login_designs: {},
+  landing_design: storedLanding(), landing_designs: {}
 }
 
 let cache: AppSettings | null = null

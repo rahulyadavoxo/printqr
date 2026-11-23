@@ -1,10 +1,12 @@
 import { ReactElement, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useSession } from '../lib/useSession'
 import { Key, useI18n } from '../lib/i18n'
 import { LogoMark, TopBar } from '../components/TopBar'
 import { LegalLinks } from './Legal'
 import { AppDownloadButton } from '../components/AppDownload'
+import { landingDesignFor, useAppSettings } from '../lib/appSettings'
+import LandingDuo from './LandingDuo'
 
 /* A decorative, QR-looking grid (not a real code). */
 const QR_N = 21
@@ -82,7 +84,23 @@ const FEATURES: { icon: string; title: Key; body: Key }[] = [
   { icon: 'upi', title: 'feat5Title', body: 'feat5Body' }
 ]
 
+/** The landing page: the design the admin picked in Settings (default = the classic page below). */
 export default function Home() {
+  const settings = useAppSettings()
+  const { session } = useSession()
+  const nav = useNavigate()
+  const [params] = useSearchParams()
+  useEffect(() => {
+    if (session) nav('/dashboard', { replace: true })
+  }, [session, nav])
+  // Preview without saving: /#/?landing=duo or /#/?landing=classic
+  const preview = params.get('landing')
+  const design = preview === 'duo' || preview === 'classic' ? preview : landingDesignFor(settings)
+  return design === 'duo' ? <LandingDuo /> : <ClassicLanding />
+}
+
+/** The current (classic) landing page. */
+function ClassicLanding() {
   const { session } = useSession()
   const nav = useNavigate()
   const { t } = useI18n()
