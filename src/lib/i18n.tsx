@@ -1292,7 +1292,23 @@ const en = {
   devEndAllAsk: 'Log out every other device? Only this device stays logged in.',
   devEndedAll: 'All other devices are logged out.',
   devNote: 'A logged-out device may keep working for up to an hour, then it must log in again. Changed your password? Also log out all other devices.',
-  errThisDevice: 'This is the device you are using. Use Log out instead.'
+  errThisDevice: 'This is the device you are using. Use Log out instead.',
+  // v36: admin 2-step login (TOTP)
+  admMfaTitle: 'Enter your 2-step code',
+  admMfaHint: 'Open your authenticator app (Google Authenticator, Authy, Microsoft Authenticator) and type the 6-digit code for PrintQR.',
+  admMfaSetupTitle: 'Set up 2-step login',
+  admMfaSetupHint: 'The admin panel needs a second step. Scan this QR code with an authenticator app (Google Authenticator, Authy or Microsoft Authenticator).',
+  admMfaQrAlt: 'QR code for your authenticator app',
+  admMfaSecretHint: 'Cannot scan? Add this key in the app by hand:',
+  admMfaCopy: 'Copy key',
+  admMfaCopied: 'Copied',
+  admMfaSetupCode: 'Then type the 6-digit code the app shows.',
+  admMfaVerify: 'Verify',
+  admMfaWrong: 'Wrong or expired code. Type the new code from the app.',
+  admMfaNotEnabled: '2-step login (TOTP) is not turned on for this project. Turn it on in Supabase → Authentication → Multi-Factor, then try again.',
+  admMfaRetry: 'Try again',
+  admMfaHelp: 'Lost your phone? See "Admin 2-step login" in the README for the emergency switch.',
+  admMfaRequired: 'Enter your 2-step code to use the admin panel.'
 }
 
 export type Key = keyof typeof en
@@ -2577,7 +2593,23 @@ const hi: Record<Key, string> = {
   devEndAllAsk: 'बाकी सभी डिवाइस लॉग आउट करें? सिर्फ़ यह डिवाइस लॉगिन रहेगा।',
   devEndedAll: 'बाकी सभी डिवाइस लॉग आउट हो गए।',
   devNote: 'लॉग आउट किया गया डिवाइस एक घंटे तक चल सकता है, फिर उसे दोबारा लॉगिन करना होगा। पासवर्ड बदला है? तो बाकी सभी डिवाइस भी लॉग आउट करें।',
-  errThisDevice: 'यह वही डिवाइस है जिसे आप चला रहे हैं। इसके लिए लॉग आउट दबाएँ।'
+  errThisDevice: 'यह वही डिवाइस है जिसे आप चला रहे हैं। इसके लिए लॉग आउट दबाएँ।',
+  // v36: admin 2-step login (TOTP)
+  admMfaTitle: '2-स्टेप कोड डालें',
+  admMfaHint: 'अपना ऑथेंटिकेटर ऐप (Google Authenticator, Authy, Microsoft Authenticator) खोलें और PrintQR का 6 अंकों का कोड डालें।',
+  admMfaSetupTitle: '2-स्टेप लॉगिन सेट करें',
+  admMfaSetupHint: 'एडमिन पैनल के लिए एक दूसरा स्टेप ज़रूरी है। इस QR कोड को ऑथेंटिकेटर ऐप (Google Authenticator, Authy या Microsoft Authenticator) से स्कैन करें।',
+  admMfaQrAlt: 'ऑथेंटिकेटर ऐप के लिए QR कोड',
+  admMfaSecretHint: 'स्कैन नहीं हो रहा? ऐप में यह की हाथ से डालें:',
+  admMfaCopy: 'की कॉपी करें',
+  admMfaCopied: 'कॉपी हो गई',
+  admMfaSetupCode: 'फिर ऐप में दिख रहा 6 अंकों का कोड डालें।',
+  admMfaVerify: 'वेरिफ़ाई करें',
+  admMfaWrong: 'कोड गलत है या उसका समय निकल गया। ऐप से नया कोड डालें।',
+  admMfaNotEnabled: 'इस प्रोजेक्ट में 2-स्टेप लॉगिन (TOTP) चालू नहीं है। Supabase → Authentication → Multi-Factor में चालू करें, फिर कोशिश करें।',
+  admMfaRetry: 'फिर कोशिश करें',
+  admMfaHelp: 'फ़ोन खो गया? README में "Admin 2-step login" वाला इमरजेंसी तरीका देखें।',
+  admMfaRequired: 'एडमिन पैनल के लिए अपना 2-स्टेप कोड डालें।'
 }
 
 export type Lang = 'en' | 'hi'
@@ -2606,6 +2638,7 @@ const SERVER_ERRORS: Record<string, Key> = {
   'some files could not be copied. please try again': 'errReorderCopy',
   'more counters need the pro plan': 'errCounterPro',
   'not allowed': 'admNoAccess',
+  'mfa_required': 'admMfaRequired',
   'too many reports. please try again tomorrow': 'errReportsLimit',
   'new orders are paused for a short while. please try again later': 'errMaintenance',
   'please write what is wrong': 'errWriteReason',

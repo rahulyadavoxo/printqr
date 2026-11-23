@@ -533,7 +533,11 @@ export default function Dashboard() {
   // Admin link in the drawer: shown only when the database says this account is an admin (v12).
   const [isAdmin, setIsAdmin] = useState(false)
   useEffect(() => {
-    supabase.rpc('is_admin').then(({ data, error }) => setIsAdmin(!error && data === true))
+    // v36: admin_status().admin (true before the 2-step code too, so the link leads to the code screen). Older SQL: is_admin().
+    supabase.rpc('admin_status').then(({ data, error }) => {
+      if (!error && data && typeof data === 'object') { setIsAdmin((data as { admin?: boolean }).admin === true); return }
+      supabase.rpc('is_admin').then((r) => setIsAdmin(!r.error && r.data === true))
+    })
   }, [])
 
   const loadCounters = useCallback(async (shopId: string) => {

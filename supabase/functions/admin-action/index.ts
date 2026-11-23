@@ -1,4 +1,5 @@
-// POST { action, ... }  (JWT required; caller must be in public.admins)
+// POST { action, ... }  (JWT required; caller must be in public.admins and, while
+// app_settings.admin_mfa_required is on (v36), logged in with the 2-step code: JWT aal = 'aal2')
 // Admin actions that need the service role or Razorpay:
 //   disable_user { user_id } / enable_user { user_id }   -> Supabase Auth ban on/off
 //   send_reset   { user_id }                             -> password reset email
@@ -32,7 +33,28 @@ async function adminId(req: Request): Promise<string> {
   if (!user.id) throw new HttpError(401, 'not_logged_in', 'Please log in again')
   const rows = await db<{ user_id: string }[]>(`admins?user_id=eq.${encodeURIComponent(user.id)}&select=user_id`)
   if (!rows.length) throw new HttpError(403, 'not_allowed', 'not allowed')
+  // Same rule as is_admin() in SQL (v36): no 6-digit code in this session -> no admin actions.
+  if (jwtAal(auth) !== 'aal2' && (await mfaRequired())) {
+    throw new HttpError(403, 'mfa_required', 'mfa_required')
+  }
   return user.id
+}
+
+// The JWT was just verified by /auth/v1/user above, so reading its payload here is safe.
+function jwtAal(auth: string): string {
+  try {
+    const part = auth.slice(7).trim().split('.')[1] || ''
+    const b64 = part.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (part.length % 4)) % 4)
+    const payload = JSON.parse(atob(b64)) as { aal?: string }
+    return payload.aal || 'aal1'
+  } catch {
+    return 'aal1'
+  }
+}
+
+async function mfaRequired(): Promise<boolean> {
+  const rows = await db<{ admin_mfa_required: boolean | null }[]>('app_settings?id=eq.1&select=admin_mfa_required')
+  return rows[0]?.admin_mfa_required !== false
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

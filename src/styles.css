@@ -2715,3 +2715,13 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 .sec-sheet { width: 100%; max-width: 560px; margin: 24px auto; display: flex; flex-direction: column; gap: 12px; }
 .sec-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--c-surface); border-radius: var(--r-sm); }
 .sec-head strong { font-size: 17px; }
+
+/* v36: admin 2-step login (set up / enter code) */
+.adm-mfa { max-width: 440px; margin: 24px auto; display: flex; flex-direction: column; gap: 12px; }
+.adm-mfa h2 { margin: 0; }
+.adm-mfa p { margin: 0; }
+.adm-mfa-qr { display: block; align-self: center; width: 200px; height: 200px; padding: 8px; border-radius: 12px; background: #fff; }
+.adm-mfa-secret { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.adm-mfa-secret code { flex: 1 1 200px; min-width: 0; padding: 8px 10px; border-radius: 8px; background: var(--c-surface-2, rgba(127,127,127,.12)); font-size: 14px; letter-spacing: .06em; word-break: break-all; user-select: all; }
+.adm-mfa .field { margin: 4px 0 0; }
+.adm-mfa-help { text-align: center; }

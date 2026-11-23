@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { Navigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useSession } from '../lib/useSession'
@@ -10,8 +10,25 @@ import { AdminSkelBody, AdminSkeleton, SkelList, SkelLog, SkelStats } from '../c
 import { ask as askConfirm } from '../components/ConfirmHost'
 import { setupPush } from '../lib/push'
 import Icon from '../components/Icon'
+import OtpInput from '../components/OtpInput'
 
-/* Admin panel. The page only hides itself; the real check is is_admin() inside every admin_* SQL function. */
+/* Admin panel. The page only hides itself; the real check is is_admin() inside every admin_* SQL function.
+   v36: while app_settings.admin_mfa_required is on, is_admin() also needs a 2-step (TOTP) login (aal2), so the page
+   first shows "Set up 2-step login" (first visit) or "Enter code" and loads admin data only at aal2. */
+
+/** v36 admin_status(): admin = listed in public.admins (no aal check), mfa_required, aal of this login. */
+type AdminStatus = { admin: boolean; mfa_required: boolean; aal: string }
+
+async function loadAdminStatus(): Promise<AdminStatus> {
+  const { data, error } = await supabase.rpc('admin_status')
+  if (!error && data && typeof data === 'object') {
+    const d = data as Partial<AdminStatus>
+    return { admin: d.admin === true, mfa_required: d.mfa_required === true, aal: String(d.aal || 'aal1') }
+  }
+  // Before v36 SQL: no admin_status(), no 2-step login.
+  const r = await supabase.rpc('is_admin')
+  return { admin: !r.error && r.data === true, mfa_required: false, aal: 'aal1' }
+}
 
 type Overview = {
   shops_total: number; shops_today: number; shops_week: number
@@ -58,7 +75,9 @@ const LOG_KEYS: Record<string, Key> = {
 export default function Admin() {
   const { session, loading } = useSession()
   const { t, teRaw, lang } = useI18n()
-  const [allowed, setAllowed] = useState<boolean | null>(null)
+  const [status, setStatus] = useState<AdminStatus | null>(null)
+  // Admin data loads only when this login may read it (aal2 while 2-step login is required).
+  const allowed: boolean | null = status === null ? null : status.admin && (!status.mfa_required || status.aal === 'aal2')
   const [ov, setOv] = useState<Overview | null>(null)
   const [shops, setShops] = useState<ShopRow[] | null>(null)
   const [more, setMore] = useState(false)
@@ -79,10 +98,12 @@ export default function Admin() {
   // A new success message (even the same text, e.g. "Saved" twice) restarts the toast.
   const toastId = useMemo(() => Math.random(), [msg])
 
+  const sessionToken = session?.access_token
+  const recheck = useCallback(() => { void loadAdminStatus().then(setStatus) }, [])
   useEffect(() => {
-    if (!session) return
-    supabase.rpc('is_admin').then(({ data, error }) => setAllowed(!error && data === true))
-  }, [session])
+    if (!sessionToken) return
+    recheck()
+  }, [sessionToken, recheck])
 
   const loadOverview = useCallback(async () => {
     const { data, error } = await supabase.rpc('admin_overview')
@@ -203,6 +224,7 @@ export default function Admin() {
   )
 
   if (allowed === null) return shell(<AdminSkelBody />, true)
+  if (status && status.admin && !allowed) return shell(<AdminMfa onDone={recheck} />)
   if (!allowed) return shell(<div className="card"><h2>{t('admNoAccess')}</h2><p className="muted">{t('admNoAccessHint')}</p></div>)
 
   // Before v19 SQL the pro_* counts include Plus and plus_* are missing (then all is priced as Pro).
@@ -463,5 +485,127 @@ function AdminToast({ text, onDone }: { text: string; onDone: () => void }) {
     <div className={`adm-toast no-print${leaving ? ' out' : ''}`} role="status" aria-live="polite">
       <Icon name="check" size={18} /><span>{text}</span>
     </div>
+  )
+}
+
+/** v36: 2-step login (TOTP) for admins. First visit: scan the QR code and confirm one code (enrol).
+ *  Later logins (password only = aal1, factor already set up): enter the 6-digit code (step-up to aal2). */
+function AdminMfa({ onDone }: { onDone: () => void }) {
+  const { t, teRaw } = useI18n()
+  const [mode, setMode] = useState<'loading' | 'enrol' | 'verify' | 'error'>('loading')
+  const [factorId, setFactorId] = useState('')
+  const [qr, setQr] = useState('')
+  const [secret, setSecret] = useState('')
+  const [code, setCode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [shake, setShake] = useState(0)
+  const [copied, setCopied] = useState(false)
+  const started = useRef(false)
+
+  const mfaError = useCallback((e: unknown) => {
+    const c = String((e as { code?: string } | null)?.code || '')
+    if (c === 'mfa_verification_failed' || c === 'mfa_challenge_expired') return t('admMfaWrong')
+    if (/totp.*(not_enabled|disabled)|enroll_not_enabled/.test(c)) return t('admMfaNotEnabled')
+    return teRaw(e)
+  }, [t, teRaw])
+
+  const start = useCallback(async () => {
+    setMode('loading')
+    setErr('')
+    try {
+      const { data, error } = await supabase.auth.mfa.listFactors()
+      if (error) throw error
+      const verified = data.totp.find((f) => f.status === 'verified')
+      if (verified) {
+        setFactorId(verified.id)
+        setMode('verify')
+        return
+      }
+      // A QR shown earlier but never confirmed leaves an unverified factor: remove it so enrol starts clean.
+      for (const f of data.all.filter((x) => x.factor_type === 'totp' && x.status === 'unverified')) {
+        const r = await supabase.auth.mfa.unenroll({ factorId: f.id })
+        if (r.error) throw r.error
+      }
+      const en = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'PrintQR admin', issuer: 'PrintQR' })
+      if (en.error) throw en.error
+      setFactorId(en.data.id)
+      setQr(en.data.totp.qr_code)
+      setSecret(en.data.totp.secret)
+      setMode('enrol')
+    } catch (e) {
+      setErr(mfaError(e))
+      setMode('error')
+    }
+  }, [mfaError])
+
+  useEffect(() => {
+    // StrictMode runs effects twice in dev: enrol only once.
+    if (started.current) return
+    started.current = true
+    void start()
+  }, [start])
+
+  const verify = async (v = code) => {
+    if (busy || v.length < 6 || !factorId) return
+    setBusy(true)
+    setErr('')
+    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code: v })
+    setBusy(false)
+    if (error) {
+      setErr(mfaError(error))
+      setCode('')
+      setShake((n) => n + 1)
+      return
+    }
+    onDone() // the session is now aal2: admin_status() says so and the panel loads
+  }
+
+  const copySecret = () => {
+    void navigator.clipboard?.writeText(secret).then(() => {
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+    })
+  }
+
+  if (mode === 'loading') return <AdminSkelBody />
+  if (mode === 'error') {
+    return (
+      <div className="card adm-mfa">
+        <h2>{t('admMfaTitle')}</h2>
+        <p className="notice error" role="alert">{err}</p>
+        <p className="small muted">{t('admMfaHelp')}</p>
+        <button type="button" className="btn" onClick={() => void start()}>{t('admMfaRetry')}</button>
+      </div>
+    )
+  }
+  return (
+    <form className="card adm-mfa" onSubmit={(e) => { e.preventDefault(); void verify() }}>
+      <h2>{mode === 'enrol' ? t('admMfaSetupTitle') : t('admMfaTitle')}</h2>
+      {mode === 'enrol' ? (
+        <>
+          <p className="muted">{t('admMfaSetupHint')}</p>
+          <img className="adm-mfa-qr" src={qr} alt={t('admMfaQrAlt')} width={200} height={200} />
+          <p className="small muted">{t('admMfaSecretHint')}</p>
+          <div className="adm-mfa-secret">
+            <code>{secret}</code>
+            <button type="button" className="btn small soft" onClick={copySecret}>
+              <Icon name={copied ? 'check' : 'copy'} size={16} /> {copied ? t('admMfaCopied') : t('admMfaCopy')}
+            </button>
+          </div>
+          <p className="muted">{t('admMfaSetupCode')}</p>
+        </>
+      ) : (
+        <p className="muted">{t('admMfaHint')}</p>
+      )}
+      <div className="field">
+        <OtpInput value={code} onChange={setCode} length={6} onComplete={(v) => { void verify(v) }}
+          disabled={busy} error={!!err && !code} shakeKey={shake} autoFocus
+          ariaLabel={t('otpAria', { n: 6 })} ariaDescribedBy={err ? 'adm-mfa-msg' : undefined} />
+      </div>
+      {err && <p id="adm-mfa-msg" className="notice error" role="alert">{err}</p>}
+      <button className="btn primary block" disabled={busy || code.length < 6}>{busy ? t('pleaseWait') : t('admMfaVerify')}</button>
+      <p className="small muted adm-mfa-help">{t('admMfaHelp')}</p>
+    </form>
   )
 }
