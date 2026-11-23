@@ -22,7 +22,8 @@ const PATHS: Record<string, ReactElement> = {
   download: <path d="M12 4v11M7 10l5 5 5-5M4 20h16" />,
   open: <path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6" />,
   clock: <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2" />,
-  lock: <path d="M6 11h12v10H6zM8.5 11V7.5a3.5 3.5 0 0 1 7 0V11" />,
+  // padlock with keyhole (user's icon, 2026-11-23)
+  lock: <path d="M7 10.5h10a2 2 0 0 1 2 2v6.5a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6.5a2 2 0 0 1 2-2zM8 10.5V7a4 4 0 0 1 8 0v3.5M12 13.4a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zM12 16v2.2" />,
   pin: <path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21zM12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" />,
   plus: <path d="M12 5v14M5 12h14" />,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
