@@ -1,9 +1,15 @@
 import { ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { TopBar } from '../components/TopBar'
+import { TIER_PRICES } from '../lib/billing'
+import { FILE_HOURS } from '../lib/plans'
+import { SELLER_NAME } from '../lib/seller'
 
-const UPDATED = '22 November 2026'
-const OWNER = 'Rahul Kumar'
+const UPDATED = '23 November 2026'
+const OWNER = SELLER_NAME
+const P = TIER_PRICES
+/** Plan file-keeping caps in words (from FILE_HOURS: 3h / 24h / 168h). */
+const hrs = (h: number) => (h >= 48 && h % 24 === 0 ? `${h / 24} days` : `${h} hour${h === 1 ? '' : 's'}`)
 const ADDRESS = 'Abadganj, Mission School Road, Near Shiv Temple, Daltonganj, Jharkhand 822101, India'
 const SUPPORT = 'receipto.support@gmail.com'
 const GRIEVANCE = 'rahulkumaryadav7090@gmail.com'
@@ -21,59 +27,75 @@ const DOCS: Record<string, Doc> = {
           PrintQR (print.receipto.in), run by {OWNER} as part of Receipto ("we"), lets print and cyber cafe shops receive
           files from customers by QR code. This policy explains what we collect, why, and how long we keep it.
         </p>
-        <h2>1. What we collect</h2>
+        <h2>1. Who is responsible (DPDP Act, 2023)</h2>
         <ul>
-          <li><b>Shop owners:</b> email address, password (stored only as a one-way hash by our login provider), shop name, address, phone, UPI ID, print rates and settings.</li>
-          <li><b>Customers:</b> the files you upload (PDFs and photos), the optional name and note you type, the print options you pick, and your order token and status. Customers do not need an account.</li>
-          <li><b>Payments:</b> for Pro plans, Razorpay processes the payment. We store only the subscription ID, plan, status and dates. We never see or store card, UPI PIN or bank details.</li>
-          <li><b>Technical data:</b> basic logs (time, browser, IP address) kept by our hosting providers for security and to fix errors.</li>
+          <li><b>Customer files and order details:</b> the shop you send them to decides why and how they are used, so the shop is the <b>Data Fiduciary</b>. PrintQR only stores and delivers them for the shop and is its <b>Data Processor</b>.</li>
+          <li><b>Shop owner account data:</b> PrintQR is the Data Fiduciary for the details shop owners give us to run their account.</li>
         </ul>
-        <h2>2. How long files are kept</h2>
+        <h2>2. What we collect</h2>
+        <ul>
+          <li><b>Shop owners:</b> email address or mobile number, password (stored only as a one-way hash by our login provider), shop name, address, phone, UPI ID, print rates and settings, and the phone/browser push token if you turn on notifications.</li>
+          <li><b>Customers:</b> the files you upload (PDFs and photos), the optional name and note you type, the print options you pick, and your order token and status. Customers do not need an account.</li>
+          <li><b>Payments:</b> for paid plans, Razorpay processes the payment. We store the subscription ID, plan, status, dates, and for each payment its ID, amount and date (for your receipts). We never see or store card, UPI PIN or bank details.</li>
+          <li><b>Technical data:</b> basic logs (time, browser, IP address) kept by our hosting providers for security, abuse prevention and to fix errors.</li>
+        </ul>
+        <h2>3. How long data is kept</h2>
+        <ul>
+          <li><b>Uploaded files</b> are deleted automatically after the shop's auto-delete time. The shop chooses it, from 1 hour up to its plan's limit: {hrs(FILE_HOURS.free)} on Free, {hrs(FILE_HOURS.pro)} on Pro and {hrs(FILE_HOURS.plus)} on Plus.</li>
+          <li>Files of an order still <b>received or printing</b> are kept until at least 48 hours after it was placed (or the shop's time, if longer), so the shop can finish it.</li>
+          <li>Files from uploads that were <b>never finished</b> are deleted after 35 minutes.</li>
+          <li>After the files are deleted, the order shows as files removed; the token, name and amount stay in the shop's order history. <b>Order records</b> are deleted after 366 days.</li>
+          <li><b>Backups:</b> the database (not the uploaded files) is backed up every night, encrypted, to Cloudflare R2.</li>
+          <li><b>Shop owner accounts</b> are kept while the account is open; ask us to close it and we delete it.</li>
+        </ul>
+        <h2>4. Aadhaar and ID documents</h2>
         <p>
-          Uploaded files are deleted automatically after the shop's auto-delete time. The shop chooses it, up to 3 hours
-          on the Free plan, 24 hours on Pro and 7 days on Plus. Files of an order the shop has not printed yet are kept
-          until it is printed, for at most 48 hours (or the plan's time if longer). Files from uploads that were never
-          finished are deleted after about 35 minutes. After deletion the order shows as files removed; the token, name
-          and amount stay in the shop's order history.
+          Many customers print ID documents. Please upload a <b>masked Aadhaar</b> (only the last 4 digits shown,
+          downloadable from the UIDAI website) wherever it is accepted. Shops must use ID files only to print them and
+          must <b>not keep copies</b>, photos or scans of them. PrintQR deletes every uploaded file automatically as
+          described above.
         </p>
-        <h2>3. Who can see your files</h2>
+        <h2>5. Who can see your files</h2>
         <p>
           Only the shop you sent them to, through its signed-in dashboard, and our automated cleanup job. We do not
           read, sell, share or use your files for any other purpose. Shops are responsible for how they handle
           printed copies.
         </p>
-        <h2>4. Service providers</h2>
+        <h2>6. Service providers (processors)</h2>
         <ul>
-          <li>Supabase: database, login and file storage.</li>
+          <li>Supabase: database, login, file storage and server functions.</li>
           <li>GitHub Pages: hosting of this website.</li>
           <li>Razorpay: subscription payments for shops.</li>
-          <li>Google AdSense: ads shown to free-plan shops and their customers.</li>
-          <li>Google Fonts: website fonts.</li>
+          <li>Cloudflare: Turnstile (bot check on uploads and login) and R2 (encrypted database backups).</li>
+          <li>Google: Firebase Cloud Messaging (order notifications to the shop's phone), Gmail API (account emails), Google Fonts (website fonts) and Google AdSense (ads may be shown on the Free plan).</li>
+          <li>Resend: account emails, when it is set up.</li>
+          <li>SMSGate (sms-gate.app): sends the one-time login code by SMS for mobile-number logins.</li>
         </ul>
-        <h2>5. Cookies and ads</h2>
+        <h2>7. Cookies and ads</h2>
         <p>
-          We use your browser's local storage to keep you signed in and remember your language. On free-plan pages,
+          We use your browser's local storage to keep you signed in and remember your language. On Free-plan pages,
           Google and its partners may use cookies to show and measure ads, including ads based on your previous visits
           to this and other websites. You can turn off personalised ads at{' '}
           <a href="https://adssettings.google.com" target="_blank" rel="noreferrer">adssettings.google.com</a>, and
           learn more at{' '}
           <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noreferrer">policies.google.com/technologies/ads</a>.
         </p>
-        <h2>6. Your rights</h2>
+        <h2>8. Your rights</h2>
         <p>
           You can ask us to access, correct or delete your personal data, or close your shop account, by writing to{' '}
-          <Mail to={SUPPORT} />. Customers can also ask the shop to delete their files before the auto-delete time.
+          <Mail to={SUPPORT} />. Customers can ask the shop to delete their files before the auto-delete time, or
+          write to us and we will pass the request to the shop.
         </p>
-        <h2>7. Security</h2>
+        <h2>9. Security</h2>
         <p>
           Data is sent over HTTPS. Files are kept in private storage and opened only through short-lived links. No
           system is perfectly secure, so please do not upload documents you are not comfortable sharing with the shop.
         </p>
-        <h2>8. Children</h2>
-        <p>PrintQR is not meant for children under 18 to use without a parent or guardian.</p>
-        <h2>9. Changes</h2>
+        <h2>10. Children</h2>
+        <p>Users under 18 may use PrintQR only with the consent of a parent or guardian.</p>
+        <h2>11. Changes</h2>
         <p>We may update this policy. The date at the top shows the latest version.</p>
-        <h2>10. Grievance Officer (DPDP Act, 2023)</h2>
+        <h2>12. Grievance Officer (DPDP Act, 2023)</h2>
         <p>
           Name: {OWNER}
           <br />
@@ -100,8 +122,10 @@ const DOCS: Record<string, Doc> = {
         </p>
         <h2>2. Shop accounts</h2>
         <ul>
+          <li>Users under 18 may use PrintQR only with the consent of a parent or guardian.</li>
           <li>You must give correct details and keep your password safe. You are responsible for activity on your account.</li>
-          <li>You must handle customers' files only to print them, and not copy, keep or share them.</li>
+          <li>You must handle customers' files only to print them, and not copy, keep or share them. This includes Aadhaar and other ID documents: do not keep copies of them.</li>
+          <li>For your customers' files you are the Data Fiduciary under the DPDP Act, 2023; PrintQR processes them for you.</li>
           <li>Payments customers make to your UPI ID go directly to you. We are not part of that payment.</li>
         </ul>
         <h2>3. Customers</h2>
@@ -112,8 +136,10 @@ const DOCS: Record<string, Doc> = {
         <h2>4. Plans and payments</h2>
         <ul>
           <li>The Free plan is free and may show ads and have limits.</li>
-          <li>Pro costs ₹49 per month or ₹539 per year, billed in advance through Razorpay as a subscription that renews automatically until cancelled.</li>
-          <li>You can cancel any time from the Plan tab. Pro stays active until the end of the period already paid. Refunds follow our <Link to="/legal/refund">Refund and Cancellation Policy</Link>.</li>
+          <li>Pro costs ₹{P.pro.monthly} per month or ₹{P.pro.yearly} per year. Plus costs ₹{P.plus.monthly} per month or ₹{P.plus.yearly} per year. Plans are billed in advance through Razorpay as a subscription that renews automatically until cancelled.</li>
+          <li>Moving from Pro to Plus stops the Pro subscription at once; the unused Pro days are added to Plus as extra days.</li>
+          <li>The seller is {OWNER} (PrintQR). A receipt for every payment can be downloaded from the Plan tab.</li>
+          <li>You can cancel any time from the Plan tab. The paid plan stays active until the end of the period already paid. Refunds follow our <Link to="/legal/refund">Refund and Cancellation Policy</Link>.</li>
           <li>We may change prices with notice; changes apply from your next billing period.</li>
         </ul>
         <h2>5. Acceptable use</h2>
@@ -140,21 +166,26 @@ const DOCS: Record<string, Doc> = {
     title: 'Refund and Cancellation Policy',
     body: (
       <>
-        <p>This policy covers PrintQR Pro plan payments made to us through Razorpay.</p>
+        <p>
+          This policy covers PrintQR Pro and Plus plan payments made to {OWNER} (PrintQR) through Razorpay. Pro costs
+          ₹{P.pro.monthly} per month or ₹{P.pro.yearly} per year; Plus costs ₹{P.plus.monthly} per month or
+          ₹{P.plus.yearly} per year.
+        </p>
         <h2>1. Cancellation</h2>
         <p>
-          You can cancel your Pro subscription any time from the Plan tab in your dashboard. No further charges will
-          be made after cancellation. Pro features stay active until the end of the period you already paid for.
+          You can cancel your Pro or Plus subscription any time from the Plan tab in your dashboard. No further charges
+          will be made after cancellation. The plan's features stay active until the end of the period you already
+          paid for. When you move from Pro to Plus, the unused Pro days are added to Plus instead of being refunded.
         </p>
         <h2>2. Refunds</h2>
         <ul>
           <li>If you were charged twice, or charged after you cancelled, we refund the extra charge in full.</li>
-          <li>If Pro did not work for you because of a fault on our side and we could not fix it, write to us within 7 days of the payment for a full refund of that payment.</li>
+          <li>If the plan did not work for you because of a fault on our side and we could not fix it, write to us within 7 days of the payment for a full refund of that payment.</li>
           <li>Apart from these cases, payments for a period already started are not refundable.</li>
         </ul>
         <h2>3. How to ask</h2>
         <p>
-          Email <Mail to={SUPPORT} /> from your shop's email address with your shop name and the Razorpay payment ID.
+          Email <Mail to={SUPPORT} /> from your shop's email address with your shop name and the Razorpay payment ID (shown on the receipt in the Plan tab).
           We reply within 2 working days.
         </p>
         <h2>4. Timeline</h2>

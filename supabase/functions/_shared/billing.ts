@@ -1,4 +1,5 @@
 // Shared helpers for the PrintQR billing Edge Functions (Deno, no external imports).
+import { logOps } from './ops.ts'
 // Env: RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, (webhook) RAZORPAY_WEBHOOK_SECRET,
 //      SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (auto-provided by the Edge Runtime).
 
@@ -358,4 +359,61 @@ export function safeEqual(a: string, b: string): boolean {
 
 export function keySecret(): string {
   return env('RAZORPAY_KEY_SECRET')
+}
+
+/* ---------------- Payments (receipts, v33) ---------------- */
+
+export type Payment = {
+  id: string
+  amount?: number | null
+  currency?: string | null
+  status?: string | null
+  created_at?: number | null
+}
+
+function isoOrNull(sec?: number | null): string | null {
+  return sec ? new Date(sec * 1000).toISOString() : null
+}
+
+/**
+ * Store one row per Razorpay payment in public.billing_payments (owner sees it as a receipt).
+ * payment_id is unique: repeats (webhook retries, verify after webhook) only refresh the same row.
+ * Never throws: a missing receipt row must not stop the plan from switching on.
+ */
+export async function recordPayment(s: Subscription, p: Payment, shopId?: string): Promise<void> {
+  try {
+    const shop = shopId || subNotes(s).shop_id
+    if (!p?.id || !shop) return
+    if (p.status && !['captured', 'authorized'].includes(p.status)) return
+    const tier = await tierOf(s)
+    const period = await periodOf(s)
+    const amount = typeof p.amount === 'number' ? p.amount : period ? PLANS[tier][period].amount : 0
+    const row: Record<string, unknown> = {
+      payment_id: p.id,
+      shop_id: shop,
+      subscription_id: s.id,
+      tier,
+      period,
+      amount,
+      currency: (p.currency || 'INR').toUpperCase(),
+      paid_at: isoOrNull(p.created_at), // unknown: the column default (now) on first insert
+      period_start: isoOrNull(s.current_start),
+      period_end: isoOrNull(s.current_end)
+    }
+    // A repeat must not blank a value an earlier write had (e.g. the cycle dates Razorpay fills later).
+    for (const k of Object.keys(row)) if (row[k] === null) delete row[k]
+    await db('billing_payments?on_conflict=payment_id', {
+      method: 'POST',
+      body: JSON.stringify(row),
+      prefer: 'resolution=merge-duplicates,return=minimal'
+    })
+  } catch (e) {
+    const t = String(e)
+    if (t.includes('PGRST205') || t.includes('42P01')) {
+      console.warn('billing_payments missing: run supabase/migrations/2026-11-23-v33-billing-payments.sql')
+      return
+    }
+    console.error('record payment', e)
+    await logOps('billing-payments', e, 'warn')
+  }
 }

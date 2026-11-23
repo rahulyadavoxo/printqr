@@ -1,5 +1,6 @@
 import { IN_APP, PUBLIC_BASE, nativeBridge } from './app'
 import { supabase } from './supabase'
+import { SELLER } from './seller'
 
 export type Period = 'monthly' | 'yearly'
 export type Tier = 'pro' | 'plus'
@@ -97,7 +98,7 @@ export async function startUpgrade(period: Period, opts: { email?: string; conta
     const rz = new Razorpay({
       key: key_id,
       subscription_id,
-      name: 'PrintQR',
+      name: SELLER,
       description: opts.description,
       image: `${window.location.origin}${import.meta.env.BASE_URL}icon-192.png`,
       prefill: prefill(opts),
@@ -151,7 +152,7 @@ function nativeCheckout(
       JSON.stringify({
         key: o.key,
         subscription_id: o.subscription_id,
-        name: 'PrintQR',
+        name: SELLER,
         description: o.description,
         image: `${PUBLIC_BASE}icon-192.png`, // else Razorpay shows the account's own (Receipto) logo
         prefill: prefill(o),
