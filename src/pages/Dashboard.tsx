@@ -29,6 +29,7 @@ import { ask as askConfirm } from '../components/ConfirmHost'
 import { BillingPayment, downloadReceipt, money } from '../lib/receipt'
 import { SELLER } from '../lib/seller'
 import { FILE_REPORT_REASONS, FILE_REPORT_REASON_KEY, FileReportReason } from '../lib/fileReports'
+import { AppLockCard, DevicesCard, LockOverlay, useAppLock } from '../components/AppLock'
 
 // The document editor is a separate chunk, loaded only when the Edit tab opens.
 const Editor = lazy(() => import('./editor/Editor'))
@@ -438,6 +439,16 @@ export default function Dashboard() {
   const { session, loading } = useSession()
   const { t, lang } = useI18n()
   const [menu, setMenu] = useState(false)
+  // Shop PC app lock (PIN + idle timeout, this device only). The dashboard stays mounted under the lock.
+  const appLock = useAppLock(session?.user.id)
+  const [secOpen, setSecOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    if (appLock.locked) el.setAttribute('inert', '')
+    else el.removeAttribute('inert')
+  })
   const [sb, setSbState] = useState<SbMode>(savedSidebar)
   const [sbMenu, setSbMenu] = useState(false)
   const setSb = (m: SbMode) => {
@@ -693,6 +704,15 @@ export default function Dashboard() {
     setParams({ tab: id })
     window.scrollTo(0, 0)
   }
+  // Lock now; with no PIN yet, open the App lock settings instead.
+  const lockNow = () => {
+    setMenu(false)
+    if (appLock.lock()) return
+    if (staff) return setSecOpen(true)
+    if (bottomNav) setParams({ tab: 'settings', s: 'lock' })
+    else setParams({ tab: 'settings' })
+    setTimeout(() => document.getElementById('app-lock')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120)
+  }
   const openToggle = (
     <button type="button" className={`toggle ${shop.is_open ? 'is-open' : 'is-closed'}`} onClick={toggleOpen} aria-pressed={shop.is_open}>
       <span className="toggle-dot" />
@@ -701,7 +721,9 @@ export default function Dashboard() {
   )
 
   return (
-    <div className={`app-page dash sb-${sb}${sbMenu ? ' sb-pinned' : ''}${menu ? ' menu-open' : ''}${bottomNav ? ' has-bnav' : ''}`} onClick={unlockAudio}>
+    <>
+    <div ref={rootRef} className={`app-page dash sb-${sb}${sbMenu ? ' sb-pinned' : ''}${menu ? ' menu-open' : ''}${bottomNav ? ' has-bnav' : ''}${appLock.locked ? ' app-locked' : ''}`}
+      onClick={unlockAudio} aria-hidden={appLock.locked || undefined}>
       {loggingOut && (
         <div className="cf-back" role="status" aria-live="polite">
           <div className="cf-box cf-busy"><span className="spinner dark" aria-hidden="true" /> {t('loggingOut')}</div>
@@ -731,6 +753,9 @@ export default function Dashboard() {
           <div className="bar-actions d-only">
             {!staff && openToggle}
             {!IN_APP && <NotifyMenu active={activeCount ?? 0} paperLow={!!paperLow} paperN={Number(shop.paper_sheets)} blocked={!!shop.blocked} onGo={go} />}
+            <button type="button" className="bar-btn lock-btn" onClick={lockNow} aria-label={t('lockNow')} title={t('lockNow')}>
+              <Icon name="lock" size={18} />
+            </button>
             <LangMenu />
             <ThemeMenu />
             <ProfileMenu shop={shop} onSettings={staff ? undefined : () => go('settings')} onLogout={logout}
@@ -771,6 +796,18 @@ export default function Dashboard() {
               })}
             </div>
           ))}
+          <div className="drawer-group">
+            <button type="button" className="drawer-item" title={t('lockNow')} onClick={lockNow}>
+              <Icon name="lock" size={22} />
+              <span>{t('lockNow')}</span>
+            </button>
+            {staff && (
+              <button type="button" className="drawer-item" title={t('secTitle')} onClick={() => { setMenu(false); setSecOpen(true) }}>
+                <Icon name="shield" size={22} />
+                <span>{t('secTitle')}</span>
+              </button>
+            )}
+          </div>
           {staff && (
             <div className="drawer-group">
               <button type="button" className="drawer-item" onClick={logout}>
@@ -866,6 +903,8 @@ export default function Dashboard() {
             {(!bottomNav || setSub === 'counters') && <CountersCard shop={shop} counters={counters} usable={usable.length} locked={free} limit={counterLimit} needPlus={pro} v2={v2}
               onChanged={() => loadCounters(shop.id)} onUpgrade={goPlan}
               onShowQr={(c) => setParams({ tab: 'qr', c })} />}
+            {(!bottomNav || setSub === 'lock') && session && <AppLockCard uid={session.user.id} />}
+            {(!bottomNav || setSub === 'devices') && <DevicesCard />}
           </>
         )}
         {tab === 'settings' && !bottomNav && (
@@ -897,6 +936,20 @@ export default function Dashboard() {
         </nav>
       )}
     </div>
+    {appLock.locked && session && <LockOverlay uid={session.user.id} shopName={shop.name} onUnlock={appLock.unlock} />}
+    {secOpen && !appLock.locked && session && (
+      <div className="cf-back sec-back" role="dialog" aria-modal="true" aria-label={t('secTitle')} onClick={(e) => { if (e.target === e.currentTarget) setSecOpen(false) }}>
+        <div className="sec-sheet">
+          <div className="sec-head">
+            <strong>{t('secTitle')}</strong>
+            <button type="button" className="drawer-close" onClick={() => setSecOpen(false)} aria-label={t('close')}><Icon name="x" size={22} /></button>
+          </div>
+          <AppLockCard uid={session.user.id} />
+          <DevicesCard />
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 
@@ -2206,7 +2259,7 @@ function Report({ shop, onUpgrade }: { shop: Shop; onUpgrade: () => void }) {
 
 const KEEP_OPTIONS = [1, 3, 6, 12, 24, 48, 72, 168]
 
-type SetKey = 'shop' | 'hours' | 'paper' | 'counters' | 'brand' | 'staff'
+type SetKey = 'shop' | 'hours' | 'paper' | 'counters' | 'brand' | 'staff' | 'lock' | 'devices'
 /** Android phone Settings: grouped list (iOS-style); each row opens its section. */
 function SettingsHub({ plus, onOpen, onPlan, onLogout, version }: {
   plus: boolean; onOpen: (k: SetKey) => void; onPlan: () => void; onLogout: () => void; version: string
@@ -2242,6 +2295,8 @@ function SettingsHub({ plus, onOpen, onPlan, onLogout, version }: {
       </div>
       <div className="set-grp-lbl">{t('setGrpPref')}</div>
       <div className="set-grp">
+        <Row icon="lock" label={t('lockCardTitle')} onClick={() => onOpen('lock')} />
+        <Row icon="shield" label={t('devTitle')} onClick={() => onOpen('devices')} />
         <Row icon="type" label={t('language')} value={lang === 'hi' ? 'हिंदी' : 'English'} onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} />
         <Row icon={pref === 'dark' ? 'moon' : pref === 'light' ? 'sun' : 'auto'} label={t('theme')} value={t(themeLbl[pref])}
           onClick={() => setTheme(themeOrder[(themeOrder.indexOf(pref) + 1) % 3])} />

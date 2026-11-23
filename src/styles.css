@@ -2689,3 +2689,29 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 .fr-box .cf-row { margin-top: 12px; }
 .fr-files { overflow-wrap: anywhere; margin: 4px 0 0; }
 .admin-tag.fr-urgent { background: var(--c-red-bg); color: var(--c-red-ink); }
+/* ---- v35 / item 12: shop PC app lock + logged-in devices ---- */
+.app-page.app-locked { filter: blur(14px); pointer-events: none; user-select: none; }
+.lock-screen { position: fixed; inset: 0; z-index: 1400; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(8, 12, 10, .5); }
+.lock-box { width: 100%; max-width: 340px; background: var(--c-surface); color: var(--c-ink); border-radius: 22px; padding: 26px 22px 18px; box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .5); text-align: center; display: flex; flex-direction: column; gap: 10px; }
+.lock-box h2 { margin: 0; font-size: 20px; }
+.lock-box p { margin: 0; }
+.lock-ic { width: 60px; height: 60px; margin: 0 auto 4px; border-radius: 50%; display: grid; place-items: center; background: var(--c-sunken); color: var(--c-ink); }
+.lock-pin { text-align: center; font-size: 26px; letter-spacing: .4em; padding: 12px; margin-top: 6px; }
+.lock-err { min-height: 20px; font-size: 14px; color: var(--c-red-ink); }
+.lock-forgot { background: none; border: 0; color: var(--c-muted); font: inherit; font-size: 14px; padding: 10px; cursor: pointer; text-decoration: underline; }
+.lock-forgot:hover { color: var(--c-ink); }
+.lock-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0; }
+.lock-actions .btn { flex: 1 1 auto; }
+.lock-form .field { margin-bottom: 10px; }
+.dev-list { list-style: none; margin: 10px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.dev-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--c-line); border-radius: var(--r-sm); background: var(--c-surface-2); }
+.dev-row.is-current { border-color: var(--c-brand); }
+.dev-ic { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--c-sunken); }
+.dev-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dev-txt strong { font-size: 15px; overflow-wrap: anywhere; }
+.dev-txt small { font-size: 13px; }
+.dev-this { font-weight: 500; color: var(--c-muted); }
+.sec-back { align-items: flex-start; overflow-y: auto; }
+.sec-sheet { width: 100%; max-width: 560px; margin: 24px auto; display: flex; flex-direction: column; gap: 12px; }
+.sec-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--c-surface); border-radius: var(--r-sm); }
+.sec-head strong { font-size: 17px; }
