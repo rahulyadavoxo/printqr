@@ -2635,3 +2635,18 @@ html:lang(hi) .lpb h2,html:lang(hi) .lpb h3{line-height:1.25}
 @media print {
   html:not(.in-app) .dash .dash-main { position: static !important; border: 0 !important; overflow: visible !important; }
 }
+
+/* Desktop web + Windows: top-right controls share one edge (same corner radius, same 1px border) */
+html:not(.in-app) .dash .bar-actions .bar-btn, html:not(.in-app) .dash .bar-actions .toggle, html:not(.in-app) .dash .bar-actions .avatar-btn {
+  border-radius: 8px; border: 1px solid var(--c-line); box-sizing: border-box; box-shadow: none; }
+html:not(.in-app) .dash .bar-actions .toggle.is-open { border-color: #8fd8a5; }
+html:not(.in-app) .dash .bar-actions .toggle.is-closed { border-color: #f2b1b1; }
+[data-theme="dark"] .dash .bar-actions .toggle.is-open { border-color: #1f5c36; }
+[data-theme="dark"] .dash .bar-actions .toggle.is-closed { border-color: #5c2626; }
+html:not(.in-app) .dash .bar-actions .avatar-btn .shop-avatar, html:not(.in-app) .dash .bar-actions .avatar-btn .shop-avatar img { border-radius: 5px; }
+
+/* Desktop web + Windows: VS Code style edges across the dashboard (small, even corner radius everywhere) */
+@media (min-width: 1024px) {
+  html:not(.in-app) .dash { --r-xs: 4px; --r-sm: 6px; --r-md: 8px; --r-lg: 8px; --r-xl: 10px; --radius: 8px; --radius-sm: 6px; }
+  html:not(.in-app) .dash .bar-actions .bar-btn, html:not(.in-app) .dash .bar-actions .toggle, html:not(.in-app) .dash .bar-actions .avatar-btn { border-radius: 6px; }
+}
