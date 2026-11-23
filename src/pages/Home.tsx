@@ -61,7 +61,7 @@ const ICONS: Record<string, ReactElement> = {
 
 function Icon({ name }: { name: string }) {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       {ICONS[name]}
     </svg>
   )
@@ -91,27 +91,27 @@ export default function Home() {
   }, [session, nav])
 
   return (
-    <div className="landing">
+    <div className="landing lp">
       <TopBar>
         <Link className="btn ghost small" to="/login">{t('login')}</Link>
       </TopBar>
 
-      <section className="hero">
-        <div className="hero-in">
-          <div className="hero-copy">
-            <span className="badge">{t('homeBadge')}</span>
+      <section className="hero lp-hero">
+        <div className="hero-in lp-hero-in">
+          <div className="hero-copy lp-hero-copy">
+            <span className="badge lp-badge">{t('homeBadge')}</span>
             <h1>
               {t('homeTitle1')} <span className="accent">{t('homeTitle2')}</span>
             </h1>
             <p className="lead">{t('homeSub')}</p>
-            <div className="cta-row">
-              <Link className="btn primary lg" to="/login?mode=signup">{t('ctaRegister')}</Link>
-              <Link className="btn lg" to="/login">{t('login')}</Link>
+            <div className="cta-row lp-cta-row">
+              <Link className="btn primary lg lp-btn" to="/login?mode=signup">{t('ctaRegister')}</Link>
+              <Link className="btn lg lp-btn" to="/login">{t('login')}</Link>
             </div>
-            <ul className="trust-row">
+            <ul className="trust-row lp-trust">
               {t('homeTrust').split(' · ').map((x) => (
                 <li key={x}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
                   {x}
                 </li>
               ))}
@@ -119,25 +119,27 @@ export default function Home() {
             <div className="app-dl"><AppDownloadButton /></div>
           </div>
 
-          <div className="hero-visual" aria-hidden="true">
-            <div className="mock-poster">
-              <div className="mock-poster-head">
-                <LogoMark size={22} />
-                <span>{t('mockWant')}</span>
+          <div className="lp-visual-wrap" aria-hidden="true">
+            <div className="hero-visual lp-visual">
+              <div className="mock-poster">
+                <div className="mock-poster-head">
+                  <LogoMark size={22} />
+                  <span>{t('mockWant')}</span>
+                </div>
+                <FakeQr size={150} />
+                <div className="mock-poster-foot">{t('mockScan')}</div>
               </div>
-              <FakeQr size={150} />
-              <div className="mock-poster-foot">{t('mockScan')}</div>
-            </div>
-            <div className="mock-phone">
-              <div className="mock-notch" />
-              <div className="mock-screen">
-                <div className="small muted">{t('mockToken')}</div>
-                <div className="mock-token">#12</div>
-                <div className="pill s-ready">{t('mockReady')}</div>
-                <div className="mock-bars">
-                  <span className="on" />
-                  <span className="on" />
-                  <span className="on" />
+              <div className="mock-phone">
+                <div className="mock-notch" />
+                <div className="mock-screen">
+                  <div className="small muted">{t('mockToken')}</div>
+                  <div className="mock-token">#12</div>
+                  <div className="pill s-ready">{t('mockReady')}</div>
+                  <div className="mock-bars">
+                    <span className="on" />
+                    <span className="on" />
+                    <span className="on" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -145,49 +147,51 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="section how">
-        <h2 className="section-title">{t('howTitle')}</h2>
-        <div className="steps-grid">
-          {STEPS.map((s, i) => (
-            <div className="step-tile" key={s.title}>
-              <div className="step-icon">
-                <Icon name={s.icon} />
-                <span className="step-num">{i + 1}</span>
-              </div>
-              <h3>{t(s.title)}</h3>
-              <p className="muted">{t(s.body)}</p>
-            </div>
-          ))}
+      <section className="lp-band lp-how">
+        <div className="lp-wrap">
+          <h2 className="lp-title">{t('howTitle')}</h2>
+          <ol className="lp-steps">
+            {STEPS.map((s, i) => (
+              <li className="lp-step" key={s.title}>
+                <div className="lp-step-top">
+                  <span className="lp-step-num">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="lp-step-icon"><Icon name={s.icon} /></span>
+                </div>
+                <h3>{t(s.title)}</h3>
+                <p>{t(s.body)}</p>
+              </li>
+            ))}
+          </ol>
         </div>
       </section>
 
-      <section className="section">
-        <h2 className="section-title">{t('featTitle')}</h2>
-        <div className="feat-grid">
-          {FEATURES.map((f) => (
-            <div className="feat" key={f.title}>
-              <div className="feat-icon"><Icon name={f.icon} /></div>
-              <div>
+      <section className="lp-band lp-feats">
+        <div className="lp-wrap">
+          <h2 className="lp-title">{t('featTitle')}</h2>
+          <div className="lp-feat-grid">
+            {FEATURES.map((f) => (
+              <div className="lp-feat" key={f.title}>
+                <div className="lp-feat-icon"><Icon name={f.icon} /></div>
                 <h3>{t(f.title)}</h3>
-                <p className="muted">{t(f.body)}</p>
+                <p>{t(f.body)}</p>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 
-      <section className="section">
-        <div className="cta-band">
+      <section className="lp-band lp-cta">
+        <div className="lp-wrap lp-cta-in">
           <div>
             <h2>{t('homeCtaTitle')}</h2>
             <p>{t('homeCtaSub')}</p>
           </div>
-          <Link className="btn lg cta-band-btn" to="/login?mode=signup">{t('ctaRegister')}</Link>
+          <Link className="btn lg cta-band-btn lp-btn" to="/login?mode=signup">{t('ctaRegister')}</Link>
         </div>
       </section>
 
-      <footer className="footer">
-        <span className="footer-brand"><LogoMark size={22} /> {t('footer')}</span>
+      <footer className="footer lp-footer">
+        <span className="footer-brand"><LogoMark size={26} /> {t('footer')}</span>
         <LegalLinks />
       </footer>
     </div>
