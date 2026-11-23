@@ -98,6 +98,7 @@ Limits server pe bhi lagte hain (counter trigger, `create_order`, `get_shop_publ
 | v23-idcard-reorder-paper | ID card sheet (Pro), Dobara print (`reorder`), kaagaz stock + low alert | v4, v14, v17, v18; functions `reorder`, `finalize-order`, `push-new-order` |
 | v24-photo-thumbs | Photo ke chhote thumbnails owner list ke liye | v23 |
 | v25-launch-safety | Bina print hue order ki files nahi mitti (max 48 ghante), Free 3 ghante, storage budget, zarurat pe hi bot check (`upload-pass`), "Block sender", finalize limit, `ops_events` + `ops_health` (alerts) | v24; secret `TURNSTILE_SECRET`; function `upload-pass` |
+| v31-admin-mfa | Admin panel pe 2-step login (TOTP authenticator code): `is_admin()` ab aal2 maangta hai, `admin_status()`, emergency flag `app_settings.admin_mfa_required` | v13; **pehle** Supabase mein TOTP MFA ON (neeche 1i dekho); function `admin-action` |
 
 **Fresh install:** `supabase/schema.sql` ab generated hai (`supabase/schema-base.sql` + saari migrations). Nayi migration ke baad `scripts/build-schema.sh` chalao; CI (pull request pe) check karta hai ki schema.sql purana na ho, aur ek local Supabase pe poora install + har migration dobara chala ke dekhta hai.
 
@@ -119,6 +120,16 @@ Function SQL se pehle deploy ho jaaye to zyada tar functions purane tarike se ch
 - **Bot check:** `app_settings.order_captcha` = `auto` (default: sirf jab ek network se 10 min mein 3+ ya ek shop pe 20+ order), `always`, ya `off`. Edge Function secret `TURNSTILE_SECRET` zaroori hai.
 - **Storage budget:** `app_settings.storage_budget_mb` (poori service, default 700), `shop_storage_free_mb` (150), `shop_storage_paid_mb` (500). Supabase Pro ke baad badha do.
 - **Email:** `RESEND_API_KEY` + `MAIL_FROM` (jaise `no-reply@receipto.in`, domain Resend mein verify) secrets daalte hi mail Resend se jaata hai, Gmail sirf fallback. Dono na ho to pehle jaisa Gmail.
+
+### 1i. Admin 2-step login (v31)
+
+- **SQL chalane se PEHLE:** Supabase → Authentication → **Multi-Factor (MFA)** → **TOTP (App Authenticator)** ON karo → Save. Ye ON na ho to v31 ke baad admin panel "2-step login chalu nahi hai" dikhayega.
+- **Pehli baar `#/admin` khologe** to QR code aayega. Google Authenticator / Authy / Microsoft Authenticator se scan karo (ya neeche wali key haath se daalo) aur 6 digit code ek baar daalo. Uske baad har naye admin login pe sirf 6 digit code maangega. Code ke bina koi admin SQL function ya `admin-action` kaam nahi karta (`not allowed` / `mfa_required`).
+- **Emergency (phone kho gaya, TOTP galti se band, lock ho gaye):** Supabase → SQL Editor mein chalao
+  `update public.app_settings set admin_mfa_required = false where id = 1;`
+  Ab admin normal login se chalega (code screen bhi nahi aayegi). Naya phone: Authentication → Users → apna user → MFA factor hatao, phir `#/admin` pe dobara enrol karo. Baad mein wapas ON:
+  `update public.app_settings set admin_mfa_required = true where id = 1;`
+- Ye flag admin Settings tab se nahi badalta, sirf SQL Editor se.
 
 ### 2. GitHub secrets
 Repo → **Settings → Secrets and variables → Actions → New repository secret**:

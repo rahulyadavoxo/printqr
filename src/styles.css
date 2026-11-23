@@ -2655,3 +2655,13 @@ html:not(.in-app) .dash .bar-actions .avatar-btn .shop-avatar, html:not(.in-app)
 html:not(.in-app) .dash .bar-actions .bar-btn, html:not(.in-app) .dash .bar-actions .avatar-btn { padding: 0; display: grid; place-items: center; line-height: 1; }
 html:not(.in-app) .dash .bar-actions .bar-btn > svg, html:not(.in-app) .dash .bar-actions .avatar-btn > * { display: block; margin: 0; }
 html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+
+/* v31: admin 2-step login (set up / enter code) */
+.adm-mfa { max-width: 440px; margin: 24px auto; display: flex; flex-direction: column; gap: 12px; }
+.adm-mfa h2 { margin: 0; }
+.adm-mfa p { margin: 0; }
+.adm-mfa-qr { display: block; align-self: center; width: 200px; height: 200px; padding: 8px; border-radius: 12px; background: #fff; }
+.adm-mfa-secret { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.adm-mfa-secret code { flex: 1 1 200px; min-width: 0; padding: 8px 10px; border-radius: 8px; background: var(--c-surface-2, rgba(127,127,127,.12)); font-size: 14px; letter-spacing: .06em; word-break: break-all; user-select: all; }
+.adm-mfa .field { margin: 4px 0 0; }
+.adm-mfa-help { text-align: center; }
