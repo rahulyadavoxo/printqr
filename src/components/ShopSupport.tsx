@@ -3,12 +3,14 @@ import { supabase } from '../lib/supabase'
 import { useI18n } from '../lib/i18n'
 import type { Key } from '../lib/i18n'
 import { nativeBridge } from '../lib/app'
+import { previewCoupon } from '../lib/billing'
+import type { CouponDeal } from '../lib/billing'
 import Icon from './Icon'
 
 /* v39 shop side of the admin tools:
    - ShopNotices: messages from the PrintQR team (support replies, plan reminders, announcements to a group of shops)
    - SupportCard: "Help & support" form + the shop's requests with the team's replies
-   - CouponBox: redeem a coupon code for free Pro days (Plan tab)
+   - CouponBox: redeem a coupon code for free Pro days, or (v40) check a % off code that is applied when paying (Plan tab)
    All through owner-only SQL functions (v39). Before the v39 SQL has run they quietly show nothing. */
 
 type Notice = { id: number; kind: 'support' | 'expiring' | 'nudge' | 'admin'; title: string | null; body: string | null
@@ -121,36 +123,65 @@ export function SupportCard() {
   )
 }
 
-export function CouponBox({ onDone }: { onDone: () => Promise<void> | void }) {
+export function CouponBox({ onDone, deal, onDeal }: { onDone: () => Promise<void> | void; deal?: CouponDeal | null; onDeal?: (d: CouponDeal | null) => void }) {
   const { t, te, lang } = useI18n()
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
-  const errKey: Record<string, Key> = { not_found: 'cpNotFound', expired: 'cpExpired', used_up: 'cpUsedUp', already: 'cpAlready', too_many: 'cpTooMany' }
+  const errKey: Record<string, Key> = { not_found: 'cpNotFound', expired: 'cpExpired', used_up: 'cpUsedUp', already: 'cpAlready', too_many: 'cpTooMany', blocked: 'cpNotFound' }
   const redeem = async (e: FormEvent) => {
     e.preventDefault()
     const c = code.trim().toUpperCase()
     if (c.length < 3) return
     setBusy(true)
     setMsg(null)
-    const { data, error } = await supabase.rpc('redeem_coupon', { p_code: c })
-    setBusy(false)
-    if (error) { setMsg({ text: te(error), error: true }); return }
-    const r = data as { ok: boolean; error?: string; until?: string; days?: number }
-    if (!r.ok) { setMsg({ text: t(errKey[r.error || ''] || 'cpNotFound'), error: true }); return }
-    const date = r.until ? new Date(r.until).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''
-    setCode('')
-    setMsg({ text: t('cpDone', { n: r.days ?? 0, date }), error: false })
-    await onDone()
+    try {
+      const { data, error } = await supabase.rpc('redeem_coupon', { p_code: c })
+      if (error) { setMsg({ text: te(error), error: true }); return }
+      const r = data as { ok: boolean; error?: string; until?: string; days?: number }
+      if (!r.ok && r.error === 'checkout') {
+        // v40 % off code: the server checks it and gives the prices; it is applied when paying.
+        if (!onDeal) { setMsg({ text: t('cpPctHere'), error: true }); return }
+        const p = await previewCoupon(c)
+        if (!p.ok) { setMsg({ text: t(errKey[p.error] || 'cpNotFound'), error: true }); return }
+        if (p.kind !== 'percent') { setMsg({ text: t('cpNotFound'), error: true }); return }
+        setCode('')
+        onDeal({ code: p.code, percent: p.percent, mode: p.mode, tiers: p.tiers, periods: p.periods, expires_at: p.expires_at, prices: p.prices })
+        return
+      }
+      if (!r.ok) { setMsg({ text: t(errKey[r.error || ''] || 'cpNotFound'), error: true }); return }
+      const date = r.until ? new Date(r.until).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''
+      setCode('')
+      setMsg({ text: t('cpDone', { n: r.days ?? 0, date }), error: false })
+      await onDone()
+    } catch (err) {
+      setMsg({ text: te(err), error: true })
+    } finally {
+      setBusy(false)
+    }
   }
+  const tierName = (x: string) => (x === 'plus' ? 'Plus' : 'Pro')
+  const perName = (x: string) => (x === 'yearly' ? t('planYearly') : t('planMonthly'))
   return (
     <form className="card form-card coupon-box" onSubmit={redeem}>
       <h2 className="card-title">{t('cpTitle')}</h2>
-      <div className="coupon-row">
-        <input value={code} maxLength={30} autoCapitalize="characters" placeholder={t('cpPh')} aria-label={t('cpTitle')}
-          onChange={(e) => setCode(e.target.value.toUpperCase())} disabled={busy} />
-        <button className="btn" disabled={busy || code.trim().length < 3}>{busy ? '…' : t('cpApply')}</button>
-      </div>
+      {deal ? (
+        <div className="coupon-deal">
+          <div className="coupon-deal-top">
+            <b className="mono">{deal.code}</b>
+            <span className="pro-badge">{deal.percent ? t('cpPctOff', { n: deal.percent }) : t('cpOffer')}</span>
+          </div>
+          <p className="small">{deal.mode === 'auto' ? t('cpPctEvery') : t('cpPctOfferNote')}</p>
+          <p className="small muted">{t('cpPctFor', { plans: deal.tiers.map(tierName).join(' / '), periods: deal.periods.map(perName).join(' / ') })}</p>
+          <button type="button" className="btn small soft" onClick={() => onDeal?.(null)}>{t('cpRemove')}</button>
+        </div>
+      ) : (
+        <div className="coupon-row">
+          <input value={code} maxLength={30} autoCapitalize="characters" placeholder={t('cpPh')} aria-label={t('cpTitle')}
+            onChange={(e) => setCode(e.target.value.toUpperCase())} disabled={busy} />
+          <button className="btn" disabled={busy || code.trim().length < 3}>{busy ? '…' : t('cpApply')}</button>
+        </div>
+      )}
       {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
     </form>
   )

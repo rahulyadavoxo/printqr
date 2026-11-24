@@ -375,12 +375,25 @@ export function AdminSupport({ onMsg, onView }: { onMsg: Msg; onView: (shopId: s
 
 /* ---------------- Coupons ---------------- */
 
-type Coupon = { code: string; kind: string; days: number; tier: string; expires_at: string | null; max_uses: number | null; uses: number; active: boolean; note: string | null; created_at: string }
+type Coupon = { code: string; kind: 'days' | 'percent'; days: number | null; tier: string; percent: number | null; mode: 'auto' | 'offer' | null
+  offer_id: string | null; tiers: string[] | null; periods: string[] | null; expires_at: string | null; max_uses: number | null; uses: number
+  pending?: number; active: boolean; note: string | null; created_at: string }
+
+type CouponForm = { kind: 'days' | 'percent'; code: string; days: string; tier: string; percent: string; tiers: string[]; periods: string[]
+  mode: 'auto' | 'offer'; offer: string; expires: string; max: string; note: string; active: boolean; editing: boolean }
+const EMPTY_COUPON: CouponForm = { kind: 'days', code: '', days: '30', tier: 'pro', percent: '20', tiers: ['pro', 'plus'], periods: ['monthly', 'yearly'],
+  mode: 'auto', offer: '', expires: '', max: '', note: '', active: true, editing: false }
+
+/** yyyy-mm-dd of an expiry in India time (for the date box). */
+function istDay(iso: string | null): string {
+  if (!iso) return ''
+  return new Date(new Date(iso).getTime() + 330 * 60000).toISOString().slice(0, 10)
+}
 
 export function AdminCoupons({ onMsg }: { onMsg: Msg }) {
   const { t, teRaw, lang } = useI18n()
   const [rows, setRows] = useState<Coupon[] | null>(null)
-  const [f, setF] = useState({ code: '', days: '30', tier: 'pro', expires: '', max: '', note: '' })
+  const [f, setF] = useState<CouponForm>(EMPTY_COUPON)
   const [busy, setBusy] = useState(false)
   const load = useCallback(async () => {
     const { data, error } = await supabase.rpc('admin_coupons')
@@ -388,43 +401,114 @@ export function AdminCoupons({ onMsg }: { onMsg: Msg }) {
     setRows((data || []) as Coupon[])
   }, [onMsg, teRaw])
   useEffect(() => { void load() }, [load])
-  const save = async (c: { code: string; days: number; tier: string; expires_at: string | null; max_uses: number | null; active: boolean; note: string | null }) => {
+
+  /** Saves one code (create, edit or on / off). Days codes: v39 admin_coupon_save. % codes: v40 admin_coupon_save_percent. */
+  const save = async (c: Coupon) => {
     setBusy(true)
     onMsg(null)
-    const { error } = await supabase.rpc('admin_coupon_save', {
-      p_code: c.code, p_days: c.days, p_tier: c.tier, p_expires_at: c.expires_at, p_max_uses: c.max_uses, p_active: c.active, p_note: c.note
-    })
+    const { error } = c.kind === 'percent'
+      ? await supabase.rpc('admin_coupon_save_percent', {
+          p_code: c.code, p_percent: c.percent, p_tiers: c.tiers, p_periods: c.periods, p_mode: c.mode || 'auto', p_offer_id: c.offer_id,
+          p_expires_at: c.expires_at, p_max_uses: c.max_uses, p_active: c.active, p_note: c.note
+        })
+      : await supabase.rpc('admin_coupon_save', {
+          p_code: c.code, p_days: c.days, p_tier: c.tier, p_expires_at: c.expires_at, p_max_uses: c.max_uses, p_active: c.active, p_note: c.note
+        })
     setBusy(false)
     if (error) { onMsg({ text: teRaw(error), error: true }); return false }
     onMsg({ text: t('saved') })
     void load()
     return true
   }
-  const create = async (e: FormEvent) => {
+  const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
+  const pct = Math.floor(Number(f.percent))
+  const offerOk = /^offer_[A-Za-z0-9]{6,40}$/.test(f.offer.trim())
+  const formOk = f.kind === 'days'
+    ? Number(f.days) >= 1 && Number(f.days) <= 366
+    : f.tiers.length > 0 && f.periods.length > 0 && (f.mode === 'offer' ? offerOk && (!f.percent || (pct >= 1 && pct <= 90)) : pct >= 1 && pct <= 90)
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
     const code = f.code.trim().toUpperCase()
     if (!/^[A-Z0-9_-]{3,30}$/.test(code)) { onMsg({ text: t('adxCodeBad'), error: true }); return }
+    if (!formOk) return
     // End of the chosen day, India time
     const exp = f.expires ? new Date(`${f.expires}T23:59:59+05:30`).toISOString() : null
-    const ok = await save({ code, days: Math.floor(Number(f.days)), tier: f.tier, expires_at: exp, max_uses: f.max ? Math.floor(Number(f.max)) : null, active: true, note: f.note.trim() || null })
-    if (ok) setF({ code: '', days: '30', tier: 'pro', expires: '', max: '', note: '' })
+    const max = f.max ? Math.floor(Number(f.max)) : null
+    const note = f.note.trim() || null
+    const ok = f.kind === 'days'
+      ? await save({ code, kind: 'days', days: Math.floor(Number(f.days)), tier: f.tier, percent: null, mode: null, offer_id: null, tiers: null, periods: null,
+          expires_at: exp, max_uses: max, uses: 0, active: f.active, note, created_at: '' })
+      : await save({ code, kind: 'percent', days: null, tier: f.tiers[0], percent: f.mode === 'offer' && !f.percent ? null : pct, mode: f.mode,
+          offer_id: f.mode === 'offer' ? f.offer.trim() : null, tiers: f.tiers, periods: f.periods, expires_at: exp, max_uses: max, uses: 0,
+          active: f.active, note, created_at: '' })
+    if (ok) setF({ ...EMPTY_COUPON, kind: f.kind })
+  }
+  const edit = (c: Coupon) => {
+    setF({
+      kind: c.kind, code: c.code, days: String(c.days ?? 30), tier: c.tier || 'pro', percent: c.percent ? String(c.percent) : '',
+      tiers: c.tiers || ['pro', 'plus'], periods: c.periods || ['monthly', 'yearly'], mode: c.mode || 'auto', offer: c.offer_id || '',
+      expires: istDay(c.expires_at), max: c.max_uses ? String(c.max_uses) : '', note: c.note || '', active: c.active, editing: true
+    })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
   const expired = (c: Coupon) => !!c.expires_at && new Date(c.expires_at).getTime() < Date.now()
+  const tierName = (x: string) => (x === 'plus' ? t('admTagPlus') : t('admTagPro'))
+  const perName = (x: string) => (x === 'yearly' ? t('planYearly') : t('planMonthly'))
+  const pctLabel = (c: Coupon) => (c.percent ? t('cpPctOff', { n: c.percent }) : t('cpOffer'))
   return (
     <>
       <h2 className="admin-sec adm-tab-h">{t('adxCoupons')}</h2>
-      <form className="card admin-settings" onSubmit={create}>
-        <h2 className="admin-sec">{t('adxNewCoupon')}</h2>
-        <p className="small muted">{t('adxCouponHint')}</p>
+      <form className="card admin-settings" onSubmit={submit}>
+        <h2 className="admin-sec">{f.editing ? t('adxEditCoupon', { code: f.code }) : t('adxNewCoupon')}</h2>
+        {!f.editing && (
+          <div className="seg adx-coupon-kind" role="group" aria-label={t('adxCouponKind')}>
+            {(['days', 'percent'] as const).map((k) => (
+              <button key={k} type="button" className={f.kind === k ? 'on' : ''} aria-pressed={f.kind === k} onClick={() => setF({ ...f, kind: k })}>
+                {k === 'days' ? t('adxKindDays') : t('adxKindPct')}
+              </button>
+            ))}
+          </div>
+        )}
+        <p className="small muted">{f.kind === 'days' ? t('adxCouponHint') : t('adxPctHint')}</p>
         <div className="grid2">
           <label className="field"><span>{t('adxCode')}</span>
-            <input required value={f.code} maxLength={30} autoCapitalize="characters" placeholder="DIWALI30" onChange={(e) => setF({ ...f, code: e.target.value.toUpperCase() })} /></label>
-          <label className="field"><span>{t('adxFreeDays')}</span>
-            <input required type="number" min={1} max={366} inputMode="numeric" value={f.days} onChange={(e) => setF({ ...f, days: e.target.value })} /></label>
-          <label className="field"><span>{t('admPlan')}</span>
-            <select value={f.tier} onChange={(e) => setF({ ...f, tier: e.target.value })}>
-              <option value="pro">{t('admTagPro')}</option><option value="plus">{t('admTagPlus')}</option>
-            </select></label>
+            <input required value={f.code} maxLength={30} autoCapitalize="characters" placeholder={f.kind === 'days' ? 'DIWALI30' : 'SAVE20'}
+              readOnly={f.editing} onChange={(e) => setF({ ...f, code: e.target.value.toUpperCase() })} /></label>
+          {f.kind === 'days' ? (
+            <>
+              <label className="field"><span>{t('adxFreeDays')}</span>
+                <input required type="number" min={1} max={366} inputMode="numeric" value={f.days} onChange={(e) => setF({ ...f, days: e.target.value })} /></label>
+              <label className="field"><span>{t('admPlan')}</span>
+                <select value={f.tier} onChange={(e) => setF({ ...f, tier: e.target.value })}>
+                  <option value="pro">{t('admTagPro')}</option><option value="plus">{t('admTagPlus')}</option>
+                </select></label>
+            </>
+          ) : (
+            <>
+              <label className="field"><span>{t('adxMode')}</span>
+                <select value={f.mode} onChange={(e) => setF({ ...f, mode: e.target.value as 'auto' | 'offer' })}>
+                  <option value="auto">{t('adxModeAuto')}</option><option value="offer">{t('adxModeOffer')}</option>
+                </select></label>
+              <label className="field"><span>{f.mode === 'offer' ? t('adxPercentOpt') : t('adxPercent')}</span>
+                <input required={f.mode === 'auto'} type="number" min={1} max={90} inputMode="numeric" value={f.percent}
+                  onChange={(e) => setF({ ...f, percent: e.target.value })} /></label>
+              {f.mode === 'offer' && (
+                <label className="field"><span>{t('adxOfferId')}</span>
+                  <input required value={f.offer} maxLength={46} placeholder="offer_XXXXXXXXXXXXXX" autoCapitalize="off" autoCorrect="off" spellCheck={false}
+                    onChange={(e) => setF({ ...f, offer: e.target.value.trim() })} /></label>
+              )}
+              <fieldset className="field adx-checks"><legend>{t('admPlan')}</legend>
+                {['pro', 'plus'].map((x) => (
+                  <label className="admin-check" key={x}><input type="checkbox" checked={f.tiers.includes(x)} onChange={() => setF({ ...f, tiers: toggle(f.tiers, x) })} /> <span>{tierName(x)}</span></label>
+                ))}
+              </fieldset>
+              <fieldset className="field adx-checks"><legend>{t('adxPeriods')}</legend>
+                {['monthly', 'yearly'].map((x) => (
+                  <label className="admin-check" key={x}><input type="checkbox" checked={f.periods.includes(x)} onChange={() => setF({ ...f, periods: toggle(f.periods, x) })} /> <span>{perName(x)}</span></label>
+                ))}
+              </fieldset>
+            </>
+          )}
           <label className="field"><span>{t('adxExpires')}</span>
             <input type="date" value={f.expires} onChange={(e) => setF({ ...f, expires: e.target.value })} /></label>
           <label className="field"><span>{t('adxMaxUses')}</span>
@@ -432,9 +516,13 @@ export function AdminCoupons({ onMsg }: { onMsg: Msg }) {
           <label className="field"><span>{t('adxNote')}</span>
             <input value={f.note} maxLength={200} onChange={(e) => setF({ ...f, note: e.target.value })} /></label>
         </div>
-        <button className="btn primary" disabled={busy || !(Number(f.days) >= 1)}>{busy ? t('pleaseWait') : t('adxCreate')}</button>
+        {f.kind === 'percent' && <p className="small muted adx-mode-note">{f.mode === 'auto' ? t('adxModeAutoNote') : t('adxModeOfferNote')}</p>}
+        <label className="admin-check"><input type="checkbox" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} /> <span>{t('adxActive')}</span></label>
+        <div className="admin-row">
+          <button className="btn primary" disabled={busy || !formOk}>{busy ? t('pleaseWait') : f.editing ? t('save') : t('adxCreate')}</button>
+          {f.editing && <button type="button" className="btn soft" disabled={busy} onClick={() => setF({ ...EMPTY_COUPON, kind: f.kind })}>{t('cancel')}</button>}
+        </div>
       </form>
-      <p className="small muted">{t('adxPctNote')}</p>
       {!rows ? <SkelList n={2} /> : rows.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
         <div className="admin-list">
           {rows.map((c) => (
@@ -442,16 +530,24 @@ export function AdminCoupons({ onMsg }: { onMsg: Msg }) {
               <div className="admin-item-top">
                 <b className="mono admin-ellipsis">{c.code}</b>
                 <span className="admin-tags">
-                  <span className="admin-tag pro">+{c.days} {t('admDays')} {c.tier === 'plus' ? t('admTagPlus') : t('admTagPro')}</span>
+                  {c.kind === 'percent'
+                    ? <span className="admin-tag pro">{pctLabel(c)} · {c.mode === 'offer' ? t('adxModeOfferShort') : t('adxModeAutoShort')}</span>
+                    : <span className="admin-tag pro">+{c.days} {t('admDays')} {tierName(c.tier)}</span>}
                   {!c.active ? <span className="admin-tag">{t('adxOff')}</span> : expired(c) ? <span className="admin-tag bad">{t('adxExpired')}</span> : null}
                 </span>
               </div>
+              {c.kind === 'percent' && (
+                <div className="small">
+                  {(c.tiers || []).map(tierName).join(' / ')} · {(c.periods || []).map(perName).join(' / ')}
+                  {c.mode === 'offer' && c.offer_id ? <> · <span className="mono admin-ellipsis">{c.offer_id}</span></> : null}
+                </div>
+              )}
               <div className="small muted">
-                {t('adxUses', { n: c.uses, m: c.max_uses ?? '∞' })} · {c.expires_at ? t('admUntil', { date: fmtDate(c.expires_at, lang) }) : t('adxNoExpiry')}{c.note ? ` · ${c.note}` : ''}
+                {t('adxUses', { n: c.uses, m: c.max_uses ?? '∞' })}{c.pending ? ` · ${t('adxPending', { n: c.pending })}` : ''} · {c.expires_at ? t('admUntil', { date: fmtDate(c.expires_at, lang) }) : t('adxNoExpiry')}{c.note ? ` · ${c.note}` : ''}
               </div>
               <div className="admin-row">
-                <button type="button" className="btn small soft" disabled={busy}
-                  onClick={() => void save({ code: c.code, days: c.days, tier: c.tier, expires_at: c.expires_at, max_uses: c.max_uses, active: !c.active, note: c.note })}>
+                <button type="button" className="btn small soft" disabled={busy} onClick={() => edit(c)}>{t('adxEdit')}</button>
+                <button type="button" className="btn small soft" disabled={busy} onClick={() => void save({ ...c, active: !c.active })}>
                   {c.active ? t('adxTurnOff') : t('adxTurnOn')}
                 </button>
               </div>

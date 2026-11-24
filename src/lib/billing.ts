@@ -58,6 +58,23 @@ export function loadRazorpay(): Promise<void> {
   return loading
 }
 
+/** v40 % coupon as checked by the server (prices in paise, per tier and period the code is for). */
+export type CouponDeal = {
+  code: string
+  percent: number | null
+  mode: 'auto' | 'offer'
+  tiers: Tier[]
+  periods: Period[]
+  expires_at?: string | null
+  prices: Partial<Record<Tier, Partial<Record<Period, { base: number; amount: number }>>>>
+}
+export type CouponPreview = ({ ok: true; kind: 'percent' } & CouponDeal) | { ok: true; kind: 'days'; code: string; days: number } | { ok: false; error: string }
+
+/** Asks the server what a code gives this shop (nothing is used up; wrong codes count toward the hourly limit). */
+export function previewCoupon(code: string): Promise<CouponPreview> {
+  return callFn<CouponPreview>('create-subscription', { preview: true, coupon: code })
+}
+
 /** Calls a billing Edge Function and returns its JSON; throws an Error with code + message on failure. */
 export async function callFn<T>(name: string, body: Record<string, unknown> = {}): Promise<T> {
   const { data, error } = await supabase.functions.invoke(name, { body })
@@ -87,8 +104,9 @@ export async function callFn<T>(name: string, body: Record<string, unknown> = {}
  * Full upgrade flow: create the subscription, open Razorpay Checkout, verify the payment.
  * Resolves true when Pro is on, false when the owner closed the checkout.
  */
-export async function startUpgrade(period: Period, opts: { email?: string; contact?: string; description: string }, tier: Tier = 'pro'): Promise<boolean> {
-  const { subscription_id, key_id } = await callFn<{ subscription_id: string; key_id: string }>('create-subscription', { period, tier })
+export async function startUpgrade(period: Period, opts: { email?: string; contact?: string; description: string }, tier: Tier = 'pro', coupon?: string): Promise<boolean> {
+  // The code goes to the server only; the server works out the price and picks the Razorpay plan / offer.
+  const { subscription_id, key_id } = await callFn<{ subscription_id: string; key_id: string }>('create-subscription', { period, tier, ...(coupon ? { coupon } : {}) })
   const bridge = nativeBridge()
   if (IN_APP && bridge?.razorpay) return nativeCheckout((json: string) => bridge.razorpay!(json), { key: key_id, subscription_id, description: opts.description, email: opts.email, contact: opts.contact })
   await loadRazorpay()

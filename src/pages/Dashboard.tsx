@@ -26,6 +26,7 @@ import { BOTTOM, isTab, NAV, savedSidebar, SbMode, Tab, TABS } from '../lib/dash
 import { DashSkeleton, EditorSkel, OrdersSkel } from '../components/Skeletons'
 import { QrLoadBlock } from '../components/QrLoader'
 import { Period, startUpgrade, callFn, Tier, TIER_PRICES, yearlyOff } from '../lib/billing'
+import type { CouponDeal } from '../lib/billing'
 import { ask as askConfirm } from '../components/ConfirmHost'
 import { BillingPayment, downloadReceipt, money } from '../lib/receipt'
 import { SELLER } from '../lib/seller'
@@ -2942,6 +2943,8 @@ function PlanTab({ shop, email, contact, onChanged }: { shop: Shop; email?: stri
   const [busy, setBusy] = useState<string | null>(null)
   const [period, setPeriod] = useState<Period>('yearly')
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
+  // v40 % off code checked by the server; applied server side when paying (the code is all the browser sends).
+  const [deal, setDeal] = useState<CouponDeal | null>(null)
 
   if (!plansReady(shop)) {
     return (
@@ -2966,7 +2969,18 @@ function PlanTab({ shop, email, contact, onChanged }: { shop: Shop; email?: stri
     if (code === 'needs_migration') return t('planNeedsUpdate')
     if (code === 'checkout_load_failed') return t('planCheckoutFail')
     if (code === 'not_deployed' || code === 'missing_env') return t('planNotReady')
+    if (code && code.startsWith('coupon_')) {
+      const k: Record<string, Key> = { coupon_expired: 'cpExpired', coupon_used_up: 'cpUsedUp', coupon_already: 'cpAlready', coupon_too_many: 'cpTooMany',
+        coupon_not_for_plan: 'cpNotForPlan', coupon_offer_failed: 'cpOfferFail' }
+      return t(k[code] || 'cpNotFound')
+    }
     return te(e)
+  }
+
+  /** The code's price for this tier + period (paise), or null when the code is not for it. */
+  function dealFor(tier: Tier, p: Period): { base: number; amount: number } | null {
+    if (!deal || !deal.tiers.includes(tier) || !deal.periods.includes(p)) return null
+    return deal.prices[tier]?.[p] || null
   }
 
   async function upgrade(tier: Tier) {
@@ -2976,8 +2990,10 @@ function PlanTab({ shop, email, contact, onChanged }: { shop: Shop; email?: stri
     setMsg(null)
     try {
       const desc = `PrintQR ${tier === 'plus' ? 'Plus' : 'Pro'} · ${period === 'yearly' ? t('planYearly') : t('planMonthly')}`
-      const ok = await startUpgrade(period, { email, contact, description: desc }, tier)
+      const d = dealFor(tier, period)
+      const ok = await startUpgrade(period, { email, contact, description: d && deal ? `${desc} · ${deal.code}` : desc }, tier, d && deal ? deal.code : undefined)
       if (ok) {
+        if (d) setDeal(null)
         setMsg({ text: t('planActivated'), error: false })
         await onChanged()
       }
@@ -3032,6 +3048,8 @@ function PlanTab({ shop, email, contact, onChanged }: { shop: Shop; email?: stri
         )}
       </div>
 
+      <CouponBox onDone={onChanged} deal={deal} onDeal={(d) => { setDeal(d); setMsg(null); if (d && d.periods.length === 1) setPeriod(d.periods[0]) }} />
+
       {shown.length > 0 && (
         <>
           <div className="seg plan-period-toggle" role="group" aria-label={t('planTitle')}>
@@ -3044,20 +3062,26 @@ function PlanTab({ shop, email, contact, onChanged }: { shop: Shop; email?: stri
           </div>
           <div className="plan-grid">
             {shown.map((c) => {
-              const price = TIER_PRICES[c.tier][period]
+              const d = dealFor(c.tier, period)
+              // Auto mode: the server's discounted price. Offer mode: Razorpay shows the offer at payment.
+              const cut = d && deal?.mode === 'auto' && d.amount < d.base ? d.amount / 100 : null
+              const price = cut ?? TIER_PRICES[c.tier][period]
+              const priceText = Number.isInteger(price) ? String(price) : price.toFixed(2)
               const name = c.tier === 'plus' ? t('planPlus') : t('planPro')
               return (
                 <div key={c.tier} className={`card plan-card${c.tier === 'plus' ? ' best' : ''}`}>
                   {period === 'yearly' && <span className="plan-save">{t('planOff', { n: yearlyOff(c.tier) })}</span>}
                   <div className="small muted plan-period">{name}</div>
-                  <div className="plan-price">₹{price}<span>{per}</span></div>
+                  <div className="plan-price">{cut !== null && <s className="plan-cut">₹{TIER_PRICES[c.tier][period]}</s>}₹{priceText}<span>{per}</span></div>
+                  {d && deal && <div className="small plan-deal">{deal.mode === 'auto' ? t('cpCardAuto', { code: deal.code, n: deal.percent ?? 0 }) : t('cpCardOffer', { code: deal.code })}</div>}
+                  {deal && !d && <div className="small muted plan-deal">{t('cpNotForThis', { code: deal.code })}</div>}
                   {period === 'yearly' && <div className="small muted plan-was"><s>₹{TIER_PRICES[c.tier].monthly * 12}</s> · ₹{TIER_PRICES[c.tier].monthly}{t('perMonth')}</div>}
                   <ul className="plan-feats">
                     {c.feats.map((f) => <li key={f}><Icon name="check" size={16} stroke={3} /> {t(f)}</li>)}
                   </ul>
                   <button type="button" className={`btn block lg${c.tier === 'plus' ? ' primary' : ''}`} disabled={busy !== null}
                     onClick={() => void upgrade(c.tier)}>
-                    {busy === c.tier ? t('pleaseWait') : `${pro ? t('planUpgradePlus') : c.tier === 'plus' ? t('planGetPlus') : t('planGetPro')} · ₹${price}${per}`}
+                    {busy === c.tier ? t('pleaseWait') : `${pro ? t('planUpgradePlus') : c.tier === 'plus' ? t('planGetPlus') : t('planGetPro')} · ₹${priceText}${per}`}
                   </button>
                   {pro && c.tier === 'plus' && <p className="small muted">{t('planUpgradeCredit')}</p>}
                 </div>
@@ -3069,7 +3093,6 @@ function PlanTab({ shop, email, contact, onChanged }: { shop: Shop; email?: stri
 
       {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
       {shown.length > 0 && <p className="small muted">{t('planPayNote')}</p>}
-      <CouponBox onDone={onChanged} />
       <PlanCompare current={plus ? 'plus' : pro ? 'pro' : 'free'} />
       <PaymentsList shop={shop} />
 

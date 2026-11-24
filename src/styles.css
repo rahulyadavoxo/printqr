@@ -2895,3 +2895,21 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 .coupon-row { display: flex; gap: 8px; }
 .coupon-row input { flex: 1; min-width: 0; text-transform: uppercase; }
 .coupon-row .btn { flex: none; }
+.coupon-deal { display: grid; gap: 6px; justify-items: start; overflow-wrap: anywhere; }
+.coupon-deal p { margin: 0; }
+.coupon-deal-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* v40 % coupon on the plan cards: old price struck through, the code's note under the price */
+.plan-price { overflow-wrap: anywhere; }
+.plan-cut { display: inline-block; margin-right: 8px; font-size: 18px; font-weight: 700; color: var(--c-muted); vertical-align: middle; }
+.plan-deal { margin: -6px 0 10px; font-weight: 700; color: var(--c-lime-600); overflow-wrap: anywhere; }
+.plan-deal.muted { color: var(--c-muted); font-weight: 600; }
+/* Admin coupons (v40): kind switch, plan / billing check boxes */
+.adx-coupon-kind { flex: none; max-width: 360px; }
+.adx-checks { border: none; padding: 0; margin: 0; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+.adx-checks legend { padding: 0; margin-bottom: 6px; font-size: var(--fs-sm); font-weight: 650; color: var(--c-ink-2); width: 100%; }
+.adx-mode-note { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 380px) {
+  .plan-price { font-size: 32px; }
+  .plan-cut { font-size: 15px; }
+  .adx-coupon-kind { max-width: none; }
+}

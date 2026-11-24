@@ -191,18 +191,122 @@ export async function planId(period: Period, tier: Tier = 'pro'): Promise<string
   return again[0]?.razorpay_plan_id || plan.id
 }
 
+/* ---------------- % coupons (v40) ---------------- */
+
+/** Price after a % off, rounded to whole rupees (paise in, paise out). The Plan tab shows the same number. */
+export function discountAmount(base: number, percent: number): number {
+  return Math.max(100, Math.round((base * (100 - percent)) / 10000) * 100)
+}
+
+function missingTable(e: unknown): boolean {
+  const t = String(e)
+  return t.includes('PGRST205') || t.includes('42P01') || t.includes('PGRST202') || t.includes('42883')
+}
+
+/** The cached discounted plan with this Razorpay id, or null (also null before the v40 SQL has run). */
+async function discountPlanRow(rzpPlanId: string): Promise<{ tier: Tier; period: Period; amount: number } | null> {
+  try {
+    const rows = await db<{ tier: Tier; period: Period; amount: number }[]>(
+      `billing_plans_discount?razorpay_plan_id=eq.${encodeURIComponent(rzpPlanId)}&select=tier,period,amount`
+    )
+    return rows[0] || null
+  } catch (e) {
+    if (missingTable(e)) return null
+    throw e
+  }
+}
+
+/**
+ * Razorpay plan id for tier + period at percent off (auto-mode % coupons). Created once through the Plans API,
+ * then cached in public.billing_plans_discount keyed on (tier, period, percent, base price). Never stored in
+ * billing_plans, so planId() (normal checkout) can never return a discounted plan.
+ */
+export async function discountPlanId(period: Period, tier: Tier, percent: number): Promise<{ plan_id: string; amount: number }> {
+  if (!Number.isInteger(percent) || percent < 1 || percent > 90) throw new HttpError(400, 'coupon_bad', 'This code is not valid')
+  const p = PLANS[tier][period]
+  const amount = discountAmount(p.amount, percent)
+  const q = `billing_plans_discount?tier=eq.${tier}&period=eq.${period}&percent=eq.${percent}&base_amount=eq.${p.amount}&select=razorpay_plan_id`
+  let cached: { razorpay_plan_id: string }[]
+  try {
+    cached = await db<{ razorpay_plan_id: string }[]>(q)
+  } catch (e) {
+    if (missingTable(e)) throw new HttpError(409, 'needs_migration', 'Run supabase/migrations/2026-11-24-v40-percent-coupons.sql first')
+    throw e
+  }
+  if (cached[0]) return { plan_id: cached[0].razorpay_plan_id, amount }
+  const plan = await rzp<{ id: string }>('plans', 'POST', {
+    period,
+    interval: 1,
+    item: { name: `${p.label} (${percent}% off)`, amount, currency: 'INR', description: p.description },
+    notes: { app: 'printqr', period, tier, percent: String(percent), discounted: '1' }
+  })
+  await db('billing_plans_discount?on_conflict=tier,period,percent,base_amount', {
+    method: 'POST',
+    body: JSON.stringify({ tier, period, percent, base_amount: p.amount, amount, razorpay_plan_id: plan.id }),
+    prefer: 'resolution=ignore-duplicates,return=minimal'
+  })
+  const again = await db<{ razorpay_plan_id: string }[]>(q)
+  return { plan_id: again[0]?.razorpay_plan_id || plan.id, amount }
+}
+
+export type CouponCheck =
+  | { ok: false; error: string }
+  | {
+      ok: true
+      kind: 'days' | 'percent'
+      code: string
+      percent: number | null
+      mode: 'auto' | 'offer' | null
+      offer_id: string | null
+      tiers: Tier[] | null
+      periods: Period[] | null
+      days: number | null
+      expires_at: string | null
+    }
+
+/** Server-side check of a code for this shop (v40 coupon_check; wrong codes count toward 10 tries an hour). */
+export async function checkCoupon(shopId: string, code: string): Promise<CouponCheck> {
+  const c = code.trim().toUpperCase()
+  if (!/^[A-Z0-9_-]{3,30}$/.test(c)) return { ok: false, error: 'not_found' }
+  try {
+    return await db<CouponCheck>('rpc/coupon_check', { method: 'POST', body: JSON.stringify({ p_shop: shopId, p_code: c, p_log: true }) })
+  } catch (e) {
+    if (missingTable(e)) throw new HttpError(409, 'needs_migration', 'Run supabase/migrations/2026-11-24-v40-percent-coupons.sql first')
+    throw e
+  }
+}
+
+/**
+ * A subscription made with a % code has been paid (verify-payment / webhook): count the code once for this shop.
+ * Idempotent (coupon_paid ignores repeats). Never throws: the plan must switch on even if this fails.
+ */
+export async function couponPaid(s: Subscription): Promise<void> {
+  if (!subNotes(s).coupon) return
+  try {
+    await db('rpc/coupon_paid', { method: 'POST', body: JSON.stringify({ p_sub: s.id }) })
+  } catch (e) {
+    console.error('coupon paid', e)
+    await logOps('coupon-paid', e, 'warn')
+  }
+}
+
 /** Which period a Razorpay subscription is for (notes first, then the cached plan ids). */
 export async function periodOf(s: Subscription): Promise<Period | null> {
   const n = subNotes(s).period
   if (n === 'monthly' || n === 'yearly') return n
   const rows = await db<{ period: Period }[]>(`billing_plans?razorpay_plan_id=eq.${encodeURIComponent(s.plan_id)}&select=period`)
-  return rows[0]?.period || null
+  if (rows[0]) return rows[0].period
+  const d = await discountPlanRow(s.plan_id)
+  return d?.period || null
 }
 
 /** Which tier a subscription is for (notes first, then the plan's amount). Old subscriptions are Pro. */
 export async function tierOf(s: Subscription): Promise<Tier> {
   const n = subNotes(s).tier
   if (n === 'pro' || n === 'plus') return n
+  // A discounted plan (v40 % coupon) has its own price, so its tier comes from billing_plans_discount.
+  const d = await discountPlanRow(s.plan_id)
+  if (d) return d.tier
   const rows = await db<{ amount: number }[]>(`billing_plans?razorpay_plan_id=eq.${encodeURIComponent(s.plan_id)}&select=amount`)
   const a = rows[0]?.amount
   return a === PLANS.plus.monthly.amount || a === PLANS.plus.yearly.amount ? 'plus' : 'pro'
@@ -387,7 +491,8 @@ export async function recordPayment(s: Subscription, p: Payment, shopId?: string
     if (p.status && !['captured', 'authorized'].includes(p.status)) return
     const tier = await tierOf(s)
     const period = await periodOf(s)
-    const amount = typeof p.amount === 'number' ? p.amount : period ? PLANS[tier][period].amount : 0
+    const noted = Number(subNotes(s).amount) // discounted price (v40 auto % coupon), in paise
+    const amount = typeof p.amount === 'number' ? p.amount : noted > 0 ? noted : period ? PLANS[tier][period].amount : 0
     const row: Record<string, unknown> = {
       payment_id: p.id,
       shop_id: shop,

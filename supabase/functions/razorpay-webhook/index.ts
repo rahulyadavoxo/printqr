@@ -3,7 +3,7 @@
 // Events: subscription.activated, subscription.charged, subscription.cancelled,
 //         subscription.halted, subscription.completed (others are acknowledged and ignored).
 // Signature: X-Razorpay-Signature = hex HMAC-SHA256(raw body, RAZORPAY_WEBHOOK_SECRET).
-import { activate, db, getShopById, hmacHex, Payment, recordPayment, safeEqual, Subscription, subNotes, updateShop } from '../_shared/billing.ts'
+import { activate, couponPaid, db, getShopById, hmacHex, Payment, recordPayment, safeEqual, Subscription, subNotes, updateShop } from '../_shared/billing.ts'
 import { logOps } from '../_shared/ops.ts'
 
 function reply(status: number, body: Record<string, unknown>): Response {
@@ -50,6 +50,7 @@ Deno.serve(async (req) => {
     try {
       if (event === 'subscription.activated' || event === 'subscription.charged' || event === 'subscription.resumed') {
         await activate(sub)
+        await couponPaid(sub) // v40 % coupon: counted once, after payment
         // One receipt row per charge (v33). subscription.charged carries the payment.
         const pay = evt.payload?.payment?.entity
         if (event === 'subscription.charged' && pay?.id) await recordPayment(sub, pay)
