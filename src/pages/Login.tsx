@@ -2,7 +2,7 @@ import { PUBLIC_BASE, offerSavePassword, pickSavedPassword, startOtpAutoRead } f
 import PasswordInput from '../components/PasswordInput'
 import OtpInput, { EMAIL_OTP_LENGTH, EMAIL_OTP_MAX, SMS_OTP_LENGTH } from '../components/OtpInput'
 import { googleAvailable, signInWithGoogle } from '../lib/google'
-import { CSSProperties, Dispatch, FormEvent, SetStateAction, useEffect, useRef, useState } from 'react'
+import { CSSProperties, Dispatch, FormEvent, SetStateAction, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { clearAuthUrlError, peekAuthUrlError, sendResetEmail } from '../lib/recovery'
@@ -48,12 +48,41 @@ export default function Login() {
   )
 }
 
+/**
+ * Website + computer (not the Android app): the login card always fits the screen with no page scroll.
+ * Spacing rules handle most screens; when the form is still taller (signup has an extra field, Windows
+ * display scaling 125%/150% makes the screen shorter), the card is shrunk just enough (not below 72%).
+ */
+function useFitScreen() {
+  useLayoutEffect(() => {
+    if (document.documentElement.classList.contains('in-app')) return
+    const card = () => document.querySelector<HTMLElement>('.lxd-card, .lxf-sheet, .lx-sheet, .auth-card')
+    const fit = () => {
+      const el = card()
+      if (!el) return
+      el.style.removeProperty('zoom')
+      const over = document.documentElement.scrollHeight - window.innerHeight
+      if (over <= 0) return
+      const h = el.offsetHeight
+      if (!h) return
+      el.style.setProperty('zoom', String(Math.max(0.72, (h - over - 2) / h)))
+    }
+    fit()
+    const el = card()
+    const ro = new ResizeObserver(() => fit())
+    if (el) ro.observe(el)
+    window.addEventListener('resize', fit)
+    return () => { ro.disconnect(); window.removeEventListener('resize', fit) }
+  })
+}
+
 function LoginPage({ captcha, setCaptchaReset }: {
   captcha: string | null
   setCaptchaReset: Dispatch<SetStateAction<number>>
 }) {
   const [params] = useSearchParams()
   const { t, te, lang, setLang } = useI18n()
+  useFitScreen()
   // Admin picks the design (Settings > Login page design); ?design=modern|classic previews one.
   const settings = useAppSettings()
   const designParam = params.get('design')
