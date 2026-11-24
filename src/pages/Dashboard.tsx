@@ -426,6 +426,27 @@ function LangMenu() {
   )
 }
 
+/** Computer status bar: Help & support opens here as a popup (bottom right, above the bar). */
+function HelpPopup({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n()
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div className="adm-notif-back help-pop-back no-print" onClick={onClose}>
+      <div className="adm-notif help-pop" role="dialog" aria-modal="true" aria-label={t('supTitle')} onClick={(e) => e.stopPropagation()}>
+        <div className="adm-notif-head">
+          <b>{t('supTitle')}</b>
+          <button type="button" className="menu-btn" onClick={onClose} aria-label={t('close')}><Icon name="x" size={20} /></button>
+        </div>
+        <div className="help-pop-body"><SupportCard /></div>
+      </div>
+    </div>
+  )
+}
+
 /** Shop photo in the top-right corner; its menu holds open/closed, language, settings and log out. */
 function ProfileMenu({ shop, planChip, onSettings, onLogout }: {
   shop: Shop; planChip: ReactNode; onSettings?: () => void; onLogout: () => void
@@ -481,6 +502,7 @@ export default function Dashboard() {
   })
   const [sb, setSbState] = useState<SbMode>(savedSidebar)
   const [sbMenu, setSbMenu] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   const setSb = (m: SbMode) => {
     setSbState(m)
     setSbMenu(false)
@@ -889,9 +911,15 @@ export default function Dashboard() {
         <footer className="dash-status no-print" aria-label={t('menu')}>
           {!staff && <span className={shop.is_open ? 'is-on' : 'is-off'}>{shop.is_open ? t('shopOpen') : t('shopClosed')}</span>}
           <span>{t('dActive')}: {activeCount ?? 0}</span>
-          {!staff && ready && <span className="end">{planLabel}</span>}
+          {!staff && (
+            <button type="button" className="end status-help" onClick={() => setHelpOpen(true)} title={t('supTitle')} aria-label={t('supTitle')}>
+              <Icon name="mail" size={14} /> <span>{t('supTitle')}</span>
+            </button>
+          )}
+          {!staff && ready && <span>{planLabel}</span>}
         </footer>
       )}
+      {!IN_APP && !staff && helpOpen && <HelpPopup onClose={() => setHelpOpen(false)} />}
 
       <div className="page wide dash-main">
         <AppDownloadBanner />
@@ -939,7 +967,7 @@ export default function Dashboard() {
               onShowQr={(c) => setParams({ tab: 'qr', c })} />}
             {(!bottomNav || setSub === 'lock') && session && <div className="m-only"><AppLockCard uid={session.user.id} /></div>}
             {(!bottomNav || setSub === 'devices') && <DevicesCard />}
-            {(!bottomNav || setSub === 'support') && !staff && <SupportCard />}
+            {(!bottomNav || setSub === 'support') && !staff && <div className={IN_APP ? undefined : 'm-only'}><SupportCard /></div>}
           </>
         )}
         {tab === 'settings' && !bottomNav && (

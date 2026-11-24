@@ -2925,3 +2925,12 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 .pill.pages-flag.is-unverified { background: var(--c-red-bg); color: var(--c-red-ink); }
 .price-fixed { display: flex; gap: 6px; align-items: flex-start; margin: 8px 0 0; overflow-wrap: anywhere; }
 .price-fixed .ico-inl { flex: none; margin-top: 2px; }
+
+/* Computer status bar: Help & support button + popup */
+.dash-status .status-help { display: inline-flex; align-items: center; gap: 5px; height: 100%; padding: 0 8px; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+.dash-status .status-help:hover { background: var(--c-sunken); color: var(--c-ink); }
+.help-pop-back { align-items: flex-end; padding: 16px 16px calc(var(--vs-status, 24px) + 10px); }
+.help-pop { max-width: 460px; }
+.help-pop-body { overflow-y: auto; padding: 0 6px 6px; }
+.help-pop-body .form-card { box-shadow: none; border: 0; margin: 0; }
+.help-pop-body .form-card > .card-title { display: none; }
