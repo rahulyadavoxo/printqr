@@ -40,6 +40,8 @@ export default function Editor() {
   const [err, setErr] = useState('')
   const [recents, setRecents] = useState<Recent[]>([])
   const target = useRef<Target>({ mode: 'new' })
+  // gallery pictures go straight to the editor (it has crop + filters); camera photos keep the scan steps
+  const via = useRef<'camera' | 'gallery' | 'pdf'>('camera')
   const cam = useRef<HTMLInputElement>(null)
   const gal = useRef<HTMLInputElement>(null)
   const pdf = useRef<HTMLInputElement>(null)
@@ -69,6 +71,7 @@ export default function Editor() {
 
   function pick(kind: 'camera' | 'gallery' | 'pdf', tg: Target = { mode: 'new' }) {
     target.current = tg
+    via.current = kind
     setErr('')
     const el = kind === 'camera' ? cam.current : kind === 'gallery' ? gal.current : pdf.current
     if (el) { el.value = ''; el.click() }
@@ -95,16 +98,25 @@ export default function Editor() {
       }
       const room = MAX_PAGES - pages.length
       const made: Page[] = []
+      const fromGallery = via.current === 'gallery'
       for (const f of files.slice(0, room)) {
         try {
           setBusy(t('edLoadingPage', { i: made.length + 1, n: Math.min(files.length, room) }))
           await new Promise((r) => setTimeout(r, 0))
-          made.push(makePage(await fileToCanvas(f), true, { kind: 'img', blob: f }))
+          // gallery: whole picture, original colours (nothing changed that the user didn't see)
+          made.push(makePage(await fileToCanvas(f), !fromGallery, { kind: 'img', blob: f }))
         } catch { /* unreadable picture: skipped */ }
       }
       if (!made.length) return setErr(t('edBadImage'))
       if (files.length > room) setErr(t('edMaxPages', { n: MAX_PAGES }))
-      insert(made)
+      const at = insert(made)
+      if (fromGallery) {
+        setSingle(null)
+        setQueue([])
+        setCur(at)
+        setScreen('edit')
+        return
+      }
       setSingle(null)
       setQueue(made.map((p) => p.id))
       setScreen('crop')
@@ -271,7 +283,7 @@ export default function Editor() {
 
   const inputs = (
     <>
-      <input ref={cam} type="file" accept="image/*" capture="environment" multiple hidden onChange={onImages} data-input="camera" />
+      <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={onImages} data-input="camera" />
       <input ref={gal} type="file" accept="image/*" multiple hidden onChange={onImages} data-input="gallery" />
       <input ref={pdf} type="file" accept="application/pdf,.pdf" hidden onChange={onPdf} data-input="pdf" />
       {busy && (
