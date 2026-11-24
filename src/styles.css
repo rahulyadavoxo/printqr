@@ -2954,3 +2954,5 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 /* v43: a new support message in the admin bell opens the Support inbox */
 button.adm-notif-item.adm-notif-sup { display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; border-left: 3px solid var(--c-brand); }
 button.adm-notif-item.adm-notif-sup:hover { background: var(--c-sunken); }
+/* help & support: "Your queries" title with a refresh-status button */
+.sup-mine-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

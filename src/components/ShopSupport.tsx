@@ -101,8 +101,11 @@ export function SupportCard() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
   const [rows, setRows] = useState<Ticket[] | null>(null)
+  const [reloading, setReloading] = useState(false)
   const load = useCallback(() => {
-    supabase.rpc('my_support').then(({ data, error }) => setRows(error ? [] : (data || []) as Ticket[]), () => setRows([]))
+    setReloading(true)
+    supabase.rpc('my_support').then(({ data, error }) => { setRows(error ? [] : (data || []) as Ticket[]); setReloading(false) },
+      () => { setRows([]); setReloading(false) })
   }, [])
   useEffect(() => { load(); readSupportNotices() }, [load])
   const send = async (e: FormEvent) => {
@@ -139,7 +142,12 @@ export function SupportCard() {
       <button className="btn primary block lg" disabled={busy || text.trim().length < 3}>{busy ? t('pleaseWait') : t('supSend')}</button>
       {rows && rows.length > 0 && (
         <div className="sup-list">
-          <div className="small muted">{t('supMine')}</div>
+          <div className="sup-mine-head">
+            <span className="small muted">{t('supMine')}</span>
+            <button type="button" className="btn small soft" onClick={() => { load(); refreshNotices() }} disabled={reloading} aria-label={t('supRefresh')}>
+              <Icon name="rotate" size={15} /> {t('supRefresh')}
+            </button>
+          </div>
           {rows.map((r) => (
             <div className="sup-item" key={r.id}>
               <div className="small"><b>{t(TOPIC_KEY[r.topic] || 'supTopicOther')}</b> · <span className="muted">{when(r.created_at)}</span>
