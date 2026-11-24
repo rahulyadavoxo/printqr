@@ -2934,3 +2934,20 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 .help-pop-body { overflow-y: auto; padding: 0 6px 6px; }
 .help-pop-body .form-card { box-shadow: none; border: 0; margin: 0; }
 .help-pop-body .form-card > .card-title { display: none; }
+
+/* Bell: team messages show a short second line; Help & support gets a red dot for an unread support reply */
+.notif-menu button > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; text-align: left; }
+.notif-sub { font-size: 12.5px; color: var(--c-muted); font-weight: 400; line-height: 1.35; white-space: normal; }
+.dash-status .status-help { position: relative; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: #d92d20; display: inline-block; margin-left: 1px; }
+
+/* Computer web: the editor fills the page panel (it used fixed inset:0, so the top bar, icon bar and status bar covered its header and edges) */
+@media (min-width: 1024px) {
+  html:not(.in-app) .dash .ed-full { top: var(--vs-top); bottom: var(--vs-status); left: calc(var(--vs-gap) * 2 + var(--vs-w)); right: var(--vs-gap);
+    width: auto; height: auto; border: 1px solid var(--c-line); border-radius: 8px; overflow: hidden; padding-bottom: 0; transition: left .2s cubic-bezier(.2, .8, .2, 1); }
+  html:not(.in-app) .dash .ed-full .ed-top { padding-top: 8px; }
+  /* sheets, full-screen tools and the busy veil inside the editor sit in the same panel box */
+  html:not(.in-app) .dash .ed-modal, html:not(.in-app) .dash .ed-sheet-wrap, html:not(.in-app) .dash .ed-busy {
+    top: var(--vs-top); bottom: var(--vs-status); left: calc(var(--vs-gap) * 2 + var(--vs-w)); right: var(--vs-gap); border-radius: 8px; overflow: hidden; padding-bottom: 0; }
+  html:not(.in-app) .dash .ed-toast { bottom: calc(var(--vs-status) + 140px); }
+}

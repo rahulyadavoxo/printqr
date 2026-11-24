@@ -16,18 +16,49 @@ import Icon from './Icon'
 type Notice = { id: number; kind: 'support' | 'expiring' | 'nudge' | 'admin'; title: string | null; body: string | null
   data: { until?: string; question?: string } | null; created_at: string; read_at: string | null }
 
+/* One shared list of the owner's unread team messages: the dashboard banners, the computer bell (count) and the
+   Help & support dot all read it, so closing one anywhere clears it everywhere. Re-checked every 2 minutes. */
+let noticeRows: Notice[] = []
+let noticeLoaded = false
+let noticeTimer = 0
+const noticeSubs = new Set<() => void>()
+const noticeEmit = () => noticeSubs.forEach((f) => f())
+export function refreshNotices() {
+  supabase.rpc('my_notices').then(({ data, error }) => {
+    if (error) return
+    noticeRows = ((data || []) as Notice[]).filter((n) => !n.read_at)
+    noticeLoaded = true
+    noticeEmit()
+  }, () => {})
+}
+export function readNotice(id: number | null) {
+  noticeRows = id == null ? [] : noticeRows.filter((n) => n.id !== id)
+  noticeEmit()
+  void supabase.rpc('notice_read', { p_id: id }).then(() => undefined, () => undefined)
+}
+/** Mark every unread support reply as read (the owner opened Help & support). */
+export function readSupportNotices() {
+  noticeRows.filter((n) => n.kind === 'support').forEach((n) => readNotice(n.id))
+}
+export function useNotices(): Notice[] {
+  const [, force] = useState(0)
+  useEffect(() => {
+    const f = () => force((x) => x + 1)
+    noticeSubs.add(f)
+    if (!noticeLoaded) refreshNotices()
+    if (!noticeTimer) noticeTimer = window.setInterval(refreshNotices, 120000)
+    const onVis = () => { if (document.visibilityState === 'visible') refreshNotices() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => { noticeSubs.delete(f); document.removeEventListener('visibilitychange', onVis) }
+  }, [])
+  return noticeRows
+}
+export type { Notice }
+
 export function ShopNotices({ onPlan }: { onPlan: () => void }) {
   const { t, lang } = useI18n()
-  const [rows, setRows] = useState<Notice[]>([])
-  useEffect(() => {
-    let live = true
-    supabase.rpc('my_notices').then(({ data, error }) => { if (live && !error) setRows(((data || []) as Notice[]).filter((n) => !n.read_at)) }, () => {})
-    return () => { live = false }
-  }, [])
-  const close = (id: number) => {
-    setRows((r) => r.filter((n) => n.id !== id))
-    void supabase.rpc('notice_read', { p_id: id }).then(() => undefined, () => undefined)
-  }
+  const rows = useNotices()
+  const close = (id: number) => readNotice(id)
   if (!rows.length) return null
   const date = (s?: string) => s ? new Date(s).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short' }) : ''
   return (
@@ -73,7 +104,7 @@ export function SupportCard() {
   const load = useCallback(() => {
     supabase.rpc('my_support').then(({ data, error }) => setRows(error ? [] : (data || []) as Ticket[]), () => setRows([]))
   }, [])
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(); readSupportNotices() }, [load])
   const send = async (e: FormEvent) => {
     e.preventDefault()
     if (text.trim().length < 3) return

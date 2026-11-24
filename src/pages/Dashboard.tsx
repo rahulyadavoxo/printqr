@@ -32,7 +32,7 @@ import { BillingPayment, downloadReceipt, money } from '../lib/receipt'
 import { SELLER } from '../lib/seller'
 import { FILE_REPORT_REASONS, FILE_REPORT_REASON_KEY, FileReportReason } from '../lib/fileReports'
 import { AppLockCard, DevicesCard, LockOverlay, useAppLock } from '../components/AppLock'
-import { CouponBox, ShopNotices, SupportCard } from '../components/ShopSupport'
+import { CouponBox, ShopNotices, SupportCard, useNotices, readNotice } from '../components/ShopSupport'
 
 // The document editor is a separate chunk, loaded only when the Edit tab opens.
 const Editor = lazy(() => import('./editor/Editor'))
@@ -307,12 +307,20 @@ function usePopover() {
 
 /** Shows only the current theme; hover or tap to pick Light / Dark / Auto. */
 /** Desktop web/Windows: bell next to "Shop open" with what needs the owner's attention. */
-function NotifyMenu({ active, paperLow, paperN, blocked, onGo }: { active: number; paperLow: boolean; paperN: number; blocked: boolean; onGo: (t: Tab) => void }) {
+function NotifyMenu({ active, paperLow, paperN, blocked, onGo, onHelp }: { active: number; paperLow: boolean; paperN: number; blocked: boolean; onGo: (t: Tab) => void; onHelp?: () => void }) {
   const { t } = useI18n()
   const p = usePopover()
   const push = pushState()
-  const items: { icon: string; text: string; tab?: Tab; warn?: boolean }[] = []
+  const notices = useNotices()
+  const items: { icon: string; text: string; sub?: string; tab?: Tab; warn?: boolean; run?: () => void }[] = []
   if (blocked) items.push({ icon: 'alert', text: t('blockedTitle'), warn: true })
+  for (const n of notices) {
+    const title = n.kind === 'support' ? t('ntSupportTitle') : n.kind === 'expiring' ? t('ntExpTitle') : n.kind === 'nudge' ? t('ntNudgeTitle') : (n.title || t('ntAdminTitle'))
+    const body = n.kind === 'support' || n.kind === 'admin' ? (n.body || '') : ''
+    items.push({ icon: n.kind === 'support' ? 'mail' : n.kind === 'expiring' ? 'star' : 'bell', text: title, sub: body.length > 90 ? body.slice(0, 88) + '…' : body,
+      tab: n.kind === 'expiring' ? 'plan' as Tab : undefined,
+      run: () => { readNotice(n.id); if (n.kind === 'support') onHelp?.() } })
+  }
   if (active > 0) items.push({ icon: 'orders', text: `${t('dActive')}: ${active}`, tab: 'orders' })
   if (paperLow) items.push({ icon: 'alert', text: t('paperLow', { n: paperN }), tab: 'settings', warn: true })
   const badge = items.length
@@ -329,9 +337,9 @@ function NotifyMenu({ active, paperLow, paperN, blocked, onGo }: { active: numbe
           <div className="pop-title">{t('notifTitle')}</div>
           {items.length === 0 && <p className="notif-none">{t('notifNone')}</p>}
           {items.map((x, i) => (
-            <button key={i} type="button" role="menuitem" className={x.warn ? 'warn' : ''} disabled={!x.tab}
-              onClick={() => { if (x.tab) { onGo(x.tab); p.setOpen(false) } }}>
-              <Icon name={x.icon} size={16} /> <span>{x.text}</span>
+            <button key={i} type="button" role="menuitem" className={x.warn ? 'warn' : ''} disabled={!x.tab && !x.run}
+              onClick={() => { x.run?.(); if (x.tab) onGo(x.tab); if (x.tab || x.run) p.setOpen(false) }}>
+              <Icon name={x.icon} size={16} /> <span>{x.text}{x.sub && <small className="notif-sub">{x.sub}</small>}</span>
             </button>
           ))}
         </div>
@@ -503,6 +511,7 @@ export default function Dashboard() {
   const [sb, setSbState] = useState<SbMode>(savedSidebar)
   const [sbMenu, setSbMenu] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const supUnread = useNotices().filter((n) => n.kind === 'support').length
   const setSb = (m: SbMode) => {
     setSbState(m)
     setSbMenu(false)
@@ -808,7 +817,7 @@ export default function Dashboard() {
           </div>
           <div className="bar-actions d-only">
             {!staff && openToggle}
-            {!IN_APP && <NotifyMenu active={activeCount ?? 0} paperLow={!!paperLow} paperN={Number(shop.paper_sheets)} blocked={!!shop.blocked} onGo={go} />}
+            {!IN_APP && <NotifyMenu active={activeCount ?? 0} paperLow={!!paperLow} paperN={Number(shop.paper_sheets)} blocked={!!shop.blocked} onGo={go} onHelp={staff ? undefined : () => setHelpOpen(true)} />}
             {session && <LockMenu uid={session.user.id} enabled={appLock.enabled} onLock={appLock.lock} />}
             <LangMenu />
             <ThemeMenu />
@@ -912,7 +921,7 @@ export default function Dashboard() {
           <span>{t('dActive')}: {activeCount ?? 0}</span>
           {!staff && (
             <button type="button" className="end status-help" onClick={() => setHelpOpen(true)} title={t('supTitle')} aria-label={t('supTitle')}>
-              <Icon name="mail" size={14} /> <span>{t('supTitle')}</span>
+              <Icon name="mail" size={14} /> <span>{t('supTitle')}</span>{supUnread > 0 && <i className="status-dot" aria-hidden="true" />}
             </button>
           )}
           {!staff && ready && <span>{planLabel}</span>}
