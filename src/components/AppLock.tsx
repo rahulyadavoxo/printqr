@@ -131,7 +131,7 @@ export function LockOverlay({ uid, shopName, onUnlock }: { uid: string; shopName
 }
 
 /** Settings card: set / change / remove the PIN and pick the idle timeout. */
-export function AppLockCard({ uid }: { uid: string }) {
+export function AppLockCard({ uid, compact = false }: { uid: string; compact?: boolean }) {
   const { t } = useI18n()
   const [on, setOn] = useState(() => hasPin(uid))
   const [idle, setIdleState] = useState<IdleMins>(() => idleMins(uid) || (hasPin(uid) ? 0 : 10))
@@ -167,9 +167,9 @@ export function AppLockCard({ uid }: { uid: string }) {
   const showForm = !on || editing
 
   return (
-    <div className="card form-card" id="app-lock">
-      <h2 className="card-title">{t('lockCardTitle')}</h2>
-      <p className="small muted">{t('lockCardSub')}</p>
+    <div className={compact ? 'lock-pop-body' : 'card form-card'} id={compact ? undefined : 'app-lock'}>
+      {!compact && <h2 className="card-title">{t('lockCardTitle')}</h2>}
+      {(!compact || !on) && <p className="small muted">{t('lockCardSub')}</p>}
       {on && <p className="notice success"><Icon name="lock" size={16} /> {t('lockIsOn')}</p>}
       <div className="field">
         <span>{t('lockIdle')}</span>
@@ -207,7 +207,7 @@ export function AppLockCard({ uid }: { uid: string }) {
           </div>
         </>
       )}
-      <p className="small muted">{t('lockNote')}</p>
+      {!compact && <p className="small muted">{t('lockNote')}</p>}
     </div>
   )
 }

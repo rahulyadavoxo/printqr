@@ -2828,3 +2828,14 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 .tg-sub { margin: 0; font-size: 14px; color: var(--c-muted); }
 .tg-card .turnstile-box { width: 100%; min-height: 65px; margin: 6px 0 0; }
 @media (prefers-reduced-motion: reduce) { .tg-overlay, .tg-card { transition: none; } }
+
+/* Computer top bar: App lock popup (lock now, auto-lock timer, PIN) */
+.pop-menu.lock-menu { width: 340px; max-width: calc(100vw - 24px); padding: 6px 12px 12px; }
+.lock-menu .pop-title { margin: 0 -6px 8px; }
+.lock-menu .lock-now-row { margin: 4px 0 6px; }
+.lock-menu .lock-now { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.lock-pop-body .seg { margin: 6px 0 4px; }
+.lock-pop-body .field { margin-bottom: 10px; }
+.lock-pop-body .lock-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.lock-pop-body .lock-actions .btn { flex: 1; }
+.lock-pop-body .notice { margin: 6px 0; }

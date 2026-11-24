@@ -338,6 +338,33 @@ function NotifyMenu({ active, paperLow, paperN, blocked, onGo }: { active: numbe
   )
 }
 
+/** Computer top bar: lock button with its own popup. PIN on: Lock now + timer / change / turn off. No PIN yet: set one right here. */
+function LockMenu({ uid, enabled, onLock }: { uid: string; enabled: boolean; onLock: () => boolean }) {
+  const { t } = useI18n()
+  const p = usePopover()
+  return (
+    <div className="pop-wrap" ref={p.ref}>
+      <button type="button" className="bar-btn lock-btn" onClick={() => p.setOpen((v) => !v)} aria-label={t('lockCardTitle')}
+        aria-expanded={p.open} aria-haspopup="dialog" title={t('lockCardTitle')}>
+        <Icon name="lock" size={18} />
+      </button>
+      {p.open && (
+        <div className="pop-menu lock-menu" role="dialog" aria-label={t('lockCardTitle')}>
+          <div className="pop-title">{t('lockCardTitle')}</div>
+          {enabled && (
+            <div className="lock-now-row">
+              <button type="button" className="btn primary block lock-now" onClick={() => { p.setOpen(false); onLock() }}>
+                <Icon name="lock" size={18} /> {t('lockNow')}
+              </button>
+            </div>
+          )}
+          <AppLockCard uid={uid} compact />
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ThemeMenu() {
   const { t } = useI18n()
   const { pref, setTheme } = useTheme()
@@ -758,9 +785,7 @@ export default function Dashboard() {
           <div className="bar-actions d-only">
             {!staff && openToggle}
             {!IN_APP && <NotifyMenu active={activeCount ?? 0} paperLow={!!paperLow} paperN={Number(shop.paper_sheets)} blocked={!!shop.blocked} onGo={go} />}
-            <button type="button" className="bar-btn lock-btn" onClick={lockNow} aria-label={t('lockNow')} title={t('lockNow')}>
-              <Icon name="lock" size={18} />
-            </button>
+            {session && <LockMenu uid={session.user.id} enabled={appLock.enabled} onLock={appLock.lock} />}
             <LangMenu />
             <ThemeMenu />
             <ProfileMenu shop={shop} onSettings={staff ? undefined : () => go('settings')} onLogout={logout}
@@ -802,7 +827,8 @@ export default function Dashboard() {
             </div>
           ))}
           <div className="drawer-group">
-            <button type="button" className="drawer-item" title={t('lockNow')} onClick={lockNow}>
+            {/* Computer: the lock lives in the top bar (popup), so the sidebar doesn't repeat it */}
+            <button type="button" className="drawer-item m-only" title={t('lockNow')} onClick={lockNow}>
               <Icon name="lock" size={22} />
               <span>{t('lockNow')}</span>
             </button>
