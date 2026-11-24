@@ -130,6 +130,8 @@ export default function Status() {
 }
 
 function StatusPage({ id, orderKey: key }: { id: string; orderKey: string }) {
+  // v41: the server counted the pages and changed the price (set by the upload page for this order).
+  const [priceFixed] = useState(() => { try { return sessionStorage.getItem(`pq_fixed_${id}`) === '1' } catch { return false } })
   const { t, tn, te, lang } = useI18n()
   const nav = useNavigate()
   const [info, setInfo] = useState<Info | null>(null)
@@ -310,6 +312,9 @@ function StatusPage({ id, orderKey: key }: { id: string; orderKey: string }) {
           <span className="ticket-files"><Icon name="file" size={18} /> {tn('files_one', 'files_other', Number(info.file_count))}</span>
           <span className="ticket-total"><span className="muted">{t('total')}</span> <strong className="amount">{rupees(Number(info.total))}</strong></span>
         </div>
+        {priceFixed && info.status !== 'cancelled' && (
+          <p className="small muted price-fixed" role="note"><Icon name="alert" size={14} className="ico-inl" /> {t('sPriceFixed')}</p>
+        )}
         {info.paid && info.status !== 'cancelled' && (
           <p className="paid-badge" role="status"><Icon name="check" size={18} stroke={3} /> {t('sPaid')}</p>
         )}

@@ -1,7 +1,12 @@
 // POST { order_id, key }  (no JWT: customers are not signed in; the order's access key is the proof)
-// Downloads every uploaded PDF of the order, counts its real pages and hands the counts to
-// finalize_order_counted(), which fixes the price, checks the files and queues the order (v11, required).
+// Downloads every uploaded PDF of the order, counts its real pages and hands the results to
+// finalize_order_verified() (v41), which fixes pages and price with the shop's rates, records per file whether the
+// pages were verified / corrected / unverified, checks the files and queues the order.
+// A PDF that cannot be counted (encrypted, broken, too big or too complex for the function's limits) no longer
+// fails the order: it is sent as 'unverified' and the shop sees a warning. Photos are 1 page; Office files are
+// always unverified (no converter here).
 // ID card sheets (v23) are not repriced (copies x idcard_sheet) but must be a one-page PDF.
+// Before the v41 database update the old finalize_order_counted() is used (unreadable PDFs fail as before).
 import { Buffer } from 'node:buffer'
 import { PDFDocument } from 'npm:pdf-lib@1.17.1'
 import { corsHeaders, db, fail, HttpError, json } from '../_shared/billing.ts'
@@ -49,25 +54,41 @@ function objectCount(text: string): number {
   return n
 }
 
-async function countPages(bytes: Uint8Array): Promise<number> {
+/** Pages the server counted, or why it could not count them (the order then goes on as 'unverified'). */
+type Count = { pages: number } | { why: 'encrypted' | 'too_big' | 'too_complex' | 'unreadable' | 'timeout' }
+
+/** pdf-lib needs several times the file size in memory: above this the Edge Function (Free plan: 256 MB,
+ *  2 s CPU) can be killed, which cannot be caught. Such files are marked unverified instead of parsed. */
+const MAX_PARSE = 20 * 1024 * 1024
+
+/** Leaf page objects written as plain text ("/Type /Page", not "/Pages"). */
+function leafCount(text: string): number {
+  let n = 0
+  for (const _ of text.matchAll(/\/Type\s*\/Page(?![A-Za-z])/g)) n++
+  return n
+}
+
+async function countPages(bytes: Uint8Array): Promise<Count> {
   const text = latin1(bytes)
-  // 1. No object streams: every /Pages dictionary is plain text, so the biggest /Count can never be lower
-  //    than the real page count (a fake small one cannot hide the real root). Trust the scan, skip pdf-lib.
+  const encrypted = /\/Encrypt\s*(?:\d+\s+\d+\s+R|<<)/.test(text)
+  const why = (): Count => ({ why: encrypted ? 'encrypted' : 'unreadable' })
+  // 1. No object streams: every page-tree node is plain text. The biggest /Count of a /Pages node is trusted
+  //    unless more plain /Type /Page leaves exist than it says (a forged small root /Count): then only the
+  //    real parser, which walks the /Kids tree, is trusted.
   if (!/\/Type\s*\/ObjStm\b/.test(text)) {
     const n = scanCount(bytes, text)
-    if (n > 0) return n
+    if (n > 0 && leafCount(text) <= n) return { pages: n }
   }
-  // 2. Too many objects for the parser's CPU / memory budget: refuse with a clear message.
-  if (objectCount(text) > MAX_OBJECTS) {
-    throw new HttpError(422, 'pdf_too_complex', 'This PDF is too complex to read. Open it, use Print -> Save as PDF, and send that copy.')
-  }
-  // 3. Object streams present (the real page tree may be hidden in them): only the real parser is trusted.
+  // 2. Too big or too many objects for the parser's CPU / memory budget: not counted (unverified).
+  if (bytes.byteLength > MAX_PARSE) return { why: 'too_big' }
+  if (objectCount(text) > MAX_OBJECTS) return { why: 'too_complex' }
+  // 3. The real parser (page count = pages found by walking the page tree).
   try {
     const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false, throwOnInvalidObject: false })
     const n = doc.getPageCount()
-    if (n > 0) return n
+    if (n > 0) return { pages: n }
   } catch { /* unreadable */ }
-  throw new HttpError(422, 'pdf_unreadable', 'This PDF could not be read. Please send another copy of it.')
+  return why()
 }
 
 async function download(path: string): Promise<Uint8Array> {
@@ -81,6 +102,8 @@ async function download(path: string): Promise<Uint8Array> {
 const MAX_FILE = 52428800 // 50 MB, same as create_order
 const MAX_THUMB = 200 * 1024 // phone-made thumbnails are about 10 KB (v24)
 const MAX_ATTEMPTS = 5 // finalize calls per order (v25)
+/** Free plan wall-clock limit is 150 s: stop downloading PDFs after this and send the rest as unverified. */
+const TIME_BUDGET_MS = 90_000
 
 function storageHeaders(): Record<string, string> {
   const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -216,22 +239,28 @@ Deno.serve(async (req) => {
         !known.has(p) && (!p.endsWith('.thumb.jpg') || !known.has(p.slice(0, -'.thumb.jpg'.length)) || n > MAX_THUMB))
       await removeObjects(extra.map(([p]) => p))
     }
-    const counts: Record<string, number> = {}
+    // v41: one result per file. Missing files count as 'not_checked' (unverified) in the database.
+    const started = Date.now()
+    const results: Record<string, Count> = {}
+    const pdfFile = (f: FileRow) => f.mime === 'application/pdf'
     for (const f of files) {
-      if (f.item_kind === 'print' && f.mime === 'application/pdf') {
-        const bytes = await download(f.storage_path)
-        checkKind(bytes.slice(0, 1024), f.mime)
-        counts[f.id] = await countPages(bytes)
-      } else if (f.item_kind === 'idcard' && f.mime === 'application/pdf') {
-        // v23: an ID card sheet is priced as one page per copy, so it must really be one page.
-        const bytes = await download(f.storage_path)
-        checkKind(bytes.slice(0, 1024), f.mime)
-        if ((await countPages(bytes)) !== 1) {
-          throw new HttpError(422, 'bad_file', 'The ID card sheet must be one page. Please make it again.')
-        }
-      } else {
-        checkKind(await head(f.storage_path, f.mime === 'application/pdf' ? 1024 : 64), f.mime)
+      if (!pdfFile(f)) {
+        checkKind(await head(f.storage_path, 64), f.mime)
+        continue
       }
+      if (Date.now() - started > TIME_BUDGET_MS) {
+        checkKind(await head(f.storage_path, 1024), f.mime)
+        results[f.id] = { why: 'timeout' }
+        continue
+      }
+      const bytes = await download(f.storage_path)
+      checkKind(bytes.slice(0, 1024), f.mime)
+      const c = await countPages(bytes)
+      // v23: an ID card sheet is priced as one page per copy, so it must really be one page.
+      if (f.item_kind === 'idcard' && 'pages' in c && c.pages !== 1) {
+        throw new HttpError(422, 'bad_file', 'The ID card sheet must be one page. Please make it again.')
+      }
+      results[f.id] = c
     }
 
     const rpc = (fn: string, body: unknown) => fetch(`${Deno.env.get('SUPABASE_URL')}/rest/v1/rpc/${fn}`, {
@@ -243,18 +272,42 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify(body)
     })
-    // Server-counted path only (v11+). No fallback to finalize_order: a missing migration must fail loudly.
-    const res = await rpc('finalize_order_counted', { p_order_id: id, p_key: key, p_counts: counts })
-    const text = await res.text()
-    if (!res.ok && (res.status === 404 || text.includes('PGRST202'))) {
+    const missing = (res: Response, text: string) => !res.ok && (res.status === 404 || text.includes('PGRST202'))
+    const failed = (text: string) => {
+      let message = 'Could not send the order. Please try again.'
+      try { message = (JSON.parse(text) as { message?: string }).message || message } catch { /* keep */ }
+      return new HttpError(400, 'finalize_failed', message)
+    }
+    // v41: server-checked pages, per-file status. Never a client-side fallback: the shop's total comes from here.
+    let res = await rpc('finalize_order_verified', { p_order_id: id, p_key: key, p_result: results })
+    let text = await res.text()
+    if (!missing(res, text)) {
+      if (!res.ok) throw failed(text)
+      const row = (JSON.parse(text) as { total: number; changed: number; unverified: number }[])[0]
+      return json({ ok: true, counted: true, total: row ? Number(row.total) : null, changed: row?.changed ?? 0, unverified: row?.unverified ?? 0 })
+    }
+
+    // Database not on v41 yet: the v11 path, where every print / ID card PDF must be counted.
+    console.error('finalize_order_verified missing: run supabase/migrations/2026-11-24-v41-verified-pages.sql')
+    const counts: Record<string, number> = {}
+    for (const f of files) {
+      const c = results[f.id]
+      if (!c || f.item_kind === 'passport') continue
+      if (!('pages' in c)) {
+        if (c.why === 'too_complex' || c.why === 'too_big') {
+          throw new HttpError(422, 'pdf_too_complex', 'This PDF is too complex to read. Open it, use Print -> Save as PDF, and send that copy.')
+        }
+        throw new HttpError(422, 'pdf_unreadable', 'This PDF could not be read. Please send another copy of it.')
+      }
+      if (f.item_kind === 'print') counts[f.id] = c.pages
+    }
+    res = await rpc('finalize_order_counted', { p_order_id: id, p_key: key, p_counts: counts })
+    text = await res.text()
+    if (missing(res, text)) {
       console.error('finalize_order_counted missing: run supabase/migrations/2026-11-19-v11-server-page-count.sql')
       throw new HttpError(503, 'unavailable', 'Orders are temporarily unavailable. Please try again shortly.')
     }
-    if (!res.ok) {
-      let message = 'Could not send the order. Please try again.'
-      try { message = (JSON.parse(text) as { message?: string }).message || message } catch { /* keep */ }
-      throw new HttpError(400, 'finalize_failed', message)
-    }
+    if (!res.ok) throw failed(text)
     const row = (JSON.parse(text) as { total: number; changed: number }[])[0]
     return json({ ok: true, counted: true, total: row ? Number(row.total) : null, changed: row?.changed ?? 0 })
   } catch (e) {

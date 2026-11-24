@@ -160,6 +160,14 @@ export type OrderFile = {
   photos?: number | null
   binding?: boolean
   lamination?: boolean
+  /** v41: did the server check the pages? null on orders from before v41. */
+  pages_status?: 'verified' | 'corrected' | 'unverified' | null
+  /** v41: why a file is unverified (office, encrypted, too_big, too_complex, unreadable, timeout, not_checked). */
+  pages_note?: string | null
+  pages_real?: number | null
+  claimed_pages?: number | null
+  claimed_total_pages?: number | null
+  claimed_price?: number | null
 }
 
 export type Order = {

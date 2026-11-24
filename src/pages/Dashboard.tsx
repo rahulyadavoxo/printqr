@@ -1486,6 +1486,7 @@ function OrderCard(props: {
         <div className="order-right">
           <span className={`pill tiny s-${o.status}`}>{t(STATUS_TEXT[o.status])}</span>
           <strong className="amt">{rupees(Number(o.total))}</strong>
+          <PagesFlag files={o.order_files} />
           {onPaid && o.status !== 'cancelled' && (
             <button type="button" className={`paid-toggle${paid ? ' is-paid' : ''}`} aria-pressed={paid}
               title={paid ? t('paidTapUnpaid') : t('paidTapPaid')} onClick={() => onPaid(o, !paid)}>
@@ -1527,6 +1528,7 @@ function OrderCard(props: {
                 <b>{rupees(Number(f.price))}</b>
               </div>
             )}
+            <PagesCheck f={f} />
             {!noFiles && (
               <div className="file-actions">
                 {onPrint && canDirectPrint(f.file_name) && (
@@ -3103,4 +3105,46 @@ function PlanTab({ shop, email, contact, onChanged }: { shop: Shop; email?: stri
       )}
     </section>
   )
+}
+
+/** v41: the server checked each file's pages. Corrected / unverified files get a warning for the shop. */
+function PagesCheck({ f }: { f: OrderFile }) {
+  const { t } = useI18n()
+  if (f.pages_status === 'corrected') {
+    const said = f.item_kind === 'passport' ? f.claimed_pages : (f.claimed_total_pages ?? f.claimed_pages)
+    const has = f.pages_real ?? f.total_pages
+    return (
+      <p className="pages-check is-fixed" role="note">
+        <Icon name="alert" size={14} className="ico-inl" />
+        <span>
+          {said != null && said !== has ? t('pvCorrected', { c: said, n: has }) : t('pvCorrected', { c: f.claimed_pages ?? '?', n: f.pages_to_print })}
+          {f.claimed_price != null && Number(f.claimed_price) !== Number(f.price) && (
+            <> · {t('pvPriceWas', { old: rupees(Number(f.claimed_price)), now: rupees(Number(f.price)) })}</>
+          )}
+        </span>
+      </p>
+    )
+  }
+  if (f.pages_status === 'unverified') {
+    const why = f.pages_note === 'office' ? t('pvWhyOffice')
+      : f.pages_note === 'encrypted' ? t('pvWhyEncrypted')
+      : f.pages_note === 'too_big' || f.pages_note === 'too_complex' || f.pages_note === 'timeout' ? t('pvWhyBig')
+      : f.pages_note === 'unreadable' ? t('pvWhyBroken') : null
+    return (
+      <p className="pages-check is-unverified" role="note">
+        <Icon name="alert" size={14} className="ico-inl" />
+        <span>{t('pvUnverified')}{why ? ` (${why})` : ''}</span>
+      </p>
+    )
+  }
+  return null
+}
+
+/** v41: one small flag next to the order total when any file was corrected or could not be checked. */
+function PagesFlag({ files }: { files?: OrderFile[] | null }) {
+  const { t } = useI18n()
+  const list = files || []
+  if (list.some((f) => f.pages_status === 'unverified')) return <span className="pill tiny pages-flag is-unverified">{t('pvOrderWarn')}</span>
+  if (list.some((f) => f.pages_status === 'corrected')) return <span className="pill tiny pages-flag is-fixed">{t('pvOrderFixed')}</span>
+  return null
 }

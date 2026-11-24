@@ -2913,3 +2913,15 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
   .plan-cut { font-size: 15px; }
   .adx-coupon-kind { max-width: none; }
 }
+
+/* v41: server page check on the shop's order card (wraps on 320px screens) */
+.pages-check { display: flex; align-items: flex-start; gap: 6px; margin: 6px 0 0; padding: 6px 8px; border-radius: 8px;
+  font-size: 12.5px; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
+.pages-check .ico-inl { flex: none; margin-top: 2px; }
+.pages-check.is-fixed { background: var(--c-amber-bg); color: var(--c-amber-ink); }
+.pages-check.is-unverified { background: var(--c-red-bg); color: var(--c-red-ink); }
+.pill.pages-flag { white-space: nowrap; }
+.pill.pages-flag.is-fixed { background: var(--c-amber-bg); color: var(--c-amber-ink); }
+.pill.pages-flag.is-unverified { background: var(--c-red-bg); color: var(--c-red-ink); }
+.price-fixed { display: flex; gap: 6px; align-items: flex-start; margin: 8px 0 0; overflow-wrap: anywhere; }
+.price-fixed .ico-inl { flex: none; margin-top: 2px; }

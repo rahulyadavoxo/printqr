@@ -315,7 +315,7 @@ export default function Upload() {
     return items
       .filter((it) => !(combineOn && it.kind === 'image'))
       .map((it) => {
-        const pages = it.kind === 'pdf' ? (it.pages ? it.pages.length : it.totalPages) : it.totalPages
+        const pages = it.kind === 'pdf' ? (it.pages ? it.pages.length : it.totalPages) : it.kind === 'image' ? 1 : it.totalPages
         const price = pages ? filePrice(shop.rates, pages, it.copies, it.color, it.duplex, it.binding, it.lamination) : 0
         return { it, pages, price }
       })
@@ -484,6 +484,9 @@ export default function Upload() {
         if (ctx?.status === 546 || body?.error === 'pdf_too_complex') throw new Error(t('uPdfHeavy'))
         throw new Error(body?.message || t('uFinalizeFail'))
       }
+      // v41: tell the status page when the server changed the price after counting the real pages.
+      const fixed = Number((fin.data as { changed?: number } | null)?.changed) > 0
+      try { if (fixed) sessionStorage.setItem(`pq_fixed_${order.order_id}`, '1') } catch { /* private mode */ }
       const saved = JSON.parse(localStorage.getItem('pq_orders') || '[]') as unknown[]
       localStorage.setItem('pq_orders', JSON.stringify([{ id: order.order_id, key: order.access_key, shop: shop.name, at: Date.now() }, ...saved].slice(0, 10)))
       nav(`/o/${order.order_id}/${order.access_key}`, { replace: true })
@@ -695,6 +698,12 @@ export default function Upload() {
                       <Icon name="file" size={16} />
                       <span>{it.pages ? t('ppkSome', { r: pagesToRange(it.pages) }) : t('ppkAllPages')}</span>
                     </button>
+                  </div>
+                ) : it.kind === 'image' ? (
+                  // v41: a photo prints as one page (the server charges it as one page too).
+                  <div className="field">
+                    <span>{t('uNumPages')}</span>
+                    <strong>{t('uOnePage')}</strong>
                   </div>
                 ) : (
                   <label className="field">
