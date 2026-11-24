@@ -2,13 +2,14 @@ import { PUBLIC_BASE, offerSavePassword, pickSavedPassword, startOtpAutoRead } f
 import PasswordInput from '../components/PasswordInput'
 import OtpInput, { EMAIL_OTP_LENGTH, EMAIL_OTP_MAX, SMS_OTP_LENGTH } from '../components/OtpInput'
 import { googleAvailable, signInWithGoogle } from '../lib/google'
-import { CSSProperties, FormEvent, useEffect, useRef, useState } from 'react'
+import { CSSProperties, Dispatch, FormEvent, SetStateAction, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { clearAuthUrlError, peekAuthUrlError, sendResetEmail } from '../lib/recovery'
 import { useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
-import { isCaptchaError, Turnstile } from '../components/Turnstile'
+import { isCaptchaError } from '../components/Turnstile'
+import { TurnstileGate } from '../components/TurnstileGate'
 import { LOGIN_DESIGNS, LoginDesign, loginDesignFor, useAppSettings, useSettingsKnown } from '../lib/appSettings'
 import { QrLoadPage } from '../components/QrLoader'
 
@@ -33,11 +34,24 @@ function cleanMobile(v: string): string {
 export default function Login() {
   const [params] = useSearchParams()
   const known = useSettingsKnown()
+  const { lang } = useI18n()
+  // One Turnstile for the whole login / signup / forgot / code flow: a full-screen check on top of the blurred page
+  // when it opens, then it stays out of sight and renews its token after each use (comes back only if Cloudflare
+  // wants the box ticked again). A token works once, so bump captchaReset after every auth call that used it.
+  const [captcha, setCaptcha] = useState<string | null>(null)
+  const [captchaReset, setCaptchaReset] = useState(0)
   if (!known && !params.get('design')) return <QrLoadPage />
-  return <LoginPage />
+  return (
+    <TurnstileGate action="login" onToken={setCaptcha} resetKey={captchaReset} lang={lang}>
+      <LoginPage captcha={captcha} setCaptchaReset={setCaptchaReset} />
+    </TurnstileGate>
+  )
 }
 
-function LoginPage() {
+function LoginPage({ captcha, setCaptchaReset }: {
+  captcha: string | null
+  setCaptchaReset: Dispatch<SetStateAction<number>>
+}) {
   const [params] = useSearchParams()
   const { t, te, lang, setLang } = useI18n()
   // Admin picks the design (Settings > Login page design); ?design=modern|classic previews one.
@@ -64,8 +78,6 @@ function LoginPage() {
   // Bumped after a wrong code: the boxes shake, clear and focus the first box.
   const [codeShake, setCodeShake] = useState(0)
   const [cooldown, setCooldown] = useState(0)
-  const [captcha, setCaptcha] = useState<string | null>(null)
-  const [captchaReset, setCaptchaReset] = useState(0)
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(() => {
     const e = peekAuthUrlError()
     return e ? { text: e, error: true } : null
@@ -357,7 +369,6 @@ function LoginPage() {
             </div>
             {msg && <p id="otp-msg" className={`notice${msg.error ? ' error' : ' success'}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
             <button className="btn primary block lg" disabled={busy || code.length < codeLen}>{busy ? t('pleaseWait') : t('codeVerify')}</button>
-            <Turnstile key="resend" action={phoneMode ? 'login' : 'signup'} onToken={setCaptcha} resetKey={captchaReset} lang={lang} quiet />
             <p className="center small switch-line">
               {cooldown > 0 ? (
                 <span className="otp-timer" role="timer" aria-live="off">{t('codeWait', { s: mmss(cooldown) })}</span>
@@ -388,7 +399,6 @@ function LoginPage() {
               <input type="text" inputMode={idIsPhone ? 'tel' : 'email'} required value={email} onChange={(e) => setEmail(e.target.value)} name="email"
                 autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder={t('idPlaceholder')} />
             </label>
-            <Turnstile key="reset" action="reset" onToken={setCaptcha} resetKey={captchaReset} lang={lang} quiet />
             {msg && <p className={`notice${msg.error ? ' error' : ' success'}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
             <button className="btn primary block lg" disabled={busy}>{busy ? t('pleaseWait') : idIsPhone ? t('mobileSend') : t('fpSend')}</button>
             <p className="center small switch-line">
@@ -459,7 +469,6 @@ function LoginPage() {
           <PasswordInput id="lx-password" name="password" required minLength={signup ? 8 : 6} value={password} onChange={(e) => setPassword(e.target.value)}
             autoComplete={signup ? 'new-password' : 'current-password'} placeholder={signup ? t('lxPwPh') : '••••••••'} />
         </div>
-        <Turnstile key={mode} action={signup ? 'signup' : 'login'} onToken={setCaptcha} resetKey={captchaReset} lang={lang} quiet />
         {msg && <p className={`notice${msg.error ? ' error' : ''}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
         <button className="lx-cta" disabled={busy}>{busy ? t('pleaseWait') : signup ? t('createAccount') : t('signInUp')}</button>
       </form>
@@ -602,7 +611,6 @@ function LoginPage() {
               autoComplete={signup ? 'new-password' : 'current-password'} placeholder="••••••••" />
             {signup && <small className="hint">{t('passwordHint')}</small>}
           </div>
-          <Turnstile key={mode} action={signup ? 'signup' : 'login'} onToken={setCaptcha} resetKey={captchaReset} lang={lang} quiet />
           {msg && <p className={`notice${msg.error ? ' error' : ''}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
           <button className="btn primary block lg" disabled={busy}>
             {busy ? t('pleaseWait') : signup ? t('createAccount') : t('signInUp')}

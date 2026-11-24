@@ -2806,3 +2806,25 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 .ann-pop-pause i { width: 2.6px; height: 9px; border-radius: 2px; background: currentColor; }
 @media (prefers-reduced-motion: reduce) { .ann-pop { animation: none; } }
 @keyframes annFade { from { opacity: 0; } }
+
+/* Login / signup: Turnstile check on top of the page, page behind at half strength (dimmed 50% + blurred) */
+.tg-page { display: contents; }
+.tg-overlay {
+  position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px;
+  background: color-mix(in srgb, var(--c-bg) 50%, transparent);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity .25s ease, visibility 0s linear .25s;
+}
+.tg-overlay.open { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .2s ease, visibility 0s; }
+.tg-card {
+  width: 100%; max-width: 360px; display: grid; gap: 10px; justify-items: center; text-align: center;
+  background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-lg); box-shadow: var(--sh-3);
+  padding: 24px 20px 20px; transform: translateY(8px) scale(.98); transition: transform .25s ease;
+}
+.tg-overlay.open .tg-card { transform: none; }
+.tg-icon { width: 52px; height: 52px; border-radius: var(--r-md); display: grid; place-items: center; background: var(--c-surface-2, var(--c-bg)); color: var(--c-ink); }
+.tg-title { margin: 4px 0 0; font-size: 19px; font-weight: 750; color: var(--c-ink); }
+.tg-sub { margin: 0; font-size: 14px; color: var(--c-muted); }
+.tg-card .turnstile-box { width: 100%; min-height: 65px; margin: 6px 0 0; }
+@media (prefers-reduced-motion: reduce) { .tg-overlay, .tg-card { transition: none; } }
