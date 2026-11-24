@@ -909,7 +909,6 @@ export default function Dashboard() {
       {/* Desktop web + Windows app only (CSS hides it below 1024px and in the Android app): VS Code style status bar */}
       {!IN_APP && (
         <footer className="dash-status no-print" aria-label={t('menu')}>
-          {!staff && <span className={shop.is_open ? 'is-on' : 'is-off'}>{shop.is_open ? t('shopOpen') : t('shopClosed')}</span>}
           <span>{t('dActive')}: {activeCount ?? 0}</span>
           {!staff && (
             <button type="button" className="end status-help" onClick={() => setHelpOpen(true)} title={t('supTitle')} aria-label={t('supTitle')}>
@@ -949,7 +948,7 @@ export default function Dashboard() {
         )}
         {tab === 'report' && <Report shop={shop} onUpgrade={goPlan} />}
         {tab === 'settings' && bottomNav && !setSub && (
-          <SettingsHub plus={!ready || plus} onOpen={(k) => setParams({ tab: 'settings', s: k })} onPlan={goPlan} onLogout={logout}
+          <SettingsHub plus={!ready || plus} free={ready && free} onOpen={(k) => setParams({ tab: 'settings', s: k })} onPlan={goPlan} onLogout={logout}
             version={appVer ? 'PrintQR ' + appVer : ''} />
         )}
         {tab === 'settings' && (!bottomNav || setSub) && (
@@ -2357,19 +2356,20 @@ const KEEP_OPTIONS = [1, 3, 6, 12, 24, 48, 72, 168]
 
 type SetKey = 'shop' | 'hours' | 'paper' | 'counters' | 'brand' | 'staff' | 'lock' | 'devices' | 'support'
 /** Android phone Settings: grouped list (iOS-style); each row opens its section. */
-function SettingsHub({ plus, onOpen, onPlan, onLogout, version }: {
-  plus: boolean; onOpen: (k: SetKey) => void; onPlan: () => void; onLogout: () => void; version: string
+function SettingsHub({ plus, free, onOpen, onPlan, onLogout, version }: {
+  plus: boolean; free: boolean; onOpen: (k: SetKey) => void; onPlan: () => void; onLogout: () => void; version: string
 }) {
   const { t, lang, setLang } = useI18n()
   const { pref, setTheme } = useTheme()
   const nav = useNavigate()
   const themeOrder: ThemePref[] = ['light', 'dark', 'system']
   const themeLbl: Record<ThemePref, Key> = { light: 'themeLight', dark: 'themeDark', system: 'themeAuto' }
-  const Row = ({ icon, label, value, onClick, lock }: { icon: string; label: string; value?: string; onClick: () => void; lock?: boolean }) => (
+  const Row = ({ icon, label, value, onClick, lock, lockPro }: { icon: string; label: string; value?: string; onClick: () => void; lock?: boolean; lockPro?: boolean }) => (
     <button type="button" className="set-row" onClick={onClick}>
       <span className="set-ic"><Icon name={icon} size={18} /></span>
       <span className="set-lbl">{label}</span>
       {lock && <span className="pro-badge">{t('planPlus')}</span>}
+      {lockPro && <span className="pro-badge">{t('planPro')}</span>}
       {value && <span className="set-val">{value}</span>}
       <Icon name="chevr" size={18} />
     </button>
@@ -2381,7 +2381,7 @@ function SettingsHub({ plus, onOpen, onPlan, onLogout, version }: {
         <Row icon="store" label={t('setShopDetails')} onClick={() => onOpen('shop')} />
         <Row icon="clock" label={t('hoursTitle')} onClick={() => onOpen('hours')} />
         <Row icon="file" label={t('paperTitle')} onClick={() => onOpen('paper')} />
-        <Row icon="qr" label={t('cTitle')} onClick={() => onOpen('counters')} />
+        <Row icon="qr" label={t('cTitle')} lockPro={free} onClick={() => onOpen('counters')} />
       </div>
       <div className="set-grp-lbl">{t('setGrpBiz')}</div>
       <div className="set-grp">
