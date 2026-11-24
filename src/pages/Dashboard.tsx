@@ -2978,6 +2978,7 @@ function PaymentsList({ shop }: { shop: Shop }) {
 }
 
 function PlanTab({ shop, email, contact, onChanged }: { shop: Shop; email?: string; contact?: string; onChanged: () => Promise<void> | void }) {
+  const couponsOn = useAppSettings().coupons_enabled !== false
   const { t, te, lang } = useI18n()
   const [busy, setBusy] = useState<string | null>(null)
   const [period, setPeriod] = useState<Period>('yearly')
@@ -3087,7 +3088,7 @@ function PlanTab({ shop, email, contact, onChanged }: { shop: Shop; email?: stri
         )}
       </div>
 
-      <CouponBox onDone={onChanged} deal={deal} onDeal={(d) => { setDeal(d); setMsg(null); if (d && d.periods.length === 1) setPeriod(d.periods[0]) }} />
+      {couponsOn && <CouponBox onDone={onChanged} deal={deal} onDeal={(d) => { setDeal(d); setMsg(null); if (d && d.periods.length === 1) setPeriod(d.periods[0]) }} />}
 
       {shown.length > 0 && (
         <>

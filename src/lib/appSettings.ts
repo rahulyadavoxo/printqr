@@ -17,6 +17,8 @@ export type AppSettings = {
   /** Landing (home) page design (v31), same pattern as the login design; a missing key uses landing_design. */
   landing_design: LandingDesign
   landing_designs: Partial<Record<LoginPlatform, LandingDesign>>
+  /** v42: off = Plan tab hides the coupon box and the server refuses codes. */
+  coupons_enabled: boolean
 }
 
 /** classic = the current landing page, duo = two big panels (customer / shop) + cost estimator,
@@ -80,7 +82,7 @@ function remember(s: AppSettings) {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   announcement: null, announcement_hi: null, announcement_secs: 8, maintenance: false, maintenance_msg: null, min_app_version: null, free_counter_limit: 0, login_design: storedDesign(), login_designs: {},
-  landing_design: storedLanding(), landing_designs: {}
+  landing_design: storedLanding(), landing_designs: {}, coupons_enabled: true
 }
 
 let cache: AppSettings | null = null

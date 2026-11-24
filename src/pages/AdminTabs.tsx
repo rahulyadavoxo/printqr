@@ -488,12 +488,12 @@ export function AdminSpam({ onMsg, onChanged }: { onMsg: Msg; onChanged: () => v
 /** Save button in the admin bottom bar: shown in place of the tab's icon only while the tab has unsaved changes. */
 export type SaveSlot = { run: () => void; busy: boolean } | null
 
-type SetSec = 'announcement' | 'popup' | 'maintenance' | 'minversion' | 'freecounters' | 'login' | 'landing'
+type SetSec = 'announcement' | 'popup' | 'maintenance' | 'minversion' | 'freecounters' | 'coupons' | 'login' | 'landing'
 /** Phone Settings hub (like the shop owner's Settings): groups of rows; each row opens its own page (?s=<key>). */
 const SET_GROUPS: [Key, [SetSec, string, Key][]][] = [
   ['admSetGrpAnn', [['announcement', 'bell', 'admSetAnn'], ['popup', 'clock', 'admSetPopup']]],
   ['admSetGrpApp', [['maintenance', 'alert', 'admSetMaint'], ['minversion', 'phone', 'admMinVersion']]],
-  ['admSetGrpPlans', [['freecounters', 'qr', 'admSetFree']]],
+  ['admSetGrpPlans', [['freecounters', 'qr', 'admSetFree'], ['coupons', 'star', 'admSetCoupons']]],
   ['admSetGrpDesign', [['login', 'lock', 'admLoginDesign'], ['landing', 'image', 'admLandingDesign']]]
 ]
 const SET_SECS = SET_GROUPS.flatMap(([, rows]) => rows)
@@ -647,13 +647,20 @@ export function AdminSettings({ onMsg, onSaveSlot }: { onMsg: Msg; onSaveSlot?: 
       <label htmlFor="set-fcl">{t('admFreeCounters')}</label>
       <input id="set-fcl" type="number" min={0} max={20} value={s.free_counter_limit} onChange={(e) => set({ free_counter_limit: Math.max(0, Math.min(20, Math.floor(Number(e.target.value) || 0))) })} />
       <p className="small muted">{t('admPricesHint', { m: '₹49', y: '₹539' })}</p>
+    </>),
+    coupons: (<>
+      <label className="admin-check">
+        <input type="checkbox" checked={s.coupons_enabled !== false} onChange={(e) => set({ coupons_enabled: e.target.checked })} />
+        <span>{t('admCouponsOn')}</span>
+      </label>
+      <p className="small muted">{t('admCouponsHint')}</p>
     </>)
   }
   const saveBtn = <button type="submit" className="btn primary" disabled={busy}>{busy ? t('pleaseWait') : t('save')}</button>
 
   // Computer: one card with every setting, same order as before.
   if (!phone) {
-    const order: SetSec[] = ['announcement', 'popup', 'maintenance', 'minversion', 'login', 'landing', 'freecounters']
+    const order: SetSec[] = ['announcement', 'popup', 'maintenance', 'minversion', 'login', 'landing', 'freecounters', 'coupons']
     return (
       <form ref={formRef} className="card admin-settings" onSubmit={save}>
         <h2 className="admin-sec">{t('admSettings')}</h2>
@@ -690,6 +697,7 @@ function AdminSetHub({ t, s, onOpen }: { t: ReturnType<typeof useI18n>['t']; s?:
       case 'maintenance': return onOff(!!s.maintenance, true)
       case 'minversion': return <span className="set-val adm-set-minv">{s.min_app_version || t('admSetNoLimit')}</span>
       case 'freecounters': return <span className="set-val">{s.free_counter_limit}</span>
+      case 'coupons': return onOff(s.coupons_enabled !== false)
       default: return null
     }
   }
