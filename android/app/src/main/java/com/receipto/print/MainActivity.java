@@ -97,12 +97,16 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
     // The app keeps #/ routes (HashRouter): serveAsset only serves real files, so /dashboard would 404 here.
     private static final String START = "https://" + APP_HOST + "/#/dashboard";
     private static final int PICK_FILES = 1001;
+    private static final int TAKE_PHOTO = 1003;
 
     private FrameLayout root;
     private WebView web;
     /** Pop-up window opened by Razorpay (card 3-D Secure, net banking, wallets). */
     private WebView popup;
     private ValueCallback<Uri[]> pendingFiles;
+    /** Where the phone's own camera app saves the photo (full resolution, same as the device camera). */
+    private Uri cameraUri;
+    private File cameraFile;
 
     // Runs after every page load: routes print, popups and blob downloads to the app.
     private static final String BRIDGE_JS =
@@ -217,6 +221,8 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
             public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams params) {
                 if (pendingFiles != null) pendingFiles.onReceiveValue(null);
                 pendingFiles = cb;
+                // <input capture> (editor's Camera button): open the phone's camera app directly, not the file picker.
+                if (params.isCaptureEnabled() && acceptsImages(params) && openCamera()) return true;
                 try {
                     Intent i = params.createIntent();
                     i.addCategory(Intent.CATEGORY_OPENABLE);
@@ -1132,9 +1138,46 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         if (req == 1002) notifyAnswer();
     }
 
+    private static boolean acceptsImages(WebChromeClient.FileChooserParams params) {
+        String[] types = params.getAcceptTypes();
+        if (types == null || types.length == 0) return true;
+        for (String t : types) if (t == null || t.isEmpty() || t.startsWith("image/") || t.equals("*/*")) return true;
+        return false;
+    }
+
+    /** Starts the camera app with EXTRA_OUTPUT so it saves the full-resolution photo (not a small thumbnail). */
+    private boolean openCamera() {
+        try {
+            File dir = new File(getCacheDir(), "camera");
+            if (!dir.exists() && !dir.mkdirs()) return false;
+            File[] old = dir.listFiles();
+            if (old != null) for (File o : old) o.delete();
+            cameraFile = new File(dir, "IMG_" + System.currentTimeMillis() + ".jpg");
+            cameraUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", cameraFile);
+            Intent cam = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            cam.putExtra(MediaStore.EXTRA_OUTPUT, cameraUri);
+            cam.setClipData(android.content.ClipData.newRawUri("photo", cameraUri));
+            cam.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivityForResult(cam, TAKE_PHOTO);
+            return true;
+        } catch (Exception e) {
+            // no camera app, or the camera can't be opened: fall back to the normal picker
+            cameraUri = null;
+            cameraFile = null;
+            return false;
+        }
+    }
+
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
+        if (req == TAKE_PHOTO) {
+            if (pendingFiles == null) return;
+            boolean ok = res == RESULT_OK && cameraFile != null && cameraFile.length() > 0;
+            pendingFiles.onReceiveValue(ok ? new Uri[]{cameraUri} : null);
+            pendingFiles = null;
+            return;
+        }
         if (req != PICK_FILES || pendingFiles == null) return;
         Uri[] result = null;
         if (res == RESULT_OK && data != null) {
