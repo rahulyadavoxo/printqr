@@ -35,18 +35,26 @@ function loadScript(): Promise<void> {
 }
 
 /** Shows the check and reports its token (null when expired or failed). Bump resetKey after each use: a token works once. */
-export function Turnstile({ action, onToken, resetKey = 0, lang, quiet = false }: {
+export function Turnstile({ action, onToken, resetKey = 0, lang, quiet = false, onInteractive, onError }: {
   action: 'upload' | 'login' | 'signup' | 'reset'
   onToken: (token: string | null) => void
   resetKey?: number
   lang?: string
   /** Hidden unless Cloudflare needs the person to tick the box (most people never see it). */
   quiet?: boolean
+  /** Cloudflare wants the person to tick the box (true) or is done with it (false). */
+  onInteractive?: (on: boolean) => void
+  /** The check could not load or failed (network, blocked script, Cloudflare error). */
+  onError?: () => void
 }) {
   const box = useRef<HTMLDivElement>(null)
   const id = useRef<string | null>(null)
   const cb = useRef(onToken)
   cb.current = onToken
+  const inter = useRef(onInteractive)
+  inter.current = onInteractive
+  const err = useRef(onError)
+  err.current = onError
 
   useEffect(() => {
     let dead = false
@@ -62,10 +70,12 @@ export function Turnstile({ action, onToken, resetKey = 0, lang, quiet = false }
           language: lang === 'hi' ? 'hi' : 'auto',
           callback: (tok: string) => cb.current(tok),
           'expired-callback': () => cb.current(null),
-          'error-callback': () => cb.current(null)
+          'error-callback': () => { cb.current(null); err.current?.() },
+          'before-interactive-callback': () => inter.current?.(true),
+          'after-interactive-callback': () => inter.current?.(false)
         })
       })
-      .catch(() => cb.current(null))
+      .catch(() => { cb.current(null); err.current?.() })
     return () => {
       dead = true
       if (id.current && window.turnstile) window.turnstile.remove(id.current)
