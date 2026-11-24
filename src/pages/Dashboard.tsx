@@ -937,14 +937,14 @@ export default function Dashboard() {
             {(!bottomNav || setSub === 'counters') && <CountersCard shop={shop} counters={counters} usable={usable.length} locked={free} limit={counterLimit} needPlus={pro} v2={v2}
               onChanged={() => loadCounters(shop.id)} onUpgrade={goPlan}
               onShowQr={(c) => setParams({ tab: 'qr', c })} />}
-            {(!bottomNav || setSub === 'lock') && session && <AppLockCard uid={session.user.id} />}
+            {(!bottomNav || setSub === 'lock') && session && <div className="m-only"><AppLockCard uid={session.user.id} /></div>}
             {(!bottomNav || setSub === 'devices') && <DevicesCard />}
             {(!bottomNav || setSub === 'support') && !staff && <SupportCard />}
           </>
         )}
         {tab === 'settings' && !bottomNav && (
           <>
-            <button type="button" className="btn danger block lg logout-btn" onClick={logout}><Icon name="logout" size={18} /> {t('logout')}</button>
+            <button type="button" className="btn danger block lg logout-btn m-only" onClick={logout}><Icon name="logout" size={18} /> {t('logout')}</button>
             {appVer && <p className="app-version">PrintQR {appVer}{isAdmin
               ? (pushStatus() ? ' · push: ' + pushStatus() : '')
               : ({ on: ' · ' + t('pushOn'), blocked: ' · ' + t('pushBlocked'), pending: ' · ' + t('pushNotReady'), '': '' } as const)[pushState()]}</p>}
