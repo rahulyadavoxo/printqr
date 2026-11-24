@@ -125,7 +125,8 @@ async function googleToken(sa: SA): Promise<string> {
   return j.access_token
 }
 
-async function pushAdmins(title: string, body: string, tag: string): Promise<number> {
+/** path = where a tap opens: /admin, or /admin?tab=support for a support message (v43). */
+async function pushAdmins(title: string, body: string, tag: string, path = '/admin'): Promise<number> {
   const raw = Deno.env.get('FCM_SERVICE_ACCOUNT')
   if (!raw) return 0
   const admins = (await call('/rest/v1/admins?select=user_id')) as { user_id: string }[]
@@ -141,12 +142,12 @@ async function pushAdmins(title: string, body: string, tag: string): Promise<num
       body: JSON.stringify({ message: {
         token,
         notification: { title, body },
-        data: { kind: 'admin_alert', path: '/admin' },
+        data: { kind: 'admin_alert', path, title, body, tag },
         android: { priority: 'HIGH', notification: { channel_id: 'orders', sound: 'default', tag, icon: 'ic_stat_print' } },
         webpush: {
           headers: { Urgency: 'high', TTL: '3600' },
           notification: { title, body, icon: 'https://print.receipto.in/icon-192.png', badge: 'https://print.receipto.in/badge-96.png', tag },
-          fcm_options: { link: 'https://print.receipto.in/admin' }
+          fcm_options: { link: 'https://print.receipto.in' + path }
         }
       } })
     })
@@ -160,13 +161,15 @@ async function pushAdmins(title: string, body: string, tag: string): Promise<num
 async function pushPending(now: Date, open?: Alert[]): Promise<number> {
   const list = open || ((await call('/rest/v1/ops_alerts?closed_at=is.null&select=id,key,title,notified_at')) as Alert[])
   let n = 0
-  for (const a of list.filter((x) => (x.key.startsWith('gh_') || x.key.startsWith('admin_login_')) && !x.notified_at)) {
+  for (const a of list.filter((x) => (x.key.startsWith('gh_') || x.key.startsWith('admin_login_') || x.key.startsWith('support_')) && !x.notified_at)) {
     let body = 'Open the Admin panel bell for details.'
-    if (a.key.startsWith('admin_login_')) {
+    const support = a.key.startsWith('support_')
+    if (a.key.startsWith('admin_login_') || support) {
       const d = (await call(`/rest/v1/ops_alerts?id=eq.${a.id}&select=detail`).catch(() => [])) as { detail: string }[]
       body = (d[0]?.detail || body).slice(0, 240)
     }
-    const sent = await pushAdmins(a.key.startsWith('admin_login_') ? `PrintQR: ${a.title}` : `PrintQR alert: ${a.title}`, body, `alert-${a.key}`).catch(() => 0)
+    const sent = await pushAdmins(a.key.startsWith('admin_login_') || support ? `PrintQR: ${a.title}` : `PrintQR alert: ${a.title}`, body, `alert-${a.key}`,
+      support ? '/admin?tab=support' : '/admin').catch(() => 0)
     if (sent) {
       n += sent
       await call(`/rest/v1/ops_alerts?id=eq.${a.id}`, { method: 'PATCH', body: JSON.stringify({ notified_at: now }) })

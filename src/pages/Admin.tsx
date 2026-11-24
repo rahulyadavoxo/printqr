@@ -110,7 +110,13 @@ export default function Admin() {
   // ?s=<setting> is a phone Settings page (AdminSettings): reopening that link lands on Settings,
   // and leaving the Settings tab drops it so Settings opens on its list next time.
   const [params, setParams] = useSearchParams()
-  const [tab, setTab] = useState<AdminTab>(() => (params.get('s') ? 'settings' : 'overview'))
+  // ?tab=support: a tapped "new support message" push opens the Support inbox (v43)
+  const [tab, setTab] = useState<AdminTab>(() => (params.get('s') ? 'settings' : params.get('tab') === 'support' ? 'support' : 'overview'))
+  useEffect(() => {
+    if (params.get('tab') !== 'support') return
+    setTab('support')
+    setParams((p) => { const q = new URLSearchParams(p); q.delete('tab'); return q }, { replace: true })
+  }, [params, setParams])
   useEffect(() => {
     if (tab !== 'settings' && params.has('s')) setParams((p) => { const q = new URLSearchParams(p); q.delete('s'); return q }, { replace: true })
   }, [tab, params, setParams])
@@ -158,6 +164,11 @@ export default function Admin() {
     loadLog()
     loadHealth()
     setupPush() // v30: this phone / browser gets health alerts for admins
+    // v43: the bell count follows new support messages without a manual refresh
+    const iv = window.setInterval(() => { if (document.visibilityState === 'visible') void loadHealth() }, 60000)
+    const onVis = () => { if (document.visibilityState === 'visible') void loadHealth() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => { window.clearInterval(iv); document.removeEventListener('visibilitychange', onVis) }
   }, [allowed, owner, loadOverview, loadLog, loadHealth])
 
   useEffect(() => {
@@ -243,7 +254,8 @@ export default function Admin() {
       ? <AdminShell tab={tab} onTab={setTab} onRefresh={onRefresh} refreshing={refreshing} bell={bell} save={saveSlot} tabs={tabs}>
           {body}
           {viewShop && <AdminShopView shopId={viewShop} onClose={() => setViewShop(null)} />}
-          {notifOpen && health && <AdminNotifications h={health} onClose={() => setNotifOpen(false)} />}
+          {notifOpen && health && <AdminNotifications h={health} onClose={() => setNotifOpen(false)}
+            onSupport={tabs.includes('support') ? () => { setNotifOpen(false); setTab('support') } : undefined} />}
         </AdminShell>
       : <AdminShell>{body}</AdminShell>
   )
@@ -468,7 +480,7 @@ function healthStale(h: HealthData) {
 }
 
 /** v30: every health alert (open first, then fixed ones of the last 30 days). Opened from the bell in the top bar. */
-function AdminNotifications({ h, onClose }: { h: HealthData; onClose: () => void }) {
+function AdminNotifications({ h, onClose, onSupport }: { h: HealthData; onClose: () => void; onSupport?: () => void }) {
   const { t, lang } = useI18n()
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -489,7 +501,13 @@ function AdminNotifications({ h, onClose }: { h: HealthData; onClose: () => void
           {open.length ? t('admHealthBad', { n: open.length }) : healthStale(h) ? t('admHealthStale') : t('admHealthOk')}
         </p>
         <div className="adm-notif-list">
-          {open.map((a) => (
+          {open.map((a) => a.key.startsWith('support_') ? (
+            <button type="button" key={a.key} className="adm-notif-item adm-notif-sup" onClick={onSupport} disabled={!onSupport}>
+              <div><Icon name="mail" size={15} className="ico-inl" /><b>{a.title}</b></div>
+              <div className="small muted">{when(a.opened_at)}</div>
+              <div className="small">{a.detail}</div>
+            </button>
+          ) : (
             <div key={a.key} className="adm-notif-item bad">
               <div><Icon name="alert" size={15} className="ico-inl" /><b>{a.title}</b></div>
               <div className="small muted">{t('admHealthSince', { d: when(a.opened_at) })}</div>

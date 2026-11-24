@@ -2951,3 +2951,6 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
     top: var(--vs-top); bottom: var(--vs-status); left: calc(var(--vs-gap) * 2 + var(--vs-w)); right: var(--vs-gap); border-radius: 8px; overflow: hidden; padding-bottom: 0; }
   html:not(.in-app) .dash .ed-toast { bottom: calc(var(--vs-status) + 140px); }
 }
+/* v43: a new support message in the admin bell opens the Support inbox */
+button.adm-notif-item.adm-notif-sup { display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; border-left: 3px solid var(--c-brand); }
+button.adm-notif-item.adm-notif-sup:hover { background: var(--c-sunken); }

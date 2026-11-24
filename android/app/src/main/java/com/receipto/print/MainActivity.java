@@ -290,7 +290,9 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         try {
             String kind = intent.getStringExtra("kind");
             String path = intent.getStringExtra("path");
-            if (!"ready".equals(kind) || !PushService.validOrderPath(path)) return null;
+            boolean ok = ("ready".equals(kind) && PushService.validOrderPath(path))
+                || ("admin_alert".equals(kind) && PushService.validAdminPath(path));
+            if (!ok) return null;
             intent.removeExtra("kind");
             intent.removeExtra("path");
             return "https://" + APP_HOST + "/#" + path;

@@ -74,6 +74,11 @@ public class PushService extends FirebaseMessagingService {
     }
 
     /** "/o/<uuid>/<uuid>" only: the status page of one order. */
+    /** v43: admin alert taps open the Admin panel, optionally on one tab (support message -> /admin?tab=support). */
+    static boolean validAdminPath(String path) {
+        return path != null && path.matches("/admin(\\?tab=[a-z]{2,20})?");
+    }
+
     static boolean validOrderPath(String path) {
         return path != null && path.matches("/o/[0-9a-fA-F-]{36}/[0-9a-fA-F-]{36}");
     }
@@ -89,6 +94,8 @@ public class PushService extends FirebaseMessagingService {
     public void onMessageReceived(RemoteMessage msg) {
         // App open: the dashboard rings and shows a new order itself.
         Map<String, String> d = msg.getData();
+        // v43: admin alert while the app is open (Android only shows it by itself in the background)
+        if ("admin_alert".equals(d.get("kind"))) { showAdmin(msg, d); return; }
         if (!"ready".equals(d.get("kind"))) return;
         String path = d.get("path");
         if (!validOrderPath(path)) return;
@@ -97,6 +104,41 @@ public class PushService extends FirebaseMessagingService {
         // Both URL forms: app (#/o/ID/KEY, HashRouter) and website (/o/ID/KEY).
         if (foreground && url.contains(path)) return;
         showReady(msg, path, d.get("order_id"), d.get("lang"));
+    }
+
+    private void showAdmin(RemoteMessage msg, Map<String, String> d) {
+        try {
+            String path = d.get("path");
+            if (!validAdminPath(path)) path = "/admin";
+            ensureChannel(this);
+            RemoteMessage.Notification n = msg.getNotification();
+            String title = n != null && n.getTitle() != null ? n.getTitle() : (d.get("title") != null ? d.get("title") : "PrintQR");
+            String body = n != null && n.getBody() != null ? n.getBody() : (d.get("body") != null ? d.get("body") : "");
+            String tag = d.get("tag") != null ? d.get("tag") : "admin";
+            Intent open = new Intent(this, MainActivity.class)
+                .putExtra("kind", "admin_alert")
+                .putExtra("path", path)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            PendingIntent pi = PendingIntent.getActivity(this, tag.hashCode(), open,
+                PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
+            Notification.Builder b = Build.VERSION.SDK_INT >= 26
+                ? new Notification.Builder(this, CHANNEL)
+                : new Notification.Builder(this);
+            b.setSmallIcon(R.drawable.ic_stat_print)
+                .setColor(getColor(R.color.notif))
+                .setContentTitle(title)
+                .setContentText(body)
+                .setStyle(new Notification.BigTextStyle().bigText(body))
+                .setAutoCancel(true)
+                .setContentIntent(pi);
+            if (Build.VERSION.SDK_INT < 26) {
+                b.setPriority(Notification.PRIORITY_HIGH).setDefaults(Notification.DEFAULT_ALL);
+            }
+            NotificationManager nm = getSystemService(NotificationManager.class);
+            if (nm != null) nm.notify(tag, 2, b.build());
+        } catch (Exception ignored) {
+            // no permission: the admin bell still shows it
+        }
     }
 
     private void showReady(RemoteMessage msg, String path, String orderId, String lang) {
