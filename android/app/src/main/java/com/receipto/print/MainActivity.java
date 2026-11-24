@@ -41,6 +41,8 @@ import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import androidx.core.content.FileProvider;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
 import androidx.core.os.BundleCompat;
 import androidx.credentials.CreateCredentialResponse;
 import androidx.credentials.CreatePasswordRequest;
@@ -79,6 +81,10 @@ import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.util.Collections;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
@@ -184,7 +190,18 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
 
-        web.addJavascriptInterface(new Bridge(), "PQ");
+        // The Java object is reachable from every frame (also iframes such as the Turnstile check), so it is added
+        // under an internal name and every method needs this app run's secret key. Only frames of the app's own
+        // origin (https://appassets.androidplatform.net) get the key, inside window.PQ (bridgeWrapperJs).
+        web.addJavascriptInterface(new Bridge(), RAW_BRIDGE);
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            try {
+                WebViewCompat.addDocumentStartJavaScript(web, bridgeWrapperJs(), Collections.singleton("https://" + APP_HOST));
+                wrapperAtStart = true;
+            } catch (Throwable t) {
+                android.util.Log.w("PrintQR", "document start script failed", t);
+            }
+        }
         web.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
@@ -213,6 +230,7 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
             @Override
             public void onPageFinished(WebView view, String url) {
                 trackPage(url);
+                if (trustedPage && !wrapperAtStart) view.evaluateJavascript(bridgeWrapperJs(), null);
                 if (trustedPage) view.evaluateJavascript(BRIDGE_JS, null);
             }
         });
@@ -250,6 +268,7 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
 
             @Override
             public void onProgressChanged(WebView view, int progress) {
+                if (progress > 60 && trustedPage && !wrapperAtStart) view.evaluateJavascript(bridgeWrapperJs(), null);
                 if (progress > 60 && trustedPage) view.evaluateJavascript(BRIDGE_JS, null);
             }
         });
@@ -801,6 +820,46 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
     /** Only the bundled app's own pages may use the PQ bridge (not ads, payment pages or other sites). */
     private volatile boolean trustedPage = true;
 
+    /** Name of the raw Java bridge; pages use window.PQ (bridgeWrapperJs), which adds the key to every call. */
+    private static final String RAW_BRIDGE = "__PQN";
+    /** Random per app run. Never leaves the app except inside the script for the app's own origin. */
+    private final String bridgeKey = newBridgeKey();
+    /** True when the WebView runs bridgeWrapperJs at document start in app-origin frames only. */
+    private boolean wrapperAtStart = false;
+    private String wrapperJs;
+
+    private static String newBridgeKey() {
+        byte[] b = new byte[32];
+        new SecureRandom().nextBytes(b);
+        StringBuilder sb = new StringBuilder();
+        for (byte x : b) sb.append(String.format(Locale.ROOT, "%02x", x));
+        return sb.toString();
+    }
+
+    /** A bridge call is allowed only from the app's own page (main frame on the app origin) with the key. */
+    private boolean trusted(String k) {
+        return trustedPage && k != null
+            && MessageDigest.isEqual(k.getBytes(StandardCharsets.UTF_8), bridgeKey.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** window.PQ for the app page: same methods as Bridge, each passing the key first. Made once from Bridge's methods. */
+    private String bridgeWrapperJs() {
+        if (wrapperJs != null) return wrapperJs;
+        StringBuilder sb = new StringBuilder("(function(){var R=window." + RAW_BRIDGE + ",K=" + JSONObject.quote(bridgeKey)
+            + ";if(!R||(window.PQ&&window.PQ.__pqw))return;var P={__pqw:1};");
+        for (java.lang.reflect.Method m : Bridge.class.getDeclaredMethods()) {
+            if (!m.isAnnotationPresent(JavascriptInterface.class)) continue;
+            int n = m.getParameterTypes().length - 1;
+            StringBuilder a = new StringBuilder();
+            for (int i = 0; i < n; i++) a.append(i == 0 ? "" : ",").append("a").append(i);
+            sb.append("P.").append(m.getName()).append("=function(").append(a).append("){return R.").append(m.getName())
+                .append("(K").append(n > 0 ? "," : "").append(a).append(")};");
+        }
+        sb.append("try{Object.defineProperty(window,'PQ',{value:Object.freeze(P),configurable:false,writable:false})}catch(e){window.PQ=P}})();");
+        wrapperJs = sb.toString();
+        return wrapperJs;
+    }
+
     private void trackPage(String url) {
         PushService.currentUrl = url == null ? "" : url;
         Uri u = url == null ? null : Uri.parse(url);
@@ -842,8 +901,8 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
     private class Bridge {
         /** Light or dark system bars to match the web theme. */
         @JavascriptInterface
-        public void setBars(boolean dark) {
-            if (!trustedPage) return;
+        public void setBars(String k, boolean dark) {
+            if (!trusted(k)) return;
             runOnUiThread(() -> {
                 int c = dark ? 0xFF0B1210 : 0xFFFAF9F6;
                 Window w = getWindow();
@@ -859,8 +918,8 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
 
         /** Offer to save the login in Google Password Manager (app 1.5.71+). Shows the system "Save password?" sheet. */
         @JavascriptInterface
-        public void savePassword(String id, String password) {
-            if (!trustedPage || id == null || password == null || id.isEmpty() || password.isEmpty()) return;
+        public void savePassword(String k, String id, String password) {
+            if (!trusted(k) || id == null || password == null || id.isEmpty() || password.isEmpty()) return;
             runOnUiThread(() -> {
                 try {
                     CredentialManager cm = CredentialManager.create(MainActivity.this);
@@ -886,8 +945,8 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
 
         /** Pick a saved login from Google Password Manager (app 1.5.73+). Fills the form through window.__pqFill(id, password). */
         @JavascriptInterface
-        public void getPassword() {
-            if (!trustedPage) return;
+        public void getPassword(String k) {
+            if (!trusted(k)) return;
             runOnUiThread(() -> {
                 try {
                     CredentialManager cm = CredentialManager.create(MainActivity.this);
@@ -907,8 +966,8 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
 
         /** Sign in with Google (app 1.5.74+): Google's own account sheet, answers window.__pqGoogle(idToken, error). */
         @JavascriptInterface
-        public void googleSignIn(String clientId, String nonceHash) {
-            if (!trustedPage || clientId == null || clientId.isEmpty()) return;
+        public void googleSignIn(String k, String clientId, String nonceHash) {
+            if (!trusted(k) || clientId == null || clientId.isEmpty()) return;
             runOnUiThread(() -> {
                 try {
                     GetSignInWithGoogleOption.Builder ob = new GetSignInWithGoogleOption.Builder(clientId);
@@ -943,21 +1002,22 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
 
         /** SMS OTP auto-read (newer than app 1.5.77): wait for the next OTP SMS; answers via window event 'printqr-otp'. */
         @JavascriptInterface
-        public void startSmsRetriever() {
-            if (!trustedPage) return;
+        public void startSmsRetriever(String k) {
+            if (!trusted(k)) return;
             runOnUiThread(MainActivity.this::startSmsWait);
         }
 
         /** Stop waiting for the OTP SMS (login page closed, number changed). */
         @JavascriptInterface
-        public void stopSmsRetriever() {
+        public void stopSmsRetriever(String k) {
+            if (!trusted(k)) return;
             runOnUiThread(MainActivity.this::endSmsWait);
         }
 
         /** Status bar colour to match the page's own top bar (app 1.5.47+). hex like #e6e1d6. */
         @JavascriptInterface
-        public void setStatusColor(String hex, boolean darkIcons) {
-            if (!trustedPage) return;
+        public void setStatusColor(String k, String hex, boolean darkIcons) {
+            if (!trusted(k)) return;
             final int c;
             try { c = android.graphics.Color.parseColor(hex); } catch (Exception e) { return; }
             runOnUiThread(() -> {
@@ -969,8 +1029,8 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         }
 
         @JavascriptInterface
-        public void print(String title) {
-            if (!trustedPage) return;
+        public void print(String k, String title) {
+            if (!trusted(k)) return;
             runOnUiThread(() -> {
                 PrintManager pm = (PrintManager) getSystemService(PRINT_SERVICE);
                 if (pm != null) {
@@ -980,14 +1040,14 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         }
 
         @JavascriptInterface
-        public void openExternal(String url) {
-            if (!trustedPage) return;
+        public void openExternal(String k, String url) {
+            if (!trusted(k)) return;
             runOnUiThread(() -> MainActivity.this.openExternal(url));
         }
 
         @JavascriptInterface
-        public void razorpay(String optionsJson) {
-            if (!trustedPage) return;
+        public void razorpay(String k, String optionsJson) {
+            if (!trusted(k)) return;
             runOnUiThread(() -> {
                 try {
                     JSONObject o = new JSONObject(optionsJson);
@@ -1001,8 +1061,8 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         }
 
         @JavascriptInterface
-        public String appVersion() {
-            if (!trustedPage) return "";
+        public String appVersion(String k) {
+            if (!trusted(k)) return "";
             try {
                 return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
             } catch (Exception e) {
@@ -1011,20 +1071,20 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         }
 
         @JavascriptInterface
-        public void checkUpdate() {
-            if (!trustedPage) return;
+        public void checkUpdate(String k) {
+            if (!trusted(k)) return;
             checkUpdateAsync();
         }
 
         @JavascriptInterface
-        public void downloadUpdate(String version) {
-            if (!trustedPage) return;
+        public void downloadUpdate(String k, String version) {
+            if (!trusted(k)) return;
             downloadUpdateAsync(version);
         }
 
         @JavascriptInterface
-        public boolean canInstall() {
-            if (!trustedPage) return false;
+        public boolean canInstall(String k) {
+            if (!trusted(k)) return false;
             try {
                 return Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls();
             } catch (Exception e) {
@@ -1033,8 +1093,8 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
         }
 
         @JavascriptInterface
-        public String installUpdate() {
-            if (!trustedPage) return "error:UNTRUSTED";
+        public String installUpdate(String k) {
+            if (!trusted(k)) return "error:UNTRUSTED";
             final String[] res = { "error:INSTALL_FAILED" };
             final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
             runOnUiThread(() -> {
@@ -1047,29 +1107,30 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
 
         /** Saved push token ("" until Firebase gives one; a new one also arrives via window.__pqPush). */
         @JavascriptInterface
-        public String pushToken() {
-            if (!trustedPage) return "";
+        public String pushToken(String k) {
+            if (!trusted(k)) return "";
             runOnUiThread(MainActivity.this::fetchPushToken);
             return getSharedPreferences(PushService.PREFS, MODE_PRIVATE).getString(PushService.KEY_TOKEN, "");
         }
 
         /** Last Firebase token problem ("" when fine), for the Settings push line. */
         @JavascriptInterface
-        public String pushError() {
-            if (!trustedPage) return "";
+        public String pushError(String k) {
+            if (!trusted(k)) return "";
             return getSharedPreferences(PushService.PREFS, MODE_PRIVATE).getString("push_err", "");
         }
 
         /** True when the user allowed notifications for the app. */
         @JavascriptInterface
-        public boolean notifyAllowed() {
+        public boolean notifyAllowed(String k) {
+            if (!trusted(k)) return false;
             return androidx.core.app.NotificationManagerCompat.from(MainActivity.this).areNotificationsEnabled();
         }
 
         /** Android 13+: ask once for permission to show notifications. The answer goes to window.__pqNotify(granted). */
         @JavascriptInterface
-        public void askNotify() {
-            if (!trustedPage) return;
+        public void askNotify(String k) {
+            if (!trusted(k)) return;
             runOnUiThread(() -> {
                 if (Build.VERSION.SDK_INT >= 33
                         && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
@@ -1082,20 +1143,20 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
 
         /** UI language (EN / हिं on the page): the app's own notifications, channel names and messages use it. */
         @JavascriptInterface
-        public void setLang(String lang) {
-            if (!trustedPage) return;
+        public void setLang(String k, String lang) {
+            if (!trusted(k)) return;
             PushService.setLang(MainActivity.this, lang);
         }
 
         @JavascriptInterface
-        public void toast(String msg) {
-            if (!trustedPage) return;
+        public void toast(String k, String msg) {
+            if (!trusted(k)) return;
             runOnUiThread(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show());
         }
 
         @JavascriptInterface
-        public void saveFile(String base64, String name, String mime) {
-            if (!trustedPage) return;
+        public void saveFile(String k, String base64, String name, String mime) {
+            if (!trusted(k)) return;
             try {
                 byte[] data = Base64.decode(base64, Base64.DEFAULT);
                 Uri saved;
@@ -1124,7 +1185,7 @@ public class MainActivity extends Activity implements PaymentResultWithDataListe
                     }
                 });
             } catch (Exception e) {
-                toast(PushService.hi(MainActivity.this) ? "डाउनलोड नहीं हुआ" : "Download failed");
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, PushService.hi(MainActivity.this) ? "डाउनलोड नहीं हुआ" : "Download failed", Toast.LENGTH_SHORT).show());
             }
         }
     }

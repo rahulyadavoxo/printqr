@@ -452,7 +452,9 @@ export default function Upload() {
       const { data, error } = res
       if (error && /captcha_required/i.test(error.message || '')) {
         setNeedCheck(true)
-        throw new Error(t('uCheckNeeded'))
+        // shown as is (te() would turn an unknown line into the generic error)
+        setMsg(t('uCheckNeeded'))
+        return
       }
       if (error) throw error
       setNeedCheck(false)

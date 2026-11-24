@@ -10,6 +10,7 @@ import { ding, unlockAudio } from '../lib/sound'
 import { notifyWhenReady, webPushSupported } from '../lib/webpush'
 import { appNotifyAllowed, appNotifyWhenReady, appPushSupported, appReadyOptedIn } from '../lib/push'
 import Icon from '../components/Icon'
+import { Turnstile } from '../components/Turnstile'
 import hourglass from '../assets/hourglass.svg'
 import readyAnim from '../assets/ready-collect.svg'
 import doneAnim from '../assets/order-done-thank-you.svg'
@@ -182,6 +183,23 @@ function StatusPage({ id, orderKey: key }: { id: string; orderKey: string }) {
   const [reChoice, setReChoice] = useState<Record<string, ReChoice>>({})
   const [reBusy, setReBusy] = useState(false)
   const [reMsg, setReMsg] = useState<string | null>(null)
+  // v44: "Print again" gets the same bot check as a new order, only when the server asks for it (captcha_required).
+  const [reNeedCheck, setReNeedCheck] = useState(false)
+  const [rePass, setRePass] = useState<string | null>(null)
+  const [reCheckReset, setReCheckReset] = useState(0)
+  async function onReCheckToken(token: string | null) {
+    if (!token) return setRePass(null)
+    const r = await supabase.functions.invoke('upload-pass', { body: { token } })
+    const p = (r.data as { pass?: string } | null)?.pass
+    if (r.error || !p) {
+      setRePass(null)
+      setReMsg(t('uCheckFail'))
+      setReCheckReset((n) => n + 1)
+      return
+    }
+    setRePass(p)
+    setReMsg(null)
+  }
   const reEligible = !!info && !info.files_deleted && ['received', 'printing', 'ready', 'done'].includes(info.status)
   useEffect(() => {
     if (!reEligible) return
@@ -204,8 +222,21 @@ function StatusPage({ id, orderKey: key }: { id: string; orderKey: string }) {
     setReBusy(true)
     setReMsg(null)
     try {
-      const { data, error } = await supabase.rpc('reorder', { p_order_id: id, p_key: key, p_items: items })
+      const args: Record<string, unknown> = { p_order_id: id, p_key: key, p_items: items }
+      if (rePass) {
+        args.p_pass = rePass
+        setRePass(null)
+        setReCheckReset((n) => n + 1)
+      }
+      const { data, error } = await supabase.rpc('reorder', args)
+      if (error && /captcha_required/i.test(error.message || '')) {
+        setReNeedCheck(true)
+        // shown as is (te() would turn an unknown line into the generic error)
+        setReMsg(t('uCheckNeeded'))
+        return
+      }
       if (error) throw error
+      setReNeedCheck(false)
       const order = (data as { order_id: string; access_key: string }[])[0]
       void supabase.rpc('set_order_lang', { p_order_id: order.order_id, p_key: order.access_key, p_lang: lang === 'hi' ? 'hi' : 'en' }).then(() => {}, () => {})
       // The server copies the stored files to the new order and sends it to the shop.
@@ -391,6 +422,12 @@ function StatusPage({ id, orderKey: key }: { id: string; orderKey: string }) {
               )
             })}
             {reMsg && <p className="notice error" role="alert"><Icon name="alert" size={18} /> <span>{reMsg}</span></p>}
+            {reNeedCheck && (
+              <div className="card check-card">
+                <p className="small"><strong>{t('uCheckTitle')}</strong> {rePass ? t('uCheckOk') : t('uCheckSub')}</p>
+                <Turnstile action="upload" onToken={(tok) => void onReCheckToken(tok)} resetKey={reCheckReset} lang={lang} />
+              </div>
+            )}
             <div className="file-price"><span className="muted">{t('total')}</span><strong>{rupees(total)}</strong></div>
             <button type="button" className="btn primary block lg" disabled={reBusy || !re.files.some((f) => f.allowed && reChoice[f.id]?.on)} onClick={() => void sendAgain()}>
               {reBusy ? <><span className="spinner" aria-hidden="true" />{t('pleaseWait')}</> : <>{t('reSend')} · {rupees(total)}</>}

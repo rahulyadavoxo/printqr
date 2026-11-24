@@ -167,7 +167,7 @@ export function CouponBox({ onDone, deal, onDeal }: { onDone: () => Promise<void
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
-  const errKey: Record<string, Key> = { not_found: 'cpNotFound', expired: 'cpExpired', used_up: 'cpUsedUp', already: 'cpAlready', too_many: 'cpTooMany', blocked: 'cpNotFound', disabled: 'cpOff' }
+  const errKey: Record<string, Key> = { not_found: 'cpNotFound', expired: 'cpExpired', used_up: 'cpUsedUp', already: 'cpAlready', too_many: 'cpTooMany', blocked: 'cpNotFound', disabled: 'cpOff', tier_higher_than_paid: 'cpTierHigher' }
   const redeem = async (e: FormEvent) => {
     e.preventDefault()
     const c = code.trim().toUpperCase()

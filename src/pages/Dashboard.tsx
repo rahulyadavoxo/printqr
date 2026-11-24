@@ -1301,10 +1301,22 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
   async function deleteFiles(o: Order) {
     if (!await askConfirm(t('confirmDelete', { token: o.token }), { icon: 'trash' })) return
     // v24: photos may have a small '<path>.thumb.jpg' beside them (missing ones are ignored)
-    const paths = (o.order_files || []).flatMap((f) => [f.storage_path, f.storage_path + '.thumb.jpg'])
-    const { error } = await supabase.storage.from('uploads').remove(paths)
-    if (error) return setErr(te(error))
-    await supabase.from('orders').update({ files_deleted: true }).eq('id', o.id)
+    const files = (o.order_files || []).map((f) => f.storage_path).filter(Boolean)
+    const paths = files.flatMap((p) => [p, p + '.thumb.jpg'])
+    if (paths.length) {
+      const { error } = await supabase.storage.from('uploads').remove(paths)
+      if (error) return setErr(te(error))
+      // Mark the order "files deleted" only when nothing of it is left in storage (files and thumbnails):
+      // remove() skips what it could not delete without an error, and a flag set too early hides the files from auto-delete.
+      const folders = [...new Set(files.map((p) => p.split('/').slice(0, -1).join('/')))]
+      for (const folder of folders) {
+        const { data: left, error: listErr } = await supabase.storage.from('uploads').list(folder, { limit: 1000 })
+        if (listErr) return setErr(te(listErr))
+        if ((left || []).some((x) => paths.includes(`${folder}/${x.name}`))) return setErr(t('delFilesLeft'))
+      }
+    }
+    const { error: upErr } = await supabase.from('orders').update({ files_deleted: true }).eq('id', o.id)
+    if (upErr) return setErr(te(upErr))
     void load()
   }
 
@@ -3011,7 +3023,7 @@ function PlanTab({ shop, email, contact, onChanged }: { shop: Shop; email?: stri
     if (code === 'not_deployed' || code === 'missing_env') return t('planNotReady')
     if (code && code.startsWith('coupon_')) {
       const k: Record<string, Key> = { coupon_expired: 'cpExpired', coupon_used_up: 'cpUsedUp', coupon_already: 'cpAlready', coupon_too_many: 'cpTooMany',
-        coupon_not_for_plan: 'cpNotForPlan', coupon_offer_failed: 'cpOfferFail' }
+        coupon_not_for_plan: 'cpNotForPlan', coupon_offer_failed: 'cpOfferFail', coupon_tier_higher_than_paid: 'cpTierHigher' }
       return t(k[code] || 'cpNotFound')
     }
     return te(e)

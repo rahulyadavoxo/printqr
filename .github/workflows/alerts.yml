@@ -28,7 +28,11 @@ concurrency:
 
 jobs:
   bell:
-    if: contains(fromJSON('["success","failure","timed_out","startup_failure"]'), github.event.workflow_run.conclusion)
+    # Only runs of this repo's own branches: a pull request (e.g. from a fork) never opens or closes an alert.
+    if: >-
+      contains(fromJSON('["success","failure","timed_out","startup_failure"]'), github.event.workflow_run.conclusion)
+      && github.event.workflow_run.event != 'pull_request'
+      && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
