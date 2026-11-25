@@ -5,6 +5,8 @@
 //   delete_user  { user_id, code }                       -> delete the login, its shop (all rows cascade), its files and logo,
 //                                                           and stop its Razorpay subscription. code = a fresh 6-digit code
 //                                                           from the admin's authenticator app, checked here every time.
+//   make_support { user_id, code }                       -> add a login to public.admins with role 'support' (fresh
+//                                                           authenticator code required, like delete_user)
 //   send_reset   { user_id }                             -> password reset email
 //   cancel_subscription { shop_id }                      -> Razorpay cancel (at cycle end when possible)
 //   delete_files { order_id }                            -> delete an order's files from storage now
@@ -263,6 +265,18 @@ Deno.serve(async (req) => {
         user_id: uid, email: user.email || user.phone || null, shop: shops[0]?.name || null, files, subscription
       })
       return json({ ok: true, files })
+    }
+
+    if (action === 'make_support') {
+      const uid = id(body.user_id, 'user_id')
+      if (uid === admin) throw new HttpError(400, 'self', 'You are already an admin')
+      const isAdm = await db<{ user_id: string; role: string | null }[]>(`admins?user_id=eq.${uid}&select=user_id,role`)
+      if (isAdm.length) throw new HttpError(409, 'already_admin', `This login is already an admin (${isAdm[0].role || 'owner'})`)
+      await checkCode(req, body.code)
+      const user = (await call(`/auth/v1/admin/users/${uid}`)) as { email?: string; phone?: string }
+      await db('admins', { method: 'POST', body: JSON.stringify({ user_id: uid, role: 'support' }), prefer: 'return=minimal' })
+      await log(admin, 'role_changed', null, { user_id: uid, email: user.email || user.phone || null, role: 'support', before: null })
+      return json({ ok: true })
     }
 
     if (action === 'send_reset') {

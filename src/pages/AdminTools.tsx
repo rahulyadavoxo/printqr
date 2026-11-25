@@ -804,6 +804,11 @@ export function AdminRoles({ onMsg }: { onMsg: Msg }) {
     setRows((data || []) as AdminRow[])
   }, [])
   useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    const on = () => { void load() }
+    window.addEventListener('pq-admins-changed', on)
+    return () => window.removeEventListener('pq-admins-changed', on)
+  }, [load])
   const change = async (a: AdminRow, role: string) => {
     if (a.is_me && role !== 'owner' && !await askConfirm(t('adxRoleSelfAsk'))) return
     setBusy(a.user_id)

@@ -72,6 +72,7 @@ export function AdminUsers({ onMsg, owner = true }: { onMsg: Msg; owner?: boolea
   const [more, setMore] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [del, setDel] = useState<UserRow | null>(null)
+  const [sup, setSup] = useState<UserRow | null>(null)
 
   const load = useCallback(async (search: string, offset: number) => {
     const { data, error } = await supabase.rpc('admin_users', { p_q: search, p_limit: PAGE, p_offset: offset })
@@ -126,6 +127,7 @@ export function AdminUsers({ onMsg, owner = true }: { onMsg: Msg; owner?: boolea
                   {u.banned
                     ? <button type="button" className="btn small" disabled={busy === u.user_id} onClick={() => act(u, 'enable_user')}>{t('admEnableUser')}</button>
                     : <button type="button" className="btn small danger-outline" disabled={busy === u.user_id} onClick={() => act(u, 'disable_user')}>{t('admDisableUser')}</button>}
+                  <button type="button" className="btn small soft" disabled={busy === u.user_id || u.banned} onClick={() => setSup(u)}>{t('admMakeSupport')}</button>
                   <button type="button" className="btn small danger" disabled={busy === u.user_id} onClick={() => setDel(u)}>{t('admDeleteUser')}</button>
                 </div>
               )}
@@ -135,8 +137,14 @@ export function AdminUsers({ onMsg, owner = true }: { onMsg: Msg; owner?: boolea
         </div>
       )}
       {del && (
-        <DeleteUserDialog user={del} onClose={() => setDel(null)}
+        <CodeDialog action="delete_user" user={del} danger ask={t('admDeleteAsk', { email: del.email || '—' })}
+          body={t('admDeleteBody', { shop: del.shop_name || t('admNoShop') })} ok={t('admDeleteUser')} onClose={() => setDel(null)}
           onDone={() => { onMsg({ text: t('admUserDeleted', { email: del.email || '' }) }); setDel(null); load(query, 0) }} />
+      )}
+      {sup && (
+        <CodeDialog action="make_support" user={sup} ask={t('admSupportAsk', { email: sup.email || '—' })}
+          body={t('admSupportBody')} ok={t('admMakeSupport')} onClose={() => setSup(null)}
+          onDone={() => { onMsg({ text: t('admSupportDone', { email: sup.email || '' }) }); setSup(null); load(query, 0); window.dispatchEvent(new Event('pq-admins-changed')) }} />
       )}
     </>
   )
@@ -733,9 +741,13 @@ function AdminSetHub({ t, s, onOpen }: { t: ReturnType<typeof useI18n>['t']; s?:
   )
 }
 
-/** Delete a login and its shop for good. Needs a fresh 6-digit code from the admin's authenticator app
- *  every time; the admin-action function checks the code itself before it deletes anything. */
-function DeleteUserDialog({ user, onClose, onDone }: { user: UserRow; onClose: () => void; onDone: () => void }) {
+/** Actions that need a fresh 6-digit code from the admin's authenticator app every time (delete a login,
+ *  make a login Support). The admin-action function checks the code itself before it changes anything. */
+type CodeDialogProps = {
+  action: 'delete_user' | 'make_support'; user: UserRow; ask: string; body: string; ok: string; danger?: boolean
+  onClose: () => void; onDone: () => void
+}
+function CodeDialog({ action, user, ask, body, ok: okLabel, danger, onClose, onDone }: CodeDialogProps) {
   const { t, teRaw } = useI18n()
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
@@ -751,7 +763,7 @@ function DeleteUserDialog({ user, onClose, onDone }: { user: UserRow; onClose: (
     setBusy(true)
     setErr('')
     try {
-      await callFn('admin-action', { action: 'delete_user', user_id: user.user_id, code })
+      await callFn('admin-action', { action, user_id: user.user_id, code })
       onDone()
     } catch (e) {
       const c = (e as { code?: string }).code
@@ -765,10 +777,10 @@ function DeleteUserDialog({ user, onClose, onDone }: { user: UserRow; onClose: (
       <form className="cf-box" role="alertdialog" aria-modal="true" aria-labelledby="del-user-msg"
         onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); void go() }}>
         <div className="cf-head">
-          <span className="cf-icon is-danger" aria-hidden="true"><Icon name="alert" size={22} /></span>
-          <p id="del-user-msg" className="cf-msg">{t('admDeleteAsk', { email: user.email || '—' })}</p>
+          <span className={'cf-icon' + (danger ? ' is-danger' : '')} aria-hidden="true"><Icon name={danger ? 'alert' : 'lock'} size={22} /></span>
+          <p id="del-user-msg" className="cf-msg">{ask}</p>
         </div>
-        <p className="cf-body">{t('admDeleteBody', { shop: user.shop_name || t('admNoShop') })}</p>
+        <p className="cf-body">{body}</p>
         <p className="cf-body">{t('admDeleteCode')}</p>
         <div className="field">
           <OtpInput value={code} onChange={(v) => { setCode(v); if (err) setErr('') }} length={6} disabled={busy} error={!!err && !code}
@@ -777,7 +789,7 @@ function DeleteUserDialog({ user, onClose, onDone }: { user: UserRow; onClose: (
         {err && <p className="small err-text" role="alert">{err}</p>}
         <div className="cf-row">
           <button type="button" className="btn" disabled={busy} onClick={onClose}>{t('cancel')}</button>
-          <button type="submit" className="btn danger" disabled={!ok || busy} aria-busy={busy}>{busy ? '…' : t('admDeleteUser')}</button>
+          <button type="submit" className={'btn ' + (danger ? 'danger' : 'primary')} disabled={!ok || busy} aria-busy={busy}>{busy ? '…' : okLabel}</button>
         </div>
       </form>
     </div>
