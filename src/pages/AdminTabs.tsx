@@ -16,6 +16,7 @@ import { FILE_REPORT_REASON_KEY } from '../lib/fileReports'
 import { SkelForm, SkelList, SkelLog, SkelStats } from '../components/Skeletons'
 import { ask as askConfirm } from '../components/ConfirmHost'
 import { AdminRoles } from './AdminTools'
+import OtpInput from '../components/OtpInput'
 
 /* Admin panel tabs: Users, Orders, Payments, Spam watch, Settings. Every RPC checks is_admin() in SQL;
    the admin-action Edge Function checks public.admins too. */
@@ -70,6 +71,7 @@ export function AdminUsers({ onMsg, owner = true }: { onMsg: Msg; owner?: boolea
   const [rows, setRows] = useState<UserRow[] | null>(null)
   const [more, setMore] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
+  const [del, setDel] = useState<UserRow | null>(null)
 
   const load = useCallback(async (search: string, offset: number) => {
     const { data, error } = await supabase.rpc('admin_users', { p_q: search, p_limit: PAGE, p_offset: offset })
@@ -124,12 +126,17 @@ export function AdminUsers({ onMsg, owner = true }: { onMsg: Msg; owner?: boolea
                   {u.banned
                     ? <button type="button" className="btn small" disabled={busy === u.user_id} onClick={() => act(u, 'enable_user')}>{t('admEnableUser')}</button>
                     : <button type="button" className="btn small danger-outline" disabled={busy === u.user_id} onClick={() => act(u, 'disable_user')}>{t('admDisableUser')}</button>}
+                  <button type="button" className="btn small danger" disabled={busy === u.user_id} onClick={() => setDel(u)}>{t('admDeleteUser')}</button>
                 </div>
               )}
             </div>
           ))}
           {more && <button type="button" className="btn block" onClick={() => load(query, rows.length)}>{t('admMore')}</button>}
         </div>
+      )}
+      {del && (
+        <DeleteUserDialog user={del} onClose={() => setDel(null)}
+          onDone={() => { onMsg({ text: t('admUserDeleted', { email: del.email || '' }) }); setDel(null); load(query, 0) }} />
       )}
     </>
   )
@@ -722,6 +729,57 @@ function AdminSetHub({ t, s, onOpen }: { t: ReturnType<typeof useI18n>['t']; s?:
         </Fragment>
       ))}
       {!s && <span className="sr-only">{t('loading')}</span>}
+    </div>
+  )
+}
+
+/** Delete a login and its shop for good. Needs a fresh 6-digit code from the admin's authenticator app
+ *  every time; the admin-action function checks the code itself before it deletes anything. */
+function DeleteUserDialog({ user, onClose, onDone }: { user: UserRow; onClose: () => void; onDone: () => void }) {
+  const { t, teRaw } = useI18n()
+  const [code, setCode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [busy, onClose])
+  const ok = /^\d{6}$/.test(code)
+  const go = async () => {
+    if (!ok || busy) return
+    setBusy(true)
+    setErr('')
+    try {
+      await callFn('admin-action', { action: 'delete_user', user_id: user.user_id, code })
+      onDone()
+    } catch (e) {
+      const c = (e as { code?: string }).code
+      setErr(c === 'bad_code' ? t('admMfaWrong') : teRaw(e))
+      setCode('')
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="cf-back" onClick={() => { if (!busy) onClose() }}>
+      <form className="cf-box" role="alertdialog" aria-modal="true" aria-labelledby="del-user-msg"
+        onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); void go() }}>
+        <div className="cf-head">
+          <span className="cf-icon is-danger" aria-hidden="true"><Icon name="alert" size={22} /></span>
+          <p id="del-user-msg" className="cf-msg">{t('admDeleteAsk', { email: user.email || '—' })}</p>
+        </div>
+        <p className="cf-body">{t('admDeleteBody', { shop: user.shop_name || t('admNoShop') })}</p>
+        <p className="cf-body">{t('admDeleteCode')}</p>
+        <div className="field">
+          <OtpInput value={code} onChange={(v) => { setCode(v); if (err) setErr('') }} length={6} disabled={busy} error={!!err && !code}
+            autoFocus ariaLabel={t('otpAria', { n: 6 })} />
+        </div>
+        {err && <p className="small err-text" role="alert">{err}</p>}
+        <div className="cf-row">
+          <button type="button" className="btn" disabled={busy} onClick={onClose}>{t('cancel')}</button>
+          <button type="submit" className="btn danger" disabled={!ok || busy} aria-busy={busy}>{busy ? '…' : t('admDeleteUser')}</button>
+        </div>
+      </form>
     </div>
   )
 }

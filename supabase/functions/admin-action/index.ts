@@ -2,6 +2,9 @@
 // app_settings.admin_mfa_required is on (v36), logged in with the 2-step code: JWT aal = 'aal2')
 // Admin actions that need the service role or Razorpay:
 //   disable_user { user_id } / enable_user { user_id }   -> Supabase Auth ban on/off
+//   delete_user  { user_id, code }                       -> delete the login, its shop (all rows cascade), its files and logo,
+//                                                           and stop its Razorpay subscription. code = a fresh 6-digit code
+//                                                           from the admin's authenticator app, checked here every time.
 //   send_reset   { user_id }                             -> password reset email
 //   cancel_subscription { shop_id }                      -> Razorpay cancel (at cycle end when possible)
 //   delete_files { order_id }                            -> delete an order's files from storage now
@@ -69,6 +72,52 @@ function jwtAal(auth: string): string {
 async function mfaRequired(): Promise<boolean> {
   const rows = await db<{ admin_mfa_required: boolean | null }[]>('app_settings?id=eq.1&select=admin_mfa_required')
   return rows[0]?.admin_mfa_required !== false
+}
+
+/** Checks a fresh 6-digit code from the calling admin's authenticator app (their verified TOTP factor).
+ *  Used for actions that cannot be undone, even when the session is already aal2. */
+async function checkCode(req: Request, code: unknown): Promise<void> {
+  const c = String(code || '').replace(/\s/g, '')
+  if (!/^\d{6}$/.test(c)) throw new HttpError(400, 'bad_code', 'Type the 6-digit code from your authenticator app')
+  const auth = req.headers.get('Authorization') || ''
+  const anon = Deno.env.get('SUPABASE_ANON_KEY') || KEY
+  const h = { apikey: anon, Authorization: auth, 'Content-Type': 'application/json' }
+  const u = await fetch(`${URL_}/auth/v1/user`, { headers: h })
+  if (!u.ok) throw new HttpError(401, 'not_logged_in', 'Please log in again')
+  const user = (await u.json()) as { factors?: { id: string; factor_type: string; status: string }[] }
+  const f = (user.factors || []).find((x) => x.factor_type === 'totp' && x.status === 'verified')
+  if (!f) throw new HttpError(403, 'no_authenticator', 'Set up 2-step login (authenticator app) for your admin login first')
+  const ch = await fetch(`${URL_}/auth/v1/factors/${f.id}/challenge`, { method: 'POST', headers: h, body: '{}' })
+  if (!ch.ok) throw new HttpError(502, 'code_check_failed', `Could not check the code (${ch.status})`)
+  const challenge = (await ch.json()) as { id?: string }
+  const v = await fetch(`${URL_}/auth/v1/factors/${f.id}/verify`, { method: 'POST', headers: h, body: JSON.stringify({ challenge_id: challenge.id, code: c }) })
+  if (!v.ok) throw new HttpError(403, 'bad_code', 'Wrong or expired code. Type the new code from the app.')
+}
+
+/** Lists every object under a folder of a bucket (one level of sub-folders is walked too). */
+async function listAll(bucket: string, prefix: string): Promise<string[]> {
+  const out: string[] = []
+  const walk = async (pre: string, depth: number) => {
+    for (let offset = 0; ; offset += 1000) {
+      const items = (await call(`/storage/v1/object/list/${bucket}`, {
+        method: 'POST', body: JSON.stringify({ prefix: pre, limit: 1000, offset })
+      })) as { name: string; id: string | null }[]
+      for (const it of items) {
+        const path = `${pre}/${it.name}`
+        if (it.id) out.push(path)
+        else if (depth < 3) await walk(path, depth + 1)
+      }
+      if (items.length < 1000) break
+    }
+  }
+  await walk(prefix, 0)
+  return out
+}
+
+async function removeObjects(bucket: string, paths: string[]): Promise<void> {
+  for (let i = 0; i < paths.length; i += 500) {
+    await call(`/storage/v1/object/${bucket}`, { method: 'DELETE', body: JSON.stringify({ prefixes: paths.slice(i, i + 500) }) })
+  }
 }
 
 // v39: actions a 'support' admin may use (file reports, like the Spam tab). Everything else is owner-only.
@@ -177,6 +226,43 @@ Deno.serve(async (req) => {
       const shop = await db<{ id: string }[]>(`shops?owner_id=eq.${uid}&select=id`)
       await log(admin, action === 'disable_user' ? 'user_disabled' : 'user_enabled', shop[0]?.id || null, { user_id: uid })
       return json({ ok: true })
+    }
+
+    if (action === 'delete_user') {
+      const uid = id(body.user_id, 'user_id')
+      if (uid === admin) throw new HttpError(400, 'self', 'You cannot delete your own login')
+      const isAdm = await db<{ user_id: string }[]>(`admins?user_id=eq.${uid}&select=user_id`)
+      if (isAdm.length) throw new HttpError(400, 'is_admin', 'Remove this admin first, then delete the login')
+      await checkCode(req, body.code)
+      const user = (await call(`/auth/v1/admin/users/${uid}`)) as { email?: string; phone?: string }
+      const shops = await db<{ id: string; name: string | null; razorpay_subscription_id: string | null }[]>(
+        `shops?owner_id=eq.${uid}&select=id,name,razorpay_subscription_id`)
+      let files = 0
+      let subscription: string | null = null
+      for (const s of shops) {
+        // Stop billing first: if Razorpay refuses, nothing is deleted.
+        if (s.razorpay_subscription_id) {
+          const cur = await rzp<Subscription>(`subscriptions/${encodeURIComponent(s.razorpay_subscription_id)}`)
+          if (!['cancelled', 'completed', 'expired'].includes(cur.status)) {
+            await rzp<Subscription>(`subscriptions/${encodeURIComponent(s.razorpay_subscription_id)}/cancel`, 'POST', { cancel_at_cycle_end: 0 })
+          }
+          subscription = s.razorpay_subscription_id
+        }
+        const rows = await db<{ storage_path: string }[]>(`order_files?shop_id=eq.${s.id}&select=storage_path`)
+        const known = rows.map((r) => r.storage_path).filter(Boolean).flatMap((p) => [p, p + '.thumb.jpg'])
+        const listed = await listAll('uploads', s.id).catch(() => [] as string[])
+        const uploads = [...new Set([...known, ...listed])]
+        await removeObjects('uploads', uploads)
+        const logos = await listAll('shop-logos', s.id).catch(() => [] as string[])
+        await removeObjects('shop-logos', logos)
+        files += uploads.length + logos.length
+      }
+      // Deleting the login deletes the shop and every row that belongs to it (on delete cascade).
+      await call(`/auth/v1/admin/users/${uid}`, { method: 'DELETE' })
+      await log(admin, 'user_deleted', shops[0]?.id || null, {
+        user_id: uid, email: user.email || user.phone || null, shop: shops[0]?.name || null, files, subscription
+      })
+      return json({ ok: true, files })
     }
 
     if (action === 'send_reset') {
