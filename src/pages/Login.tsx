@@ -87,6 +87,8 @@ function LoginPage({ captcha, setCaptchaReset }: {
   const settings = useAppSettings()
   const designParam = params.get('design')
   const design: LoginDesign = designParam && (LOGIN_DESIGNS as readonly string[]).includes(designParam) ? designParam as LoginDesign : loginDesignFor(settings)
+  // The wrong-password hint names the sign-up control exactly as this design labels it (tab vs link).
+  const signupLabel = (['split', 'bento', 'bentofull', 'modern'] as string[]).includes(design) ? t('lxTabUp') : t('switchSignup')
   const [fullName, setFullName] = useState('')
   const initialMode = params.get('mode')
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(
@@ -351,7 +353,7 @@ function LoginPage({ captcha, setCaptchaReset }: {
       }
     } catch (e) {
       const bad = /invalid login credentials/i.test(String((e as Error)?.message || ''))
-      setMsg({ text: isCaptchaError(e) ? t('captchaFail') : idIsPhone && bad ? t('phNoPass') : bad ? t('badOrNew') : te(e), error: true })
+      setMsg({ text: isCaptchaError(e) ? t('captchaFail') : idIsPhone && bad ? t('phNoPass', { tab: signupLabel }) : bad ? t('badOrNew', { tab: signupLabel }) : te(e), error: true })
     } finally {
       setBusy(false)
       setCaptchaReset((n) => n + 1)
@@ -461,7 +463,8 @@ function LoginPage({ captcha, setCaptchaReset }: {
   ) : null
   const terms = (pre: string) => (
     <p className="auth-terms">
-      {pre} <Link to="/legal/terms">{t('agreeTerms')}</Link>, <Link to="/legal/refund">{t('agreeRefund')}</Link> {t('agreeAnd')} <Link to="/legal/privacy">{t('agreePrivacy')}</Link>{t('agreePost')}
+      {/* Spaces sit inside the text pieces (not as whitespace-only nodes) so they survive in every reader / a11y tree. */}
+      {`${pre} `}<Link to="/legal/terms">{t('agreeTerms')}</Link>{', '}<Link to="/legal/refund">{t('agreeRefund')}</Link>{` ${t('agreeAnd')} `}<Link to="/legal/privacy">{t('agreePrivacy')}</Link>{t('agreePost')}
     </p>
   )
 

@@ -105,7 +105,7 @@ function shortUa(ua: string | null): string {
 }
 
 export function AdminErrors({ onMsg }: { onMsg: Msg }) {
-  const { t, teRaw } = useI18n()
+  const { t, tn, teRaw } = useI18n()
   const dt = useDT()
   const [hours, setHours] = useState(24)
   const [rows, setRows] = useState<ErrGroup[] | null>(null)
@@ -131,7 +131,7 @@ export function AdminErrors({ onMsg }: { onMsg: Msg }) {
       </div>
       {!rows ? <SkelList /> : rows.length === 0 ? <p className="muted">{t('adxNoErrors')}</p> : (
         <div className="admin-list">
-          <p className="small muted">{t('adxErrTotal', { n: total, g: rows.length })}</p>
+          <p className="small muted">{tn('adxErrReports1', 'adxErrReportsN', total)}, {tn('adxErrGroups1', 'adxErrGroupsN', rows.length)}</p>
           {rows.map((g) => {
             const last = g.items[0]
             return (
@@ -648,7 +648,7 @@ export function AdminReach({ onMsg, onView }: { onMsg: Msg; onView: (shopId: str
   return (
     <>
       <h2 className="admin-sec adm-tab-h">{t('adxReachTab')}</h2>
-      <h2 className="admin-sec">{t('adxExpiring')} {exp ? `(${exp.length})` : ''}</h2>
+      <h2 className="admin-sec">{t('adxExpiring')}{exp ? ` (${exp.length})` : ''}</h2>
       <p className="small muted">{t('adxExpiringHint')}</p>
       {!exp ? <SkelList n={2} /> : exp.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
         <div className="admin-list">
@@ -672,7 +672,7 @@ export function AdminReach({ onMsg, onView }: { onMsg: Msg; onView: (shopId: str
         </div>
       )}
 
-      <h2 className="admin-sec">{t('adxInactive')} {ina ? `(${ina.length})` : ''}</h2>
+      <h2 className="admin-sec">{t('adxInactive')}{ina ? ` (${ina.length})` : ''}</h2>
       <p className="small muted">{t('adxInactiveHint')}</p>
       {!ina ? <SkelList n={2} /> : ina.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
         <div className="admin-list">
