@@ -633,7 +633,13 @@ export default function Dashboard() {
       if (!st.error && st.data && typeof st.data === 'object') {
         setShop(st.data as Shop)
         if ((st.data as Shop).staff_active) void loadCounters((st.data as Shop).id)
-      } else nav('/setup', { replace: true })
+      } else {
+        // An admin-only login (no shop, not staff) goes to the admin panel, not "Create shop".
+        const adm = await supabase.rpc('admin_status').then((r) => r, () => ({ data: null, error: true }))
+        let admin = !adm.error && !!adm.data && typeof adm.data === 'object' && (adm.data as { admin?: boolean }).admin === true
+        if (adm.error) admin = await supabase.rpc('is_admin').then((r) => !r.error && r.data === true, () => false)
+        nav(admin ? '/admin' : '/setup', { replace: true })
+      }
     } else {
       setShop(data as Shop)
       void loadCounters((data as Shop).id)
