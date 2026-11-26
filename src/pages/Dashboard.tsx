@@ -1629,7 +1629,15 @@ function RatesTab({ shop, v2, passportLocked, onUpgrade, onSaved }: {
   onSaved: (s: Shop) => void
 }) {
   const { t, te } = useI18n()
-  const [r, setR] = useState<Rates>({ ...shop.rates, passport_sheet: shop.rates.passport_sheet ?? DEFAULT_PASSPORT_RATE, idcard_sheet: shop.rates.idcard_sheet ?? DEFAULT_IDCARD_RATE, binding: shop.rates.binding ?? 0, lamination: shop.rates.lamination ?? 0 })
+  const init: Rates = { ...shop.rates, passport_sheet: shop.rates.passport_sheet ?? DEFAULT_PASSPORT_RATE, idcard_sheet: shop.rates.idcard_sheet ?? DEFAULT_IDCARD_RATE, binding: shop.rates.binding ?? 0, lamination: shop.rates.lamination ?? 0 }
+  // Raw text of each box, so a bad entry ("-5", "abc", empty) is shown with a message instead of silently dropped.
+  const [r, setR] = useState<Partial<Record<keyof Rates, string>>>(() => {
+    const o: Partial<Record<keyof Rates, string>> = {}
+    for (const k of Object.keys(init) as (keyof Rates)[]) o[k] = String(init[k] ?? 0)
+    return o
+  })
+  const [touched, setTouched] = useState<Partial<Record<keyof Rates, boolean>>>({})
+  const [tried, setTried] = useState(false)
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
   const fields: { k: keyof Rates; label: Key; hint: Key }[] = [
     { k: 'bw_single', label: 'rate_bw_single', hint: 'perPage' },
@@ -1642,40 +1650,67 @@ function RatesTab({ shop, v2, passportLocked, onUpgrade, onSaved }: {
   if (v2 && !passportLocked) fields.push({ k: 'passport_sheet', label: 'rate_passport_sheet', hint: 'perSheet' })
   // ID card sheet (v23): Pro / Plus like the passport sheet. Saved in rates; used once the v23 SQL has run.
   if (v2 && !passportLocked) fields.push({ k: 'idcard_sheet', label: 'rate_idcard_sheet', hint: 'perIdSheet' })
+  const extras: [keyof Rates, Key, Key][] = [['binding', 'rate_binding', 'perCopy'], ['lamination', 'rate_lamination', 'perLamSheet']]
+  const editable: (keyof Rates)[] = [...fields.map((f) => f.k), ...extras.map(([k]) => k)]
+  /** Error key for one box, or null when it holds a valid rate (0 or more, up to 2 decimals). */
+  const rateError = (k: keyof Rates): Key | null => {
+    const v = String(r[k] ?? '').trim().replace(',', '.')
+    if (v === '') return 'rateErrEmpty'
+    if (/^-/.test(v) && !isNaN(Number(v))) return 'rateErrNegative'
+    if (!/^\d+(\.\d{1,2})?$/.test(v) && !/^\.\d{1,2}$/.test(v)) return 'rateErrInvalid'
+    return null
+  }
+  const num = (k: keyof Rates) => Number(String(r[k] ?? '').trim().replace(',', '.'))
+  const isZeroPrint = (k: keyof Rates) => fields.some((f) => f.k === k) && !rateError(k) && num(k) === 0
   async function save(e: FormEvent) {
     e.preventDefault()
+    setTried(true)
+    if (editable.some((k) => rateError(k))) return setMsg({ text: t('rateErrFix'), error: true })
+    // Paid print rates at ₹0 make those prints free for customers: allowed, but only after a clear yes.
+    const zero = fields.filter((f) => isZeroPrint(f.k))
+    if (zero.length && !await askConfirm(t('rateZeroAsk'), { icon: 'alert', ok: t('rateZeroOk'), body: t('rateZeroBody', { list: zero.map((f) => t(f.label)).join(', ') }) })) return
     const clean: Rates = {
       ...shop.rates,
-      bw_single: Math.max(0, Number(r.bw_single) || 0),
-      bw_double: Math.max(0, Number(r.bw_double) || 0),
-      color_single: Math.max(0, Number(r.color_single) || 0),
-      color_double: Math.max(0, Number(r.color_double) || 0),
-      binding: Math.max(0, Number(r.binding) || 0),
-      lamination: Math.max(0, Number(r.lamination) || 0)
+      bw_single: num('bw_single'),
+      bw_double: num('bw_double'),
+      color_single: num('color_single'),
+      color_double: num('color_double'),
+      binding: num('binding'),
+      lamination: num('lamination')
     }
-    if (v2 && !passportLocked) clean.passport_sheet = Math.max(0, Number(r.passport_sheet) || 0)
-    if (v2 && !passportLocked) clean.idcard_sheet = Math.max(0, Number(r.idcard_sheet) || 0)
+    if (v2 && !passportLocked) clean.passport_sheet = num('passport_sheet')
+    if (v2 && !passportLocked) clean.idcard_sheet = num('idcard_sheet')
     const { data, error } = await supabase.from('shops').update({ rates: clean }).eq('id', shop.id).select().single()
     if (error) return setMsg({ text: te(error), error: true })
     onSaved(data as Shop)
     setMsg({ text: t('ratesSaved'), error: false })
+  }
+  const rateInput = (k: keyof Rates, label: Key, hint: Key) => {
+    const err = (tried || touched[k]) ? rateError(k) : null
+    const zero = !err && isZeroPrint(k)
+    const hid = `rate-${k}-hint`, eid = `rate-${k}-err`
+    return (
+      <label className="field" key={k}>
+        <span>{t(label)}</span>
+        <div className="input-affix">
+          <span className="affix">₹</span>
+          <input type="text" inputMode="decimal" autoComplete="off" value={r[k] ?? ''}
+            aria-invalid={err ? true : undefined} aria-describedby={err || zero ? `${eid} ${hid}` : hid}
+            onChange={(e) => { setR({ ...r, [k]: e.target.value }); setMsg(null) }}
+            onBlur={() => setTouched({ ...touched, [k]: true })} />
+        </div>
+        {err && <small className="hint" id={eid} role="alert" style={{ color: 'var(--c-red-ink)', fontWeight: 600 }}>{t(err)}</small>}
+        {zero && <small className="hint" id={eid} style={{ color: 'var(--c-amber-ink)', fontWeight: 600 }}>{t('rateZeroWarn')}</small>}
+        <small className="hint" id={hid}>{t(hint)}</small>
+      </label>
+    )
   }
   return (
     <form className="card form-card" onSubmit={save}>
       <h2 className="card-title">{t('ratesTitle')}</h2>
       <p className="small muted">{t('ratesSub')}</p>
       <div className="rates-grid">
-        {fields.map((f) => (
-          <label className="field" key={f.k}>
-            <span>{t(f.label)}</span>
-            <div className="input-affix">
-              <span className="affix">₹</span>
-              <input type="number" step="0.5" min={0} value={r[f.k] ?? 0} inputMode="decimal"
-                onChange={(e) => setR({ ...r, [f.k]: e.target.value as unknown as number })} />
-            </div>
-            <small className="hint">{t(f.hint)}</small>
-          </label>
-        ))}
+        {fields.map((f) => rateInput(f.k, f.label, f.hint))}
         {v2 && passportLocked && ([['rate_passport_sheet', 'ppProOnly'], ['rate_idcard_sheet', 'idProOnly']] as [Key, Key][]).map(([label, hint]) => (
           <div className="field locked-field" key={label}>
             <span>{t(label)} <span className="pro-badge">{t('planPro')}</span></span>
@@ -1693,17 +1728,7 @@ function RatesTab({ shop, v2, passportLocked, onUpgrade, onSaved }: {
       <h3 className="sub-title">{t('ratesExtrasTitle')}</h3>
       <p className="small muted">{t('ratesExtrasSub')}</p>
       <div className="rates-grid">
-        {([['binding', 'rate_binding', 'perCopy'], ['lamination', 'rate_lamination', 'perLamSheet']] as [keyof Rates, Key, Key][]).map(([k, label, hint]) => (
-          <label className="field" key={k}>
-            <span>{t(label)}</span>
-            <div className="input-affix">
-              <span className="affix">₹</span>
-              <input type="number" step="0.5" min={0} value={r[k] ?? 0} inputMode="decimal"
-                onChange={(e) => setR({ ...r, [k]: e.target.value as unknown as number })} />
-            </div>
-            <small className="hint">{t(hint)}</small>
-          </label>
-        ))}
+        {extras.map(([k, label, hint]) => rateInput(k, label, hint))}
       </div>
       {msg && <p className={`notice${msg.error ? ' error' : ' success'}`}>{msg.text}</p>}
       <button className="btn primary block lg">{t('save')}</button>
