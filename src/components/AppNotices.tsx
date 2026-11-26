@@ -6,6 +6,11 @@ import { useI18n } from '../lib/i18n'
 import Icon from './Icon'
 
 const RELEASES = 'https://github.com/rahulyadavoxo/printqr/releases/latest'
+// The announcement banner (web dashboard) can be closed; it stays closed until the admin changes its text.
+const ANN_DISMISS_KEY = 'pq-ann-dismissed'
+function readDismissed(): string {
+  try { return localStorage.getItem(ANN_DISMISS_KEY) || '' } catch { return '' }
+}
 
 /* Admin-controlled notices: minimum app version (app only), maintenance, and the announcement for owners. */
 export default function AppNotices() {
@@ -14,6 +19,13 @@ export default function AppNotices() {
   const { pathname } = useLocation()
   const bridge = IN_APP ? nativeBridge() : undefined
   const cur = bridge?.appVersion ? bridge.appVersion() : ''
+  const [dismissed, setDismissed] = useState(readDismissed)
+  // One id for the announcement in both languages, so closing it in English also hides the Hindi text.
+  const annId = `${(s.announcement || '').trim()}\u241e${(s.announcement_hi || '').trim()}`
+  const dismissAnn = () => {
+    setDismissed(annId)
+    try { localStorage.setItem(ANN_DISMISS_KEY, annId) } catch { /* private mode: closed for this visit only */ }
+  }
 
   if (cur && s.min_app_version && versionLess(cur, s.min_app_version)) {
     return (
@@ -30,10 +42,13 @@ export default function AppNotices() {
   }
 
   if (pathname.startsWith('/admin')) return null
-  const note = lang === 'hi' ? s.announcement_hi || s.announcement : s.announcement || s.announcement_hi
+  // Hindi shows announcement_hi, falling back to the English text when it is empty (and the other way round).
+  const pick = (a: string | null | undefined) => (a || '').trim()
+  const note = lang === 'hi' ? pick(s.announcement_hi) || pick(s.announcement) : pick(s.announcement) || pick(s.announcement_hi)
+  const bannerNote = note && dismissed !== annId ? note : ''
   const owner = pathname.startsWith('/dashboard')
   if (IN_APP && owner && note && !s.maintenance) return <AnnPopup note={note} secs={s.announcement_secs} />
-  if (!s.maintenance && !(owner && note && !IN_APP)) return null
+  if (!s.maintenance && !(owner && bannerNote && !IN_APP)) return null
   return (
     <div className="app-notices no-print">
       {s.maintenance && (
@@ -43,10 +58,14 @@ export default function AppNotices() {
         </div>
       )}
       {IN_APP && owner && note && <AnnPopup note={note} secs={s.announcement_secs} />}
-      {owner && note && !IN_APP && (
+      {owner && bannerNote && !IN_APP && (
         <div className="app-notice" role="status">
           <Icon name="info" size={18} />
-          <span title={note}>{note}</span>
+          <span title={bannerNote} style={{ flex: 1 }}>{bannerNote}</span>
+          <button type="button" className="app-notice-x" aria-label={t('annClose')} title={t('annClose')} onClick={dismissAnn}
+            style={{ flex: 'none', marginLeft: 'auto', background: 'none', border: 0, padding: 4, cursor: 'pointer', color: 'inherit', display: 'inline-flex', alignItems: 'center' }}>
+            <Icon name="x" size={16} />
+          </button>
         </div>
       )}
     </div>
