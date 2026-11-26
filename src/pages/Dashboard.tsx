@@ -765,6 +765,8 @@ export default function Dashboard() {
   const bottomNav = ON_ANDROID && !staff && narrow
   // Android phone: Settings is a grouped list; ?s=<key> opens one section as its own page (back button returns).
   const setSub = params.get('s')
+  // Settings profile card: the signed-in account's email, else its phone (phone-OTP accounts)
+  const profileAccount = session?.user.email || accountPhone(session?.user) || ''
   // In the app the bottom bar holds BOTTOM, so the drawer keeps only the rest (Rates, Plan).
   const nav_ = staff ? [{ group: 'navShop' as Key, items: ['orders' as Tab] }]
     : bottomNav ? NAV.map((g) => ({ ...g, items: g.items.filter((id) => !BOTTOM.includes(id)) })).filter((g) => g.items.length)
@@ -964,12 +966,20 @@ export default function Dashboard() {
         {tab === 'report' && <Report shop={shop} onUpgrade={goPlan} />}
         {tab === 'settings' && bottomNav && !setSub && (
           <SettingsHub plus={!ready || plus} free={ready && free} onOpen={(k) => setParams({ tab: 'settings', s: k })} onPlan={goPlan} onLogout={logout}
-            version={appVer ? 'PrintQR ' + appVer : ''} />
+            version={appVer ? 'PrintQR ' + appVer : ''}
+            profile={<ProfileCard shop={shop} account={profileAccount} onEdit={() => setParams({ tab: 'settings', s: 'shop' })} />} />
         )}
         {tab === 'settings' && (!bottomNav || setSub) && (
           <>
             {bottomNav && (
               <button type="button" className="set-back" onClick={() => nav(-1)}><Icon name="chevl" size={22} /> {t('tabSettings')}</button>
+            )}
+            {!bottomNav && (
+              <ProfileCard shop={shop} account={profileAccount} onEdit={() => {
+                const el = document.getElementById('shop-details')
+                el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                el?.querySelector<HTMLInputElement>('input[name="shop-name"]')?.focus({ preventScroll: true })
+              }} />
             )}
             {(!bottomNav || setSub === 'shop') && <Settings shop={shop} onSaved={setShop} onUpgrade={goPlan} />}
             {(!bottomNav || setSub === 'hours') && <HoursCard shop={shop} onSaved={setShop} />}
@@ -2409,8 +2419,33 @@ const KEEP_OPTIONS = [1, 3, 6, 12, 24, 48, 72, 168]
 
 type SetKey = 'shop' | 'hours' | 'paper' | 'counters' | 'brand' | 'staff' | 'lock' | 'devices' | 'support'
 /** Android phone Settings: grouped list (iOS-style); each row opens its section. */
-function SettingsHub({ plus, free, onOpen, onPlan, onLogout, version }: {
-  plus: boolean; free: boolean; onOpen: (k: SetKey) => void; onPlan: () => void; onLogout: () => void; version: string
+/** Top of Settings: shop photo, name and the signed-in account (email, else phone), with Edit -> Shop details. */
+function ProfileCard({ shop, account, onEdit }: { shop: Shop; account: string; onEdit: () => void }) {
+  const { t } = useI18n()
+  const [broken, setBroken] = useState(false)
+  useEffect(() => setBroken(false), [shop.logo_url])
+  const name = (shop.name || '').trim()
+  const letter = (Array.from(name)[0] || '?').toUpperCase()
+  return (
+    <section className="set-grp set-profile" aria-label={t('profileCard')}>
+      <span className="set-profile-av" aria-hidden="true">
+        {shop.logo_url && !broken
+          ? <img src={shop.logo_url} alt="" onError={() => setBroken(true)} />
+          : <span>{letter}</span>}
+      </span>
+      <span className="set-profile-txt">
+        <strong className="set-profile-name" title={name}>{name}</strong>
+        {account && <span className="set-profile-sub" title={account}>{account}</span>}
+      </span>
+      <button type="button" className="btn small set-profile-edit" onClick={onEdit} aria-label={t('profileEditAria')}>
+        <Icon name="edit" size={16} /> <span>{t('profileEdit')}</span>
+      </button>
+    </section>
+  )
+}
+
+function SettingsHub({ plus, free, onOpen, onPlan, onLogout, version, profile }: {
+  plus: boolean; free: boolean; onOpen: (k: SetKey) => void; onPlan: () => void; onLogout: () => void; version: string; profile?: ReactNode
 }) {
   const { t, lang, setLang } = useI18n()
   const { pref, setTheme } = useTheme()
@@ -2429,6 +2464,7 @@ function SettingsHub({ plus, free, onOpen, onPlan, onLogout, version }: {
   )
   return (
     <div className="set-hub">
+      {profile}
       <div className="set-grp-lbl">{t('setGrpShop')}</div>
       <div className="set-grp">
         <Row icon="store" label={t('setShopDetails')} onClick={() => onOpen('shop')} />
@@ -2507,10 +2543,10 @@ function Settings({ shop, onSaved, onUpgrade }: { shop: Shop; onSaved: (s: Shop)
     setMsg({ text: t('saved'), error: false })
   }
   return (
-    <form className="card form-card" onSubmit={save}>
+    <form id="shop-details" className="card form-card" onSubmit={save}>
       <h2 className="card-title">{t('settingsTitle')}</h2>
       <ShopPhotoField shop={shop} onSaved={onSaved} />
-      <label className="field"><span>{t('shopName')}</span><input required minLength={2} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
+      <label className="field"><span>{t('shopName')}</span><input name="shop-name" required minLength={2} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
       <label className="field"><span>{t('address')}</span><input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></label>
       <div className="grid2">
         <label className="field"><span>{t('phone')}</span><input value={f.phone} inputMode="tel" onChange={(e) => setF({ ...f, phone: e.target.value })} /></label>
