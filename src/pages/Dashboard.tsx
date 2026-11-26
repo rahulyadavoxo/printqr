@@ -2419,28 +2419,30 @@ const KEEP_OPTIONS = [1, 3, 6, 12, 24, 48, 72, 168]
 
 type SetKey = 'shop' | 'hours' | 'paper' | 'counters' | 'brand' | 'staff' | 'lock' | 'devices' | 'support'
 /** Android phone Settings: grouped list (iOS-style); each row opens its section. */
-/** Top of Settings: shop photo, name and the signed-in account (email, else phone), with Edit -> Shop details. */
+/** Top of Settings: shop photo, name and the signed-in account (email, else phone). The whole card opens
+ *  Shop details (it replaces the old "Shop details" row); a small pencil on the right hints at it.
+ *  No shop logo (or it fails to load) -> the PrintQR app mark (public/icon.svg, same as the header). */
 function ProfileCard({ shop, account, onEdit }: { shop: Shop; account: string; onEdit: () => void }) {
   const { t } = useI18n()
   const [broken, setBroken] = useState(false)
   useEffect(() => setBroken(false), [shop.logo_url])
   const name = (shop.name || '').trim()
-  const letter = (Array.from(name)[0] || '?').toUpperCase()
   return (
-    <section className="set-grp set-profile" aria-label={t('profileCard')}>
+    <button type="button" className="set-grp set-profile" onClick={onEdit}
+      aria-label={[name, account, t('profileEditAria')].filter(Boolean).join(', ')}>
       <span className="set-profile-av" aria-hidden="true">
         {shop.logo_url && !broken
           ? <img src={shop.logo_url} alt="" onError={() => setBroken(true)} />
-          : <span>{letter}</span>}
+          : <img src={import.meta.env.BASE_URL + 'icon.svg'} alt="" className="set-profile-app" />}
       </span>
       <span className="set-profile-txt">
         <strong className="set-profile-name" title={name}>{name}</strong>
         {account && <span className="set-profile-sub" title={account}>{account}</span>}
       </span>
-      <button type="button" className="btn small set-profile-edit" onClick={onEdit} aria-label={t('profileEditAria')}>
-        <Icon name="edit" size={16} /> <span>{t('profileEdit')}</span>
-      </button>
-    </section>
+      <span className="set-profile-edit" aria-hidden="true" title={t('profileEditAria')}>
+        <Icon name="edit" size={18} />
+      </span>
+    </button>
   )
 }
 
@@ -2467,7 +2469,6 @@ function SettingsHub({ plus, free, onOpen, onPlan, onLogout, version, profile }:
       {profile}
       <div className="set-grp-lbl">{t('setGrpShop')}</div>
       <div className="set-grp">
-        <Row icon="store" label={t('setShopDetails')} onClick={() => onOpen('shop')} />
         <Row icon="clock" label={t('hoursTitle')} onClick={() => onOpen('hours')} />
         <Row icon="file" label={t('paperTitle')} onClick={() => onOpen('paper')} />
         <Row icon="qr" label={t('cTitle')} lockPro={free} onClick={() => onOpen('counters')} />

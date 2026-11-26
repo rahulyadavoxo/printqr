@@ -341,7 +341,7 @@ function PlanSkel() {
 function SettingsHubSkel() {
   const { t } = useI18n()
   const groups: [Key, [string, Key, boolean?][]][] = [
-    ['setGrpShop', [['store', 'setShopDetails'], ['clock', 'hoursTitle'], ['file', 'paperTitle'], ['qr', 'cTitle']]],
+    ['setGrpShop', [['clock', 'hoursTitle'], ['file', 'paperTitle'], ['qr', 'cTitle']]],
     ['setGrpBiz', [['star', 'tabPlan'], ['image', 'setBrand'], ['user', 'staffTitle']]],
     ['setGrpPref', [['type', 'language', true], ['auto', 'theme', true]]],
     ['setGrpHelp', [['shield', 'setPrivacy'], ['info', 'setTerms']]]
