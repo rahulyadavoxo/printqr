@@ -4,7 +4,7 @@ import { useSession } from '../lib/useSession'
 import { Key, useI18n } from '../lib/i18n'
 import { LogoMark, TopBar } from '../components/TopBar'
 import { LegalLinks } from './Legal'
-import { AppDownloadButton } from '../components/AppDownload'
+import { AppDownloadButton, AppDownloadLinks } from '../components/AppDownload'
 import { LANDING_DESIGNS, LandingDesign, landingDesignFor, useAppSettings, useSettingsKnown } from '../lib/appSettings'
 import { QrLoadPage } from '../components/QrLoader'
 import LandingDuo from './LandingDuo'
@@ -213,6 +213,7 @@ function ClassicLanding() {
 
       <footer className="footer">
         <span className="footer-brand"><LogoMark size={22} /> {t('footer')}</span>
+        <span className="footer-apps" style={{ display: 'inline-flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}><AppDownloadLinks /></span>
         <LegalLinks />
       </footer>
     </div>
