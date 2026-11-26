@@ -139,7 +139,7 @@ export function AdminUsers({ onMsg, owner = true }: { onMsg: Msg; owner?: boolea
       {del && (
         <CodeDialog action="delete_user" user={del} danger ask={t('admDeleteAsk', { email: del.email || '—' })}
           body={t('admDeleteBody', { shop: del.shop_name || t('admNoShop') })} ok={t('admDeleteUser')} onClose={() => setDel(null)}
-          onDone={() => { onMsg({ text: t('admUserDeleted', { email: del.email || '' }) }); setDel(null); load(query, 0) }} />
+          onDone={() => { onMsg({ text: t('admUserDeleted', { email: del.email || '' }) }); setDel(null); load(query, 0); window.dispatchEvent(new Event('pq-shops-changed')) }} />
       )}
       {sup && (
         <CodeDialog action="make_support" user={sup} ask={t('admSupportAsk', { email: sup.email || '—' })}
