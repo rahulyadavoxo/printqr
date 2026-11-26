@@ -175,6 +175,13 @@ export default function Admin() {
     if (!allowed) return
     loadShops(query, 0)
   }, [allowed, query, loadShops])
+  // A login deleted in the Users tab (its shop goes with it): reload the Shops list, overview and log.
+  useEffect(() => {
+    if (!allowed) return
+    const on = () => { void loadShops(query, 0); if (owner) void loadOverview(); void loadLog() }
+    window.addEventListener('pq-shops-changed', on)
+    return () => window.removeEventListener('pq-shops-changed', on)
+  }, [allowed, owner, query, loadShops, loadOverview, loadLog])
 
   const refreshAll = () => Promise.all([owner ? loadOverview() : null, loadShops(query, 0), loadLog(), loadHealth()])
   // A support admin lands on the Support inbox (Overview is owner-only).

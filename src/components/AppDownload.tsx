@@ -8,15 +8,20 @@ const HIDE_KEY = 'pq_app_banner_hidden'
 
 type Platform = 'android' | 'windows' | null
 
+/** True inside the Android / Windows app (or an installed web app). */
+function inApp(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  return /Electron|PrintQRApp/i.test(ua) ||
+    document.referrer.startsWith('android-app://') ||
+    !!window.matchMedia?.('(display-mode: standalone)').matches
+}
+
 /** Which app suits this device, or null when there is none or we are already inside the app. */
 export function appPlatform(): Platform {
   if (typeof navigator === 'undefined') return null
   const ua = navigator.userAgent || ''
-  const inApp =
-    /Electron|PrintQRApp/i.test(ua) ||
-    document.referrer.startsWith('android-app://') ||
-    window.matchMedia?.('(display-mode: standalone)').matches
-  if (inApp) return null
+  if (inApp()) return null
   if (/Android/i.test(ua)) return 'android'
   if (/Windows/i.test(ua)) return 'windows'
   return null
@@ -31,6 +36,19 @@ export function AppDownloadButton({ className = 'btn soft' }: { className?: stri
     <a className={className} href={FILES[p]} rel="noopener">
       {p === 'android' ? t('appAndroid') : t('appWindows')}
     </a>
+  )
+}
+
+/** Both app downloads as plain links (public home page footer), on every device except inside the app. */
+export function AppDownloadLinks({ heading = false }: { heading?: boolean }) {
+  const { t } = useI18n()
+  if (inApp()) return null
+  return (
+    <>
+      {heading && <b>{t('appLinksTitle')}</b>}
+      <a href={FILES.android} rel="noopener">{t('appAndroidShort')}</a>
+      <a href={FILES.windows} rel="noopener">{t('appWindowsShort')}</a>
+    </>
   )
 }
 

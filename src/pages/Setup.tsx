@@ -117,16 +117,20 @@ export default function Setup() {
             <span>{t('address')}</span>
             <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Boring Road, Patna" />
           </label>
-          <label className="field">
-            <span>{t('phone')} <em className="opt">({t('optional')})</em></span>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="98xxxxxx10" />
-            <small className="hint">{t('phoneHint')}</small>
-          </label>
-          <label className="field">
-            <span>{t('upiId')} <em className="opt">({t('optional')})</em></span>
-            <input value={upi} onChange={(e) => setUpi(e.target.value)} placeholder="shopname@okaxis" />
-            <small className="hint">{t('upiHint')}</small>
-          </label>
+          {/* Helper text is linked with aria-describedby (not inside the <label>), so a screen reader reads the
+              field name alone and the help separately instead of one glued string. */}
+          <div className="field">
+            <span id="setup-phone-label">{t('phone')} <em className="opt">({t('optional')})</em></span>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="98xxxxxx10"
+              aria-labelledby="setup-phone-label" aria-describedby="setup-phone-hint" />
+            <small className="hint" id="setup-phone-hint">{t('phoneHint')}</small>
+          </div>
+          <div className="field">
+            <span id="setup-upi-label">{t('upiId')} <em className="opt">({t('optional')})</em></span>
+            <input value={upi} onChange={(e) => setUpi(e.target.value)} placeholder="shopname@okaxis"
+              aria-labelledby="setup-upi-label" aria-describedby="setup-upi-hint" />
+            <small className="hint" id="setup-upi-hint">{t('upiHint')}</small>
+          </div>
           {msg && <p className="notice error" role="alert">{msg}</p>}
           <button className="btn primary block lg" disabled={busy}>{busy ? t('creating') : t('createShop')}</button>
           {/* Way out of setup (Back would bounce Login -> Dashboard -> Setup while signed in): sign out, then Login. */}

@@ -2,7 +2,7 @@ import { CSSProperties, MouseEvent, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Key, useI18n } from '../lib/i18n'
 import { LangToggle, LogoMark, Wordmark } from '../components/TopBar'
-import { AppDownloadButton } from '../components/AppDownload'
+import { AppDownloadButton, AppDownloadLinks } from '../components/AppDownload'
 import UploadPreview from '../components/UploadPreview'
 import Icon from '../components/Icon'
 
@@ -193,6 +193,9 @@ export default function LandingBold() {
           <a href="#how" onClick={go('lpb-how')}>{t('lbNavHow')}</a>
           <a href="#why" onClick={go('lpb-why')}>{t('ldNavWhy')}</a>
           <a href="#faq" onClick={go('lpb-faq')}>{t('ldNavFaq')}</a>
+        </div>
+        <div>
+          <AppDownloadLinks heading />
         </div>
         <div>
           <b>{t('ldFootLegal')}</b>

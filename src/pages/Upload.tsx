@@ -885,7 +885,7 @@ export default function Upload() {
 
       {/* Free-plan shops show an ad below the form. It never covers the upload controls. */}
       <p className="small muted center upload-legal">
-        {t('uAgreePre')} <Link to="/legal/terms">{t('agreeTerms')}</Link> {t('agreeAnd')} <Link to="/legal/privacy">{t('agreePrivacy')}</Link>{t('uAgreePost')}
+        {`${t('uAgreePre')} `}<Link to="/legal/terms">{t('agreeTerms')}</Link>{` ${t('agreeAnd')} `}<Link to="/legal/privacy">{t('agreePrivacy')}</Link>{t('uAgreePost')}
       </p>
       {shop.is_pro === false && <AdSlot className="upload-ad" />}
       <ReportShop slug={slug} />
