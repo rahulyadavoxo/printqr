@@ -6,7 +6,7 @@ import { CSSProperties, Dispatch, FormEvent, SetStateAction, useEffect, useLayou
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { clearAuthUrlError, peekAuthUrlError, sendResetEmail } from '../lib/recovery'
-import { useI18n } from '../lib/i18n'
+import { Key, useI18n } from '../lib/i18n'
 import { TopBar } from '../components/TopBar'
 import { isCaptchaError } from '../components/Turnstile'
 import { TurnstileGate } from '../components/TurnstileGate'
@@ -114,6 +114,15 @@ function LoginPage({ captcha, setCaptchaReset }: {
   const nav = useNavigate()
   // A 10-digit mobile number typed in the Email / Mobile box (no @ or letters).
   const idIsPhone = !/[@a-z]/i.test(email) && INDIAN_MOBILE.test(cleanMobile(email))
+  // Format check of the Email / Mobile box ("abc@" -> clear message), shown after leaving the box or on submit.
+  const [idTouched, setIdTouched] = useState(false)
+  const idTrim = email.trim()
+  const idErr: Key | null = !idTrim || idIsPhone ? null
+    : /[@a-z]/i.test(idTrim) ? (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(idTrim) ? null : 'idErrEmail')
+    : 'idErrMobile'
+  const showIdErr = idTouched && !!idErr
+  const idA11y = { onBlur: () => setIdTouched(true), 'aria-invalid': showIdErr ? true : undefined, 'aria-describedby': showIdErr ? 'id-format-err' : undefined }
+  const idErrEl = showIdErr && idErr ? <small className="hint" id="id-format-err" role="alert" style={{ color: 'var(--c-red-ink)', fontWeight: 600 }}>{t(idErr)}</small> : null
 
   useEffect(() => clearAuthUrlError(), [])
 
@@ -300,6 +309,7 @@ function LoginPage({ captcha, setCaptchaReset }: {
 
   async function submit(e: FormEvent) {
     e.preventDefault()
+    if (idErr) { setIdTouched(true); setMsg(null); return }
     // Email or a 10-digit mobile number in the same box. A number never gets a password check by email.
     const number = idIsPhone ? cleanMobile(email) : ''
     if (idIsPhone && mode !== 'login') {
@@ -425,8 +435,9 @@ function LoginPage({ captcha, setCaptchaReset }: {
             <p className="muted center">{t('fpSubAny')}</p>
             <label className="field">
               <span>{t('idLabel')}</span>
-              <input type="text" inputMode={idIsPhone ? 'tel' : 'email'} required value={email} onChange={(e) => setEmail(e.target.value)} name="email"
+              <input type="text" inputMode={idIsPhone ? 'tel' : 'email'} required value={email} onChange={(e) => setEmail(e.target.value)} name="email" {...idA11y}
                 autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder={t('idPlaceholder')} />
+              {idErrEl}
             </label>
             {msg && <p className={`notice${msg.error ? ' error' : ' success'}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
             <button className="btn primary block lg" disabled={busy}>{busy ? t('pleaseWait') : idIsPhone ? t('mobileSend') : t('fpSend')}</button>
@@ -486,8 +497,9 @@ function LoginPage({ captcha, setCaptchaReset }: {
         )}
         <label className="lx-field">
           <span>{t('idLabel')}</span>
-          <input type="text" inputMode={idIsPhone ? 'tel' : 'email'} required value={email} onChange={(e) => setEmail(e.target.value)} name="email"
+          <input type="text" inputMode={idIsPhone ? 'tel' : 'email'} required value={email} onChange={(e) => setEmail(e.target.value)} name="email" {...idA11y}
             autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder={t('idPlaceholder')} />
+          {idErrEl}
           {signup && idIsPhone && <small className="hint">{t('mobileHintShort')}</small>}
         </label>
         <div className="lx-field">
@@ -625,8 +637,9 @@ function LoginPage({ captcha, setCaptchaReset }: {
           {googleButton}
           <label className="field">
             <span>{t('idLabel')}</span>
-            <input type="text" inputMode={idIsPhone ? 'tel' : 'email'} required value={email} onChange={(e) => setEmail(e.target.value)} name="email"
+            <input type="text" inputMode={idIsPhone ? 'tel' : 'email'} required value={email} onChange={(e) => setEmail(e.target.value)} name="email" {...idA11y}
               autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder={t('idPlaceholder')} />
+            {idErrEl}
             {signup && idIsPhone && <small className="hint">{t('mobileHintShort')}</small>}
           </label>
           <div className="field">
