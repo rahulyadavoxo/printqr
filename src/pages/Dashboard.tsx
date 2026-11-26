@@ -1577,7 +1577,8 @@ function OrderCard(props: {
               </div>
             )}
             <PagesCheck f={f} />
-            {!noFiles && (
+            {/* A cancelled order is not printed: no Open / Print or Download (Delete files now stays below). */}
+            {!noFiles && o.status !== 'cancelled' && (
               <div className="file-actions">
                 {onPrint && canDirectPrint(f.file_name) && (
                   <button type="button" className="btn small primary" disabled={busy} onClick={() => onPrint(o, [f])}>
