@@ -8,7 +8,7 @@ import { callFn } from '../lib/billing'
 import { rupees } from '../lib/pricing'
 import { ask as askConfirm } from '../components/ConfirmHost'
 import { SkelList, SkelStats } from '../components/Skeletons'
-import { fmtBytes, fmtDate } from './AdminTabs'
+import { CodeDialog, fmtBytes, fmtDate } from './AdminTabs'
 
 /* v39 admin tools: error viewer, growth graphs + CSV export, support inbox, coupon codes, reach (expiring plans,
    inactive shops, targeted push), view as shop, admin roles, backup status, admin new-device check.
@@ -798,6 +798,7 @@ export function AdminRoles({ onMsg }: { onMsg: Msg }) {
   const { t, teRaw } = useI18n()
   const [rows, setRows] = useState<AdminRow[] | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  const [rem, setRem] = useState<AdminRow | null>(null)
   const load = useCallback(async () => {
     const { data, error } = await supabase.rpc('admin_list')
     if (error) { setRows([]); return } // before v39 SQL: section stays empty
@@ -832,9 +833,20 @@ export function AdminRoles({ onMsg }: { onMsg: Msg }) {
               <option value="owner">{t('adxRoleOwner')}</option>
               <option value="support">{t('adxRoleSupport')}</option>
             </select>
+            {/* Owner only (this list is): not yourself, and the last Owner stays (the server checks both again). */}
+            {!a.is_me && (
+              <button type="button" className="btn small danger-outline" disabled={busy === a.user_id
+                || (a.role === 'owner' && rows.filter((r) => r.role === 'owner').length <= 1)}
+                onClick={() => setRem(a)}>{t('adxRemoveAdmin')}</button>
+            )}
           </div>
         ))}
       </div>
+      {rem && (
+        <CodeDialog action="remove_admin" user={rem} danger ask={t('adxRemoveAsk', { email: rem.email || rem.user_id.slice(0, 8) })}
+          body={t('adxRemoveBody')} ok={t('adxRemoveAdmin')} onClose={() => setRem(null)}
+          onDone={() => { onMsg({ text: t('adxRemoveDone', { email: rem.email || '' }) }); setRem(null); void load(); window.dispatchEvent(new Event('pq-admins-changed')) }} />
+      )}
     </>
   )
 }
