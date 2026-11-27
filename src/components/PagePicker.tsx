@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import Icon from './Icon'
 import ZoomPan from './ZoomPan'
-import { openPdf, renderPage } from '../lib/pdf'
+import { openPdf, pagesToRange, parsePageRange, renderPage } from '../lib/pdf'
 import { useI18n } from '../lib/i18n'
 
 type Props = {
@@ -82,14 +82,36 @@ export default function PagePicker({ file, total, initial, onDone, onCancel }: P
     return () => { alive = false }
   }, [doc, zoom])
 
+  // QA #45: pages can also be typed ("1-3, 5"); the ticks and the text follow each other.
+  const [rangeText, setRangeText] = useState(() => (initial ? pagesToRange(initial) : ''))
+  const [rangeBad, setRangeBad] = useState(false)
+  const typing = useRef(false)
+  useEffect(() => {
+    if (typing.current) return
+    setRangeText(sel.size === total ? '' : pagesToRange([...sel]))
+    setRangeBad(false)
+  }, [sel, total])
+  const onRangeText = (v: string) => {
+    setRangeText(v)
+    if (!v.trim()) { setRangeBad(false); return }
+    const pages = parsePageRange(v, total)
+    setRangeBad(!pages)
+    if (pages) {
+      typing.current = true
+      setSel(new Set(pages))
+    }
+  }
   const all = sel.size === total
-  const toggle = (n: number) => setSel((s) => {
+  const toggle = (n: number) => { typing.current = false; setSel((s) => {
     const x = new Set(s)
     if (x.has(n)) x.delete(n)
     else x.add(n)
     return x
-  })
-  const setAll = (on: boolean) => setSel(on ? new Set(Array.from({ length: total }, (_, i) => i + 1)) : new Set())
+  }) }
+  const setAll = (on: boolean) => {
+    typing.current = false
+    setSel(on ? new Set(Array.from({ length: total }, (_, i) => i + 1)) : new Set())
+  }
   const done = () => {
     if (!sel.size) return
     onDone(all ? null : [...sel].sort((a, b) => a - b))
@@ -116,6 +138,13 @@ export default function PagePicker({ file, total, initial, onDone, onCancel }: P
             <button type="button" className="pp-clear small" onClick={() => setAll(false)}>{t('ppkClear')}</button>
           )}
           <span className="pp-count small">{t('ppkCount', { n: sel.size, t: total })}</span>
+        </div>
+        <div className="pp-range">
+          <label htmlFor="pp-range-in" className="small">{t('ppkRangeLabel')}</label>
+          <input id="pp-range-in" type="text" inputMode="numeric" autoComplete="off" spellCheck={false} value={rangeText}
+            placeholder={t('ppkRangePh', { t: total })} aria-invalid={rangeBad || undefined} aria-describedby={rangeBad ? 'pp-range-err' : undefined}
+            onChange={(e) => onRangeText(e.target.value)} onBlur={() => { typing.current = false }} />
+          {rangeBad && <small id="pp-range-err" className="err-text small" role="alert">{t('ppkRangeBad', { t: total })}</small>}
         </div>
 
         <div className="pp-grid" ref={gridRef}>

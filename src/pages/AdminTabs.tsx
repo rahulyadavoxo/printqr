@@ -426,11 +426,14 @@ export function AdminSpam({ onMsg, onChanged }: { onMsg: Msg; onChanged: () => v
     run(() => supabase.rpc('admin_block_ip', { p_hash: hash, p_block: block, p_reason: block ? 'admin' : null }),
       block ? t('admBlockIpAsk') : undefined)
 
-  if (!data) return <SkelList n={4} />
+  // QA #13: the Spam watch tab gets its own heading like every other tab
+  const head = <h2 className="admin-sec adm-tab-h">{t('admSpam')}</h2>
+  if (!data) return <>{head}<SkelList n={4} /></>
   const openReports = data.reports.filter((r) => !r.resolved)
 
   return (
     <>
+      {head}
       <AdminFileReports onMsg={onMsg} onChanged={onChanged} />
       <h2 className="admin-sec">{t('admReports')} ({openReports.length})</h2>
       {data.reports.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
@@ -502,6 +505,18 @@ export function AdminSpam({ onMsg, onChanged }: { onMsg: Msg; onChanged: () => v
 
 /** Save button in the admin bottom bar: shown in place of the tab's icon only while the tab has unsaved changes. */
 export type SaveSlot = { run: () => void; busy: boolean } | null
+
+/** A phrase of 1-5 words said 2+ times in a row ("of the day of the day") - a garbled announcement (QA #16). */
+export function repeatedPhrase(text: string): string | null {
+  const m = /(?:^|\s)((?:\S+\s+){0,4}\S+)(?:\s+\1){1,}(?=\s|[.!?,]|$)/iu.exec(text.trim())
+  if (!m) return null
+  // A single short word twice ("very very") is fine; flag longer repeats or 3+ repeats.
+  const phrase = m[1]
+  const words = phrase.split(/\s+/).length
+  const times = (m[0].trim().split(/\s+/).length) / words
+  if (words === 1 && times < 3) return null
+  return phrase
+}
 
 type SetSec = 'announcement' | 'popup' | 'maintenance' | 'minversion' | 'freecounters' | 'coupons' | 'login' | 'landing'
 /** Phone Settings hub (like the shop owner's Settings): groups of rows; each row opens its own page (?s=<key>). */
@@ -613,6 +628,10 @@ export function AdminSettings({ onMsg, onSaveSlot }: { onMsg: Msg; onSaveSlot?: 
       <label htmlFor="set-ann-hi">{t('admAnnouncementHi')}</label>
       <textarea id="set-ann-hi" rows={2} maxLength={300} value={s.announcement_hi || ''} onChange={(e) => set({ announcement_hi: e.target.value })} />
       <p className="small muted">{t('admAnnouncementHint')}</p>
+      {/* QA #16: catch a garbled text ("of the day of the day…") and an empty Hindi version before they reach every shop */}
+      {repeatedPhrase(s.announcement || '') && <p className="small err-text" role="alert">{t('admAnnRepeat', { text: repeatedPhrase(s.announcement || '') || '' })}</p>}
+      {repeatedPhrase(s.announcement_hi || '') && <p className="small err-text" role="alert">{t('admAnnRepeat', { text: repeatedPhrase(s.announcement_hi || '') || '' })}</p>}
+      {!!(s.announcement || '').trim() && !(s.announcement_hi || '').trim() && <p className="small muted" role="note">{t('admAnnHiEmpty')}</p>}
     </>),
     popup: (<>
       <label htmlFor="set-ann-secs">{t('admAnnSecs')}</label>

@@ -985,7 +985,7 @@ body.no-scroll { overflow: hidden; }
 .profile-pop { width: 280px; }
 .profile-head { display: flex; align-items: center; gap: 10px; padding: 8px 10px 12px; border-bottom: 1px solid var(--c-line); }
 .profile-head > div { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-.profile-head strong { font-size: 16px; color: var(--c-ink); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-head strong { font-size: 16px; color: var(--c-ink); max-width: 200px; overflow-wrap: anywhere; white-space: normal; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; } /* QA #44: whole shop name, wraps instead of "…" */
 .profile-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; border-bottom: 1px solid var(--c-line); margin-bottom: 4px; }
 .lang-btn { font-weight: 800; font-size: 14px; }
 .bar-actions .toggle { flex: none; }
@@ -1634,7 +1634,7 @@ img.shop-avatar { object-fit: cover; padding: 0; }
 }
 
 /* v25: bot check (only when the server asks), block sender, blocked count */
-.check-card { display: grid; gap: 10px; margin: 12px 0; }
+.check-card { display: grid; gap: 10px; margin: 12px 0; scroll-margin-bottom: 140px; }
 .check-card .turnstile-box { min-height: 65px; }
 .order-actions .block-sender { margin-left: auto; color: var(--muted); padding: 10px 4px; min-height: 44px; }
 .blocked-row { margin: 4px 0 12px; }
@@ -2971,3 +2971,49 @@ button.adm-notif-item.adm-notif-sup:hover { background: var(--c-sunken); }
 .set-profile-edit { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: var(--c-faint); }
 .set-profile:hover .set-profile-edit { color: var(--c-ink); background: var(--c-sunken); }
 .set-hub > .set-profile + .set-grp-lbl { padding-top: 14px; }
+
+/* QA 27 Nov #10: signed-in admin login + role in the admin header (computer), bar + More sheet (phone) */
+.adm-who { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; margin-left: 8px; min-width: 0; color: var(--c-muted); }
+.adm-who svg { flex: none; }
+.adm-who-id { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 32ch; }
+.admin-head .adm-who ~ .adm-bell-d { margin-left: 0; }
+.adm-sheet-who { display: flex; align-items: center; gap: 8px; padding: 10px 6px 0; margin-top: 6px; border-top: 1px solid var(--c-line); color: var(--c-muted); min-width: 0; }
+.adm-sheet-who > span:first-of-type { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-bar-title .adm-bar-role { flex: none; font-size: 11px; font-weight: 700; }
+/* QA 27 Nov #11: all admin tabs visible on computer screens - the row wraps instead of hiding tabs off-screen */
+.tabs.admin-tabs { flex-wrap: wrap; overflow-x: visible; scroll-snap-type: none; }
+@media (min-width: 1024px) { .tabs.admin-tabs { border-radius: var(--r-lg); width: auto; } }
+.adm-empty { padding: 18px; text-align: center; } .adm-empty p { margin: 0; }
+/* QA 27 Nov #23/#37: "expand on hover" sidebar folds back once a tab is picked (until the pointer leaves it),
+   so it does not cover the Plan cards, QR poster or Earnings that just opened. */
+@media (min-width: 1024px) and (hover: hover) {
+  html:not(.in-app) .dash.sb-hover.sb-rest:not(.sb-pinned) .drawer:hover { width: var(--vs-w) !important; box-shadow: none !important; }
+  html:not(.in-app) .dash.sb-hover.sb-rest:not(.sb-pinned) .drawer:hover .drawer-item span { display: none !important; }
+}
+/* Touch screens can't hover: "expand on hover" is shown expanded, and the page panel moves over for it (no overlap). */
+@media (min-width: 1024px) and (hover: none) {
+  html:not(.in-app) .dash.sb-hover { --vs-w: var(--vs-wide); }
+  html:not(.in-app) .dash.sb-hover .drawer-item span { display: inline !important; opacity: 1 !important; white-space: nowrap; font-size: 14.5px; }
+}
+@media (min-width: 1024px) and (hover: hover) {
+  html.in-app .dash.sb-hover.sb-rest:not(.sb-pinned) .drawer:hover { width: 72px; box-shadow: var(--sh-1); }
+  html.in-app .dash.sb-hover.sb-rest:not(.sb-pinned) .drawer:hover .drawer-item span,
+  html.in-app .dash.sb-hover.sb-rest:not(.sb-pinned) .drawer:hover .drawer-label,
+  html.in-app .dash.sb-hover.sb-rest:not(.sb-pinned) .drawer:hover .drawer-title { opacity: 0; }
+}
+.order-purged { display: block; font-size: 12px; }
+.rates-grid .field > label { display: block; font-size: var(--fs-sm); font-weight: 650; color: var(--c-ink-2); margin-bottom: 6px; }
+/* QA #45: type the pages to print ("1-3, 5") in the page picker */
+.pp-range { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 0 var(--sp-4) var(--sp-3); border-bottom: 1px solid var(--c-line); }
+.pp-range label { font-weight: 650; color: var(--c-ink-2); }
+.pp-range input { flex: 1 1 160px; min-width: 0; max-width: 260px; height: 38px; }
+.pp-range .err-text { flex-basis: 100%; }
+.file-card .field > label { display: block; font-size: var(--fs-sm); font-weight: 650; color: var(--c-ink-2); margin-bottom: 6px; }
+.max-files-note { display: flex; align-items: center; gap: 8px; }
+/* QA #3: a second check after the first pass is a small card at the bottom (page not blurred, code card usable);
+   the card itself always takes the clicks, so the tick box is never under the page */
+.tg-overlay.again { inset: auto 0 0 0; z-index: 1100; place-items: end center; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; pointer-events: none; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); }
+.tg-overlay.again .tg-card { pointer-events: auto; max-width: 340px; padding: 14px 14px 12px; gap: 6px; box-shadow: var(--sh-3); }
+.tg-overlay.again .tg-icon { display: none; }
+.tg-overlay.again .tg-title { font-size: 16px; margin: 0; }
+.tg-overlay.open .tg-card { position: relative; z-index: 1; }

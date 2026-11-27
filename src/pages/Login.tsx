@@ -80,7 +80,7 @@ function LoginPage({ captcha, setCaptchaReset }: {
   captcha: string | null
   setCaptchaReset: Dispatch<SetStateAction<number>>
 }) {
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const { t, te, lang, setLang } = useI18n()
   useFitScreen()
   // Admin picks the design (Settings > Login page design); ?design=modern|classic previews one.
@@ -104,7 +104,28 @@ function LoginPage({ captcha, setCaptchaReset }: {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   // Signup step 2: the 6-digit code from the email (proves the email is real).
-  const [codeStep, setCodeStep] = useState(false)
+  const [codeStep, setCodeStepState] = useState(false)
+  // QA #7: the code step has its own URL (?step=code), so the address says where you are and Back returns to the form.
+  const codePending = useRef(false)
+  const setCodeStep = (on: boolean) => {
+    setCodeStepState(on)
+    codePending.current = on
+    setParams((p) => {
+      const q = new URLSearchParams(p)
+      if (on) q.set('step', 'code')
+      else q.delete('step')
+      return q
+    }, { replace: !on })
+  }
+  useEffect(() => {
+    const inUrl = params.get('step') === 'code'
+    if (inUrl) codePending.current = false
+    if (codeStep && !inUrl && !codePending.current) setCodeStepState(false) // Back pressed
+    else if (!codeStep && inUrl && !codePending.current) {
+      // Reloaded on the code step: the typed email / number is gone, so start at the form again.
+      setParams((p) => { const q = new URLSearchParams(p); q.delete('step'); return q }, { replace: true })
+    }
+  }, [params, codeStep, setParams])
   const [code, setCode] = useState('')
   // Bumped after a wrong code: the boxes shake, clear and focus the first box.
   const [codeShake, setCodeShake] = useState(0)
@@ -411,13 +432,11 @@ function LoginPage({ captcha, setCaptchaReset }: {
             {msg && <p id="otp-msg" className={`notice${msg.error ? ' error' : ' success'}`} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
             <button className="btn primary block lg" disabled={busy || code.length < codeLen}>{busy ? t('pleaseWait') : t('codeVerify')}</button>
             <p className="center small switch-line">
-              {cooldown > 0 ? (
-                <span className="otp-timer" role="timer" aria-live="off">{t('codeWait', { s: mmss(cooldown) })}</span>
-              ) : (
-                <button type="button" className="link" disabled={busy} onClick={phoneMode ? () => { void sendPhoneCode() } : resendCode}>
-                  {t('codeResend')}
-                </button>
-              )}
+              {/* QA #9: one button that stays put; while the wait runs it is disabled and shows the time left */}
+              <button type="button" className={`link${cooldown > 0 ? ' otp-timer' : ''}`} disabled={busy || cooldown > 0}
+                onClick={phoneMode ? () => { void sendPhoneCode() } : resendCode}>
+                {cooldown > 0 ? t('codeWait', { s: mmss(cooldown) }) : t('codeResend')}
+              </button>
               {' · '}
               <button type="button" className="link" onClick={() => { if (phoneMode) setEmail(mobile); setCodeStep(false); setMsg(null) }}>{phoneMode ? t('phChange') : t('codeChangeEmail')}</button>
             </p>
@@ -475,14 +494,18 @@ function LoginPage({ captcha, setCaptchaReset }: {
   const lxLang = (
     <div className="lx-lang" role="group" aria-label={t('language')}>
       <button type="button" aria-pressed={lang === 'en'} onClick={() => setLang('en')}>EN</button>
-      <button type="button" aria-pressed={lang === 'hi'} onClick={() => setLang('hi')} lang="hi">हि</button>
+      <button type="button" aria-pressed={lang === 'hi'} onClick={() => setLang('hi')} lang="hi">हिं</button>
     </div>
   )
   // "Scan. Upload. Print." word by word (the desktop designs highlight one word at a time).
-  const pitchWords = t('lxPitch').split(' ').flatMap((w, i) => [
-    i ? ' ' : null,
-    <span key={i} className="w" style={{ ['--i' as string]: i } as CSSProperties}>{w}</span>
-  ])
+  // QA #7: screen readers get the sentence whole ("Scan. Upload. Print."), the highlighted words are decoration.
+  const pitchWords = [
+    <span key="a11y" className="sr-only">{t('lxPitch')}</span>,
+    ...t('lxPitch').split(' ').flatMap((w, i) => [
+      i ? ' ' : null,
+      <span key={i} className="w" aria-hidden="true" style={{ ['--i' as string]: i } as CSSProperties}>{w}</span>
+    ])
+  ]
   const lxForm = (
     <>
       <div className="lx-tabs" role="tablist">

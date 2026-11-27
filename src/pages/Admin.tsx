@@ -75,7 +75,9 @@ const LOG_KEYS: Record<string, Key> = {
   // v39
   push_sent: 'adxLogPush', reminder_sent: 'adxLogReminder', nudge_sent: 'adxLogNudge', coupon_saved: 'adxLogCoupon',
   coupon_redeemed: 'adxLogRedeemed', support_reply: 'adxLogSupport', role_changed: 'adxLogRole', shop_viewed: 'adxLogViewed',
-  export: 'adxLogExport', admin_new_device: 'adxLogDevice', admin_removed: 'adxLogRemoved'
+  export: 'adxLogExport', admin_new_device: 'adxLogDevice', admin_removed: 'adxLogRemoved',
+  // QA 27 Nov (#18): a server error in an admin action is logged too
+  action_failed: 'adxLogFailed'
 }
 
 
@@ -258,7 +260,8 @@ export default function Admin() {
   const bell = health ? { count: alertCount, onClick: () => { setNotifOpen(true); void loadHealth() } } : undefined
   const shell = (body: ReactElement, nav = false) => (
     nav
-      ? <AdminShell tab={tab} onTab={setTab} onRefresh={onRefresh} refreshing={refreshing} bell={bell} save={saveSlot} tabs={tabs}>
+      ? <AdminShell tab={tab} onTab={setTab} onRefresh={onRefresh} refreshing={refreshing} bell={bell} save={saveSlot} tabs={tabs}
+          account={status?.admin ? { id: session?.user?.email || session?.user?.phone || '—', role: owner ? t('adxRoleOwner') : t('adxRoleSupport') } : undefined}>
           {body}
           {viewShop && <AdminShopView shopId={viewShop} onClose={() => setViewShop(null)} />}
           {notifOpen && health && <AdminNotifications h={health} onClose={() => setNotifOpen(false)}
@@ -276,12 +279,18 @@ export default function Admin() {
   const mrr = ov ? Math.round(ov.pro_monthly * PRICE_MONTHLY + (ov.pro_yearly * PRICE_YEARLY) / 12
     + (ov.plus_monthly ?? 0) * PLUS_MONTHLY + ((ov.plus_yearly ?? 0) * PLUS_YEARLY) / 12) : 0
 
+  const who = session?.user?.email || session?.user?.phone || '—'
   const actionLabel = (a: string) => (LOG_KEYS[a] ? t(LOG_KEYS[a]) : a)
 
   return shell(
     <>
       <div className="admin-head">
         <h1>{t('admTitle')}</h1>
+        {/* QA #10: which login is signed in, and its admin role */}
+        <span className="adm-who small" title={who}>
+          <Icon name="user" size={15} /><span className="adm-who-id">{who}</span>
+          <span className="admin-tag">{owner ? t('adxRoleOwner') : t('adxRoleSupport')}</span>
+        </span>
         {bell && (
           <button type="button" className="btn small soft adm-bell-d" onClick={bell.onClick} aria-label={t('admNotifs')}>
             <Icon name="bell" size={18} />{bell.count > 0 && <span className="adm-badge">{bell.count}</span>}
@@ -469,7 +478,7 @@ export default function Admin() {
           {log.map((l, i) => (
             <div className="admin-log-row small" key={i}>
               <span className="muted">{new Date(l.created_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</span>
-              <span><b>{actionLabel(l.action)}</b> · {l.shop_name || '—'}{l.action === 'pro_given' && l.detail?.days ? ` · +${String(l.detail.days)} ${t('admDays')}` : ''}</span>
+              <span><b>{actionLabel(l.action)}</b> · {l.shop_name || '—'}{l.action === 'pro_given' && l.detail?.days ? ` · +${String(l.detail.days)} ${t('admDays')}` : ''}{l.action === 'action_failed' && l.detail ? ` · ${String(l.detail.action || '')}: ${String(l.detail.error || '')}` : ''}</span>
             </div>
           ))}
         </div>

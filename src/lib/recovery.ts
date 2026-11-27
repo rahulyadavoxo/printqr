@@ -68,6 +68,11 @@ export function peekAuthUrlError(): string | null {
   return urlError
 }
 
+/** Set by App when a ?code= sign-in link could not be used (QA #4: an older confirm link after a newer one was sent). */
+export function setAuthUrlError(text: string): void {
+  urlError = text
+}
+
 export function clearAuthUrlError(): void {
   urlError = null
 }

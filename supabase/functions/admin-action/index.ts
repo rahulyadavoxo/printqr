@@ -128,6 +128,22 @@ async function removeObjects(bucket: string, paths: string[]): Promise<void> {
 const SUPPORT_OK = ['report_dismiss', 'report_delete_files']
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+/**
+ * "DB 403: {"code":"42501","message":"permission denied for table admins",...}" -> "permission denied for table
+ * admins (42501)": the admin sees the database's own sentence, not the raw JSON (QA 26 Nov #18).
+ */
+function readableError(raw: string): string {
+  const i = raw.indexOf('{')
+  if (i >= 0) {
+    try {
+      const j = JSON.parse(raw.slice(i)) as { message?: string; msg?: string; code?: string | number }
+      const text = j.message || j.msg
+      if (text) return `${text}${j.code ? ` (${j.code})` : ''}`
+    } catch { /* not JSON */ }
+  }
+  return raw.slice(0, 400)
+}
+
 function id(v: unknown, name: string): string {
   if (typeof v !== 'string' || !UUID.test(v)) throw new HttpError(400, 'bad_request', `Missing ${name}`)
   return v
@@ -164,13 +180,17 @@ async function fileReport(v: unknown): Promise<FileReport> {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   let isAdmin = false
+  let adminUid = ''
+  let actionName = ''
   try {
     if (req.method !== 'POST') throw new HttpError(405, 'method_not_allowed')
     if (!URL_ || !KEY) throw new HttpError(500, 'missing_env')
     const admin = await adminId(req)
     isAdmin = true
+    adminUid = admin
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
     const action = String(body.action || '')
+    actionName = action
     if (!SUPPORT_OK.includes(action) && (await adminRole(admin)) !== 'owner') throw new HttpError(403, 'not_allowed', 'not allowed')
 
     if (action === 'push_send') {
@@ -393,7 +413,13 @@ Deno.serve(async (req) => {
     // Only admins reach this function's actions, so show them the real reason instead of "Something went wrong".
     if (isAdmin && !(e instanceof HttpError)) {
       console.error('admin-action', e)
-      const m = (e instanceof Error ? e.message : String(e)).slice(0, 400)
+      const raw = e instanceof Error ? e.message : String(e)
+      const m = readableError(raw)
+      // QA 26 Nov (#18): a failed action (e.g. Make Support refused by a missing grant) is written to the
+      // admin log too, so it shows under Recent admin actions and not only as a raw error report.
+      if (adminUid && actionName) {
+        await log(adminUid, 'action_failed', null, { action: actionName, error: m }).catch(() => undefined)
+      }
       return json({ error: 'server_error', message: `Server error: ${m}` }, 500)
     }
     return fail(e)

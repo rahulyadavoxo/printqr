@@ -341,7 +341,8 @@ export function AdminSupport({ onMsg, onView }: { onMsg: Msg; onView: (shopId: s
           </button>
         ))}
       </div>
-      {!rows ? <SkelList /> : rows.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
+      {/* QA #14: each filter says plainly when it has nothing */}
+      {!rows ? <SkelList /> : rows.length === 0 ? <div className="card adm-empty" role="status"><p className="muted">{filter === 'open' ? t('adxNoOpenTickets') : filter === 'solved' ? t('adxNoSolvedTickets') : t('adxNoTickets')}</p></div> : (
         <div className="admin-list">
           {rows.map((r) => (
             <div className={`card admin-item${r.status === 'solved' ? ' is-done' : ''}`} key={r.id}>
