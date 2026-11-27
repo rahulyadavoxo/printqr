@@ -7,6 +7,8 @@
 //                                                           from the admin's authenticator app, checked here every time.
 //   make_support { user_id, code }                       -> add a login to public.admins with role 'support' (fresh
 //                                                           authenticator code required, like delete_user)
+//   remove_admin { user_id, code }                       -> remove a login from public.admins (Owner or Support). Fresh
+//                                                           authenticator code required. Not yourself, not the last Owner.
 //   send_reset   { user_id }                             -> password reset email
 //   cancel_subscription { shop_id }                      -> Razorpay cancel (at cycle end when possible)
 //   delete_files { order_id }                            -> delete an order's files from storage now
@@ -276,6 +278,27 @@ Deno.serve(async (req) => {
       const user = (await call(`/auth/v1/admin/users/${uid}`)) as { email?: string; phone?: string }
       await db('admins', { method: 'POST', body: JSON.stringify({ user_id: uid, role: 'support' }), prefer: 'return=minimal' })
       await log(admin, 'role_changed', null, { user_id: uid, email: user.email || user.phone || null, role: 'support', before: null })
+      return json({ ok: true })
+    }
+
+    if (action === 'remove_admin') {
+      const uid = id(body.user_id, 'user_id')
+      if (uid === admin) throw new HttpError(400, 'self', 'You cannot remove yourself as admin')
+      const isAdm = await db<{ user_id: string; role: string | null }[]>(`admins?user_id=eq.${uid}&select=user_id,role`)
+      if (!isAdm.length) throw new HttpError(404, 'not_admin', 'This login is not an admin')
+      const before = isAdm[0].role || 'owner'
+      const lastOwner = async () => {
+        if (before !== 'owner') return false
+        const owners = await db<{ user_id: string }[]>('admins?role=eq.owner&select=user_id')
+        return owners.filter((o) => o.user_id !== uid).length === 0
+      }
+      if (await lastOwner()) throw new HttpError(400, 'last_owner', 'At least one admin must stay Owner')
+      await checkCode(req, body.code)
+      // Check again after the code: another owner may have been removed meanwhile.
+      if (await lastOwner()) throw new HttpError(400, 'last_owner', 'At least one admin must stay Owner')
+      const user = (await call(`/auth/v1/admin/users/${uid}`).catch(() => ({}))) as { email?: string; phone?: string }
+      await db(`admins?user_id=eq.${uid}`, { method: 'DELETE', prefer: 'return=minimal' })
+      await log(admin, 'admin_removed', null, { user_id: uid, email: user.email || user.phone || null, role: null, before })
       return json({ ok: true })
     }
 

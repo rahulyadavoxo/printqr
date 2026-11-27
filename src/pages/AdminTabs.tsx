@@ -742,12 +742,12 @@ function AdminSetHub({ t, s, onOpen }: { t: ReturnType<typeof useI18n>['t']; s?:
 }
 
 /** Actions that need a fresh 6-digit code from the admin's authenticator app every time (delete a login,
- *  make a login Support). The admin-action function checks the code itself before it changes anything. */
+ *  make a login Support, remove an admin). The admin-action function checks the code itself before it changes anything. */
 type CodeDialogProps = {
-  action: 'delete_user' | 'make_support'; user: UserRow; ask: string; body: string; ok: string; danger?: boolean
+  action: 'delete_user' | 'make_support' | 'remove_admin'; user: { user_id: string }; ask: string; body: string; ok: string; danger?: boolean
   onClose: () => void; onDone: () => void
 }
-function CodeDialog({ action, user, ask, body, ok: okLabel, danger, onClose, onDone }: CodeDialogProps) {
+export function CodeDialog({ action, user, ask, body, ok: okLabel, danger, onClose, onDone }: CodeDialogProps) {
   const { t, teRaw } = useI18n()
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
@@ -767,7 +767,7 @@ function CodeDialog({ action, user, ask, body, ok: okLabel, danger, onClose, onD
       onDone()
     } catch (e) {
       const c = (e as { code?: string }).code
-      setErr(c === 'bad_code' ? t('admMfaWrong') : teRaw(e))
+      setErr(c === 'bad_code' ? t('admMfaWrong') : c === 'last_owner' ? t('adxLastOwner') : teRaw(e))
       setCode('')
       setBusy(false)
     }

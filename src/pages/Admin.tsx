@@ -75,7 +75,7 @@ const LOG_KEYS: Record<string, Key> = {
   // v39
   push_sent: 'adxLogPush', reminder_sent: 'adxLogReminder', nudge_sent: 'adxLogNudge', coupon_saved: 'adxLogCoupon',
   coupon_redeemed: 'adxLogRedeemed', support_reply: 'adxLogSupport', role_changed: 'adxLogRole', shop_viewed: 'adxLogViewed',
-  export: 'adxLogExport', admin_new_device: 'adxLogDevice'
+  export: 'adxLogExport', admin_new_device: 'adxLogDevice', admin_removed: 'adxLogRemoved'
 }
 
 
