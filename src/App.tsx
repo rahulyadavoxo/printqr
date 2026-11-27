@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { isConfigured, supabase } from './lib/supabase'
+import { setAuthUrlError } from './lib/recovery'
 import { useI18n } from './lib/i18n'
 import { TopBar } from './components/TopBar'
 import UpdateGate from './components/UpdateGate'
@@ -27,6 +28,15 @@ export default function App() {
   // PKCE-style recovery links (?code=...) are exchanged by supabase-js, which then fires PASSWORD_RECOVERY.
   useEffect(() => {
     if (!isConfigured) return
+    // QA #4: a confirm link that can't sign in (an older email after "Resend", or opened in another browser)
+    // used to leave the person on the home page, signed out, with no word. Now: the login page says what to do.
+    if (new URLSearchParams(window.location.search).has('code')) {
+      void supabase.auth.getSession().then(({ data }) => {
+        if (data.session) return
+        setAuthUrlError(t('linkOld'))
+        nav('/login', { replace: true })
+      })
+    }
     const { data } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') nav('/reset', { replace: true })
     })

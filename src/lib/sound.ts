@@ -4,6 +4,8 @@ let ctx: AudioContext | null = null
 export function ding() {
   try {
     ctx = ctx || new AudioContext()
+    // QA #40: a context left suspended (no tap yet since the page opened) plays nothing; try to wake it.
+    if (ctx.state === 'suspended') void ctx.resume().catch(() => undefined)
     const now = ctx.currentTime
     ;[0, 0.25].forEach((t, i) => {
       const o = ctx!.createOscillator()

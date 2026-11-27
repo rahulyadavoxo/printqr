@@ -2,6 +2,7 @@ import { ChangeEvent, DragEvent, lazy, ReactElement, Suspense, useEffect, useMem
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { DEFAULT_IDCARD_RATE, Rates, supabase, UUID_RE } from '../lib/supabase'
 import { countPdfPages, extractPages, pagesToRange } from '../lib/pdf'
+import { isPasswordError, isRealFile, officePageCount, pdfHasEncrypt } from '../lib/fileCheck'
 import { filePrice, rupees } from '../lib/pricing'
 import { idcardPreview, idcardSheetPdf, imagesToPdf, PASSPORT_OPTIONS, passportPreview, passportSheetPdf, passportSheets } from '../lib/imagePdf'
 import { useI18n } from '../lib/i18n'
@@ -47,6 +48,10 @@ type Item = {
   kind: 'pdf' | 'image' | 'doc'
   totalPages: number
   counting: boolean
+  /** PDF whose pages could not be counted here: the customer types the count (no page picker). */
+  manualPages?: boolean
+  /** Office file whose page count was read from the file itself (docx / pptx). */
+  pagesFromFile?: boolean
   /** PDF: the pages to print (1-based, sorted); null = all pages. */
   pages: number[] | null
   copies: number
@@ -142,13 +147,19 @@ export default function Upload() {
   const [viewImg, setViewImg] = useState<ViewImg | null>(null)
   const [loadErr, setLoadErr] = useState<{ text?: string; notFound?: boolean } | null>(null)
   const [items, setItems] = useState<Item[]>([])
-  const [name, setName] = useState(() => localStorage.getItem('pq_name') || '')
+  const [savedName] = useState(() => { try { return localStorage.getItem('pq_name') || '' } catch { return '' } })
+  const [name, setName] = useState(savedName)
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<Progress | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   // v25: the bot check appears only when the server asks for it (many orders from one network / shop in 10 min).
   const [needCheck, setNeedCheck] = useState(false)
+  // QA #53: bring the check above the sticky Total / Send bar when it appears
+  const checkRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (needCheck) window.setTimeout(() => checkRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
+  }, [needCheck])
   const [pass, setPass] = useState<string | null>(null)
   const [checkReset, setCheckReset] = useState(0)
   async function onCheckToken(token: string | null) {
@@ -208,31 +219,39 @@ export default function Upload() {
   async function addFiles(files: File[]) {
     setMsg(null)
     const room = MAX_FILES - items.length - (passport ? 1 : 0) - (idcard ? 1 : 0)
-    if (files.length > room) setMsg(t('uMaxFiles', { n: MAX_FILES }))
+    // QA #52: say how many were left out (picking 25 files used to drop 5 with only a general line)
+    const tooMany = files.length > room ? (room > 0 ? t('uMaxFilesSkipped', { n: MAX_FILES, k: files.length - room }) : t('uMaxReached', { n: MAX_FILES })) : null
+    const problems: string[] = []
     const added: Item[] = []
     // Whole order: up to the shop plan's size (50 / 100 / 200 MB, checked again by the server).
     let bytes = items.reduce((n, it) => n + it.file.size, 0) + (passport?.file.size ?? 0)
     for (const f of files.slice(0, Math.max(0, room))) {
       if (f.size > MAX_SIZE) {
-        setMsg(t('uTooBig', { name: f.name }))
+        problems.push(t('uTooBig', { name: f.name }))
         continue
       }
       if (bytes + f.size > maxOrder) {
-        setMsg(t('uOrderTooBig', { mb: maxMb }))
+        problems.push(t('uOrderTooBig', { mb: maxMb }))
+        continue
+      }
+      const mime = mimeOf(f)
+      if (!mime) {
+        problems.push(t('uBadType', { name: f.name }))
+        continue
+      }
+      // QA #48: the same first-bytes check the server does on Send, here and by file name
+      if (!(await isRealFile(f, mime))) {
+        problems.push(t('uNotReal', { name: f.name }))
         continue
       }
       bytes += f.size
-      if (!mimeOf(f)) {
-        setMsg(t('uBadType', { name: f.name }))
-        continue
-      }
       const kind = kindOf(f)
       added.push({
         key: crypto.randomUUID(),
         file: f,
         kind,
         totalPages: 1,
-        counting: kind === 'pdf',
+        counting: kind !== 'image',
         pages: null,
         copies: 1,
         color: kind === 'image',
@@ -241,16 +260,31 @@ export default function Upload() {
         lamination: false
       })
     }
+    const show = () => setMsg([tooMany, ...problems].filter(Boolean).join(' ') || null)
+    show()
     setItems((list) => [...list, ...added])
     for (const it of added) {
+      if (it.kind === 'doc') {
+        // QA #50: Word / PowerPoint files say their page / slide count; others are typed by the customer.
+        const n = await officePageCount(it.file)
+        update(it.key, n ? { totalPages: n, counting: false, pagesFromFile: true } : { counting: false })
+        continue
+      }
       if (it.kind !== 'pdf') continue
       try {
         const n = await countPdfPages(it.file)
         update(it.key, { totalPages: n, counting: false })
         if (n > 1) setPickQueue((q) => [...q, it.key])
-      } catch {
-        update(it.key, { counting: false, kind: 'doc' })
-        setMsg(t('uCountFail', { name: it.file.name }))
+      } catch (e) {
+        if (isPasswordError(e) || await pdfHasEncrypt(it.file)) {
+          // QA #51: a PDF that needs a password can't be opened by the shop either: take it out and say why.
+          setItems((list) => list.filter((x) => x.key !== it.key))
+          problems.push(t('uPdfLocked', { name: it.file.name }))
+        } else {
+          update(it.key, { counting: false, manualPages: true })
+          problems.push(t('uCountFail', { name: it.file.name }))
+        }
+        show()
       }
     }
   }
@@ -684,7 +718,7 @@ export default function Upload() {
                   <strong>{it.file.name}</strong>
                   <span className="muted small">
                     {sizeText(it.file.size)}
-                    {it.kind === 'pdf' && ' · ' + (it.counting ? t('uCounting') : tn('uPages_one', 'uPages_other', it.totalPages))}
+                    {it.kind === 'pdf' && !it.manualPages && ' · ' + (it.counting ? t('uCounting') : tn('uPages_one', 'uPages_other', it.totalPages))}
                   </span>
                 </div>
                 <button type="button" className="icon-btn" aria-label={t('uRemove')} title={t('uRemove')}
@@ -692,7 +726,7 @@ export default function Upload() {
               </div>
 
               <div className="grid2">
-                {it.kind === 'pdf' ? (
+                {it.kind === 'pdf' && !it.manualPages ? (
                   <div className="field">
                     <span>{t('uWhichPages')}</span>
                     <button type="button" className="btn pp-open" disabled={busy || it.counting}
@@ -708,11 +742,16 @@ export default function Upload() {
                     <strong>{t('uOnePage')}</strong>
                   </div>
                 ) : (
-                  <label className="field">
-                    <span>{t('uNumPages')}</span>
-                    <input type="number" min={1} max={2000} value={it.totalPages}
-                      onChange={(e) => update(it.key, { totalPages: Math.max(1, Math.min(2000, Number(e.target.value) || 1)) })} />
-                  </label>
+                  <div className="field">
+                    <label htmlFor={`np-${it.key}`}>{t('uNumPages')}</label>
+                    <input id={`np-${it.key}`} type="number" min={1} max={2000} value={it.totalPages} disabled={it.counting}
+                      aria-describedby={`np-${it.key}-hint`}
+                      onChange={(e) => update(it.key, { totalPages: Math.max(1, Math.min(2000, Number(e.target.value) || 1)), pagesFromFile: false })} />
+                    {/* QA #50: say where the number comes from, so a wrong "1" is not taken as counted */}
+                    <small className="hint" id={`np-${it.key}-hint`}>
+                      {it.counting ? t('uCounting') : it.pagesFromFile ? t('uPagesFromFile') : t('uPagesManual')}
+                    </small>
+                  </div>
                 )}
                 <CopiesField o={it} onChange={(p) => update(it.key, p)} disabled={busy} />
               </div>
@@ -813,6 +852,8 @@ export default function Upload() {
             </div>
           )}
 
+          {/* QA #52: at the limit, say so instead of the Add button just disappearing */}
+          {hasItems && roomLeft <= 0 && <p className="notice max-files-note" role="status"><Icon name="alert" size={18} /> <span>{t('uMaxReached', { n: MAX_FILES })}</span></p>}
           {hasItems && roomLeft > 0 && (
             <div className="add-row">
               <button type="button" className="btn dashed block lg" onClick={() => inputRef.current?.click()} disabled={busy}>
@@ -840,6 +881,12 @@ export default function Upload() {
               <label className="field">
                 <span>{t('uYourName')} <em className="opt">({t('optional')})</em></span>
                 <input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+                {/* QA #45: the name kept from the last order on this phone is shown as such, with a way to clear it */}
+                {!!savedName && name === savedName && (
+                  <small className="hint">{t('uNameSaved')}{' '}
+                    <button type="button" className="link small" onClick={() => { setName(''); try { localStorage.removeItem('pq_name') } catch { /* ignore */ } }}>{t('uNameClear')}</button>
+                  </small>
+                )}
               </label>
               <label className="field">
                 <span>{t('uNote')} <em className="opt">({t('optional')})</em></span>
@@ -854,7 +901,7 @@ export default function Upload() {
 
           {msg && <p className="notice error" role="alert"><Icon name="alert" size={18} /> <span>{msg}</span></p>}
           {needCheck && (
-            <div className="card check-card">
+            <div className="card check-card" ref={checkRef}>
               <p className="small"><strong>{t('uCheckTitle')}</strong> {pass ? t('uCheckOk') : t('uCheckSub')}</p>
               <Turnstile action="upload" onToken={(tok) => void onCheckToken(tok)} resetKey={checkReset} lang={lang} />
             </div>

@@ -310,9 +310,9 @@ function StatusPage({ id, orderKey: key }: { id: string; orderKey: string }) {
   const waiting = ['uploading', 'received', 'printing'].includes(info.status)
   const canPush = waiting && (inApp || webPushSupported())
   const expires = info.files_expire_at ? new Date(info.files_expire_at) : null
-  const sameDay = expires && expires.toDateString() === new Date().toDateString()
+  // QA #41: always with the date (a bare "5:45 pm" reads like it could be any day)
   const expText = expires
-    ? expires.toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN', sameDay ? { hour: 'numeric', minute: '2-digit' } : { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+    ? expires.toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
     : ''
 
   return shell(

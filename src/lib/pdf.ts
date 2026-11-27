@@ -67,3 +67,22 @@ export function pagesToRange(pages: number[]): string {
   }
   return parts.join(',')
 }
+
+/**
+ * "1-3, 5, 8-9" -> [1, 2, 3, 5, 8, 9] (sorted, no repeats). null when the text is not a page list inside 1..total
+ * (QA #45: pages can be typed as well as ticked).
+ */
+export function parsePageRange(text: string, total: number): number[] | null {
+  const parts = text.replace(/[\u2013\u2014]/g, '-').replace(/\s*-\s*/g, '-').split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean)
+  if (!parts.length) return null
+  const out = new Set<number>()
+  for (const p of parts) {
+    const m = /^(\d+)(?:-(\d+))?$/.exec(p)
+    if (!m) return null
+    const a = Number(m[1])
+    const b = m[2] ? Number(m[2]) : a
+    if (a < 1 || b < a || b > total) return null
+    for (let i = a; i <= b; i++) out.add(i)
+  }
+  return [...out].sort((x, y) => x - y)
+}

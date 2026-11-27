@@ -323,14 +323,15 @@ function NotifyMenu({ active, paperLow, paperN, blocked, onGo, onHelp }: { activ
   }
   if (active > 0) items.push({ icon: 'orders', text: `${t('dActive')}: ${active}`, tab: 'orders' })
   if (paperLow) items.push({ icon: 'alert', text: t('paperLow', { n: paperN }), tab: 'settings', warn: true })
-  const badge = items.length
+  // QA #40: the badge counts orders, not menu rows ("Active orders: 2" is 2, not 1)
+  const badge = items.length + (active > 1 ? active - 1 : 0)
   if (push === 'blocked') items.push({ icon: 'bell', text: t('pushBlockedPc') })
   else if (push === 'pending') items.push({ icon: 'bell', text: t('pushNotReady') })
   return (
     <div className="pop-wrap notif-wrap" ref={p.ref}>
       <button type="button" className="bar-btn notif-btn" onClick={() => p.setOpen((v) => !v)} aria-label={t('notifTitle')} aria-expanded={p.open} title={t('notifTitle')}>
         <Icon name="bell" size={18} />
-        {badge > 0 && <span className="notif-badge">{badge}</span>}
+        {badge > 0 && <span className="notif-badge">{badge > 99 ? '99+' : badge}</span>}
       </button>
       {p.open && (
         <div className="pop-menu notif-menu" role="menu">
@@ -463,14 +464,14 @@ function ProfileMenu({ shop, planChip, onSettings, onLogout }: {
   const p = usePopover()
   return (
     <div className="pop-wrap" ref={p.ref} {...p.hover}>
-      <button type="button" className="avatar-btn" onClick={() => p.setOpen((v) => !v)} aria-label={shop.name} aria-expanded={p.open}>
+      <button type="button" className="avatar-btn" onClick={() => p.setOpen((v) => !v)} aria-label={t('accountMenuA11y', { name: shop.name })} title={shop.name} aria-haspopup="menu" aria-expanded={p.open}>
         <ShopAvatar shop={shop} size={30} />
       </button>
       {p.open && (
         <div className="pop-menu profile-pop" role="menu">
           <div className="profile-head">
             <ShopAvatar shop={shop} size={40} />
-            <div><strong>{shop.name}</strong>{planChip}</div>
+            <div><strong title={shop.name}>{shop.name}</strong>{planChip}</div>
           </div>
           {onSettings && <button type="button" onClick={() => { p.setOpen(false); onSettings() }}><Icon name="settings" size={16} /> <span>{t('tabSettings')}</span></button>}
           <button type="button" className="danger-item" onClick={onLogout}><Icon name="logout" size={16} /> <span>{t('logout')}</span></button>
@@ -510,6 +511,9 @@ export default function Dashboard() {
   })
   const [sb, setSbState] = useState<SbMode>(savedSidebar)
   const [sbMenu, setSbMenu] = useState(false)
+  // QA #23/#37: "expand on hover" sidebar folds back after a tab is picked (the pointer is still over it), so it
+  // no longer sits over the page it just opened (Plan cards, QR poster, Earnings); it opens again on the next hover.
+  const [sbRest, setSbRest] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const supUnread = useNotices().filter((n) => n.kind === 'support').length
   const setSb = (m: SbMode) => {
@@ -795,7 +799,7 @@ export default function Dashboard() {
 
   return (
     <>
-    <div ref={rootRef} className={`app-page dash sb-${sb}${sbMenu ? ' sb-pinned' : ''}${menu ? ' menu-open' : ''}${bottomNav ? ' has-bnav' : ''}${appLock.locked ? ' app-locked' : ''}`}
+    <div ref={rootRef} className={`app-page dash sb-${sb}${sbMenu ? ' sb-pinned' : ''}${sbRest && sb === 'hover' ? ' sb-rest' : ''}${menu ? ' menu-open' : ''}${bottomNav ? ' has-bnav' : ''}${appLock.locked ? ' app-locked' : ''}`}
       onClick={unlockAudio} aria-hidden={appLock.locked || undefined}>
       {loggingOut && (
         <div className="cf-back" role="status" aria-live="polite">
@@ -836,7 +840,7 @@ export default function Dashboard() {
       </header>
 
       <div className="drawer-scrim no-print" ref={scrimRef} onClick={() => setMenu(false)} aria-hidden="true" />
-      <aside className="drawer no-print" aria-label={t('menu')} ref={drawerRef}
+      <aside className="drawer no-print" aria-label={t('menu')} ref={drawerRef} onMouseLeave={() => setSbRest(false)}
         onTouchStart={swipeStart} onTouchMove={swipeMove} onTouchEnd={swipeEnd} onTouchCancel={swipeEnd}>
         <div className="drawer-head">
           <ShopAvatar shop={shop} size={44} />
@@ -857,7 +861,7 @@ export default function Dashboard() {
                 const x = TABS.find((y) => y.id === id)!
                 return (
                   <button key={id} type="button" className={`drawer-item${tab === id ? ' on' : ''}${id === 'orders' && activeCount ? ' has-fold' : ''}`}
-                    aria-current={tab === id ? 'page' : undefined} title={t(x.label)} onClick={() => go(id)}>
+                    aria-current={tab === id ? 'page' : undefined} title={t(x.label)} onClick={() => { go(id); if (sb === 'hover') setSbRest(true) }}>
                     <Icon name={x.icon} size={22} />
                     <span>{t(x.label)}</span>
                     {id === 'orders' && !!activeCount && <FoldCorner n={activeCount} corner="tr" size={34} />}
@@ -1057,8 +1061,9 @@ const STATUS_TEXT: Record<OrderStatus, Key> = {
   cancelled: 'dst_cancelled'
 }
 
-function timeText(iso: string) {
-  return new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
+/** Order time in the shop's language (QA #44: Hindi showed "am/pm"). */
+function timeText(iso: string, lang = 'en') {
+  return new Date(iso).toLocaleTimeString(lang === 'hi' ? 'hi-IN' : 'en-IN', { hour: 'numeric', minute: '2-digit' })
 }
 
 const FILTER_KEY = 'pq_counter_filter'
@@ -1096,6 +1101,12 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
   const [showDone, setShowDone] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
+  const [newNote, setNewNote] = useState<string | null>(null)
+  useEffect(() => {
+    if (!newNote) return
+    const id = window.setTimeout(() => setNewNote(null), 10000)
+    return () => window.clearTimeout(id)
+  }, [newNote])
   // Windows app: print straight to a printer (free on every plan).
   const desk = canPrint ? desktopApi() : null
   // Start printing (Pro / Plus, Windows app): the tap also sends the order's files to the printer.
@@ -1143,6 +1154,10 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
       const fresh = list.filter((o) => o.status === 'received' && !known.current!.has(o.id) && matchesCounter(o, f))
       if (fresh.length) {
         ding()
+        // QA #40: a visible note too (the sound may be blocked until the page was tapped once)
+        setNewNote(fresh.length === 1
+          ? tRef.current('newOrderToast', { token: fresh[0].token })
+          : tRef.current('newOrdersToast', { n: fresh.length, tokens: fresh.map((o) => '#' + o.token).join(', ') }))
         if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
           new Notification(tRef.current('newOrderNotif', { token: fresh[0].token }), {
             body: `${fresh[0].customer_name || tRef.current('customer')} · ${rupees(Number(fresh[0].total))}`
@@ -1346,6 +1361,7 @@ function Orders({ shop, counters, onCount, canPrint = true, autoPrintAllowed = f
   return (
     <section>
       {err && <p className="notice error" role="alert"><Icon name="alert" size={18} /> <span>{err}</span></p>}
+      {newNote && <p className="notice success new-order-note" role="status"><Icon name="bell" size={18} /> <span>{newNote}</span></p>}
       {info && <p className="notice success" role="status"><Icon name="printer" size={18} /> <span>{info}</span></p>}
       {desk && printers.length > 0 && (
         <div className="counter-filter">
@@ -1526,10 +1542,12 @@ function OrderCard(props: {
   // v25: orders not printed yet keep their files for at least 48 hours.
   const keepFor = keepHours ? (['received', 'printing'].includes(o.status) ? Math.max(keepHours, 48) : keepHours) : 0
   const expiry = keepFor ? new Date(new Date(o.created_at).getTime() + keepFor * 3600 * 1000) : null
-  const expiryText = expiry
-    ? expiry.toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN', expiry.toDateString() === new Date().toDateString()
-      ? { hour: 'numeric', minute: '2-digit' } : { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
-    : ''
+  // QA #41: always with the date, and an order not printed yet says both times (kept longer while waiting,
+  // the plan's time once it is Ready) so the time does not seem to jump when the status changes.
+  const fmtExp = (d: Date) => d.toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+  const expiryText = expiry ? fmtExp(expiry) : ''
+  const waitingLonger = !!keepHours && keepFor > keepHours
+  const afterReadyText = waitingLonger ? fmtExp(new Date(new Date(o.created_at).getTime() + (keepHours || 0) * 3600 * 1000)) : ''
   const printable = noFiles ? [] : (o.order_files || []).filter((f) => canDirectPrint(f.file_name))
   const busy = !!printingId
   const { t } = useI18n()
@@ -1542,8 +1560,10 @@ function OrderCard(props: {
         <span className="token-chip" aria-label={`${t('sYourToken')} ${o.token}`}>#{o.token}</span>
         <div className="order-who">
           <strong>{o.customer_name || t('customer')}</strong>
+          {/* QA #38: deleting the files also removes the customer's name and file names (privacy) - say so instead of a silent rename */}
+          {o.files_deleted && !o.customer_name && <span className="small muted order-purged">{t('detailsRemoved')}</span>}
           <div className="order-meta">
-            <span className="order-time"><Icon name="clock" size={14} /> {timeText(o.created_at)}</span>
+            <span className="order-time"><Icon name="clock" size={14} /> {timeText(o.created_at, lang)}</span>
             {o.counter_name && <span className="pill tiny counter-pill"><Icon name="receipt" size={12} className="ico-inl" />{o.counter_name}</span>}
           </div>
         </div>
@@ -1611,7 +1631,7 @@ function OrderCard(props: {
       {viewImg && <ImageLightbox src={viewImg.src} name={viewImg.name} onClose={() => setViewImg(null)} />}
       {held && !o.files_deleted && <p className="small files-gone fr-held"><Icon name="shield" size={15} /> {t('frHeld')}</p>}
       {o.files_deleted && <p className="small muted files-gone"><Icon name="trash" size={15} /> {t('filesDeleted')}</p>}
-      {!noFiles && expiryText && <p className="small muted files-gone"><Icon name="clock" size={15} /> {t('filesExpireAt', { time: expiryText })}</p>}
+      {!noFiles && expiryText && <p className="small muted files-gone"><Icon name="clock" size={15} /> {waitingLonger ? t('filesKeptWaiting', { time: expiryText, ready: afterReadyText }) : t('filesExpireAt', { time: expiryText })}</p>}
       <div className="order-actions">
         {onPrint && !noFiles && printable.length > 1 && ['received', 'printing'].includes(o.status) && (
           <button type="button" className="btn soft" disabled={busy} onClick={() => onPrint(o, printable)}>
@@ -1707,11 +1727,12 @@ function RatesTab({ shop, v2, passportLocked, onUpgrade, onSaved }: {
     const zero = !err && isZeroPrint(k)
     const hid = `rate-${k}-hint`, eid = `rate-${k}-err`
     return (
-      <label className="field" key={k}>
-        <span>{t(label)}</span>
+      // QA #44: a <div> with a label for the input only, so the field's name is not glued to the ₹ sign and the hint
+      <div className="field" key={k}>
+        <label htmlFor={`rate-${k}`}>{t(label)}</label>
         <div className="input-affix">
-          <span className="affix">₹</span>
-          <input type="text" inputMode="decimal" autoComplete="off" value={r[k] ?? ''}
+          <span className="affix" aria-hidden="true">₹</span>
+          <input id={`rate-${k}`} type="text" inputMode="decimal" autoComplete="off" value={r[k] ?? ''}
             aria-invalid={err ? true : undefined} aria-describedby={err || zero ? `${eid} ${hid}` : hid}
             onChange={(e) => { setR({ ...r, [k]: e.target.value }); setMsg(null) }}
             onBlur={() => setTouched({ ...touched, [k]: true })} />
@@ -1719,7 +1740,7 @@ function RatesTab({ shop, v2, passportLocked, onUpgrade, onSaved }: {
         {err && <small className="hint" id={eid} role="alert" style={{ color: 'var(--c-red-ink)', fontWeight: 600 }}>{t(err)}</small>}
         {zero && <small className="hint" id={eid} style={{ color: 'var(--c-amber-ink)', fontWeight: 600 }}>{t('rateZeroWarn')}</small>}
         <small className="hint" id={hid}>{t(hint)}</small>
-      </label>
+      </div>
     )
   }
   return (
@@ -1730,7 +1751,7 @@ function RatesTab({ shop, v2, passportLocked, onUpgrade, onSaved }: {
         {fields.map((f) => rateInput(f.k, f.label, f.hint))}
         {v2 && passportLocked && ([['rate_passport_sheet', 'ppProOnly'], ['rate_idcard_sheet', 'idProOnly']] as [Key, Key][]).map(([label, hint]) => (
           <div className="field locked-field" key={label}>
-            <span>{t(label)} <span className="pro-badge">{t('planPro')}</span></span>
+            <span>{`${t(label)} `}<span className="pro-badge">{t('planPro')}</span></span>
             <div className="input-affix">
               <span className="affix"><Icon name="lock" size={16} /></span>
               <input value="" disabled placeholder={t('proFeature')} aria-label={t(label)} />
@@ -2232,8 +2253,8 @@ function QrTab({ shop, counters, counterId, onCounter, pro, free, plus, onUpgrad
         <h2>{headline}</h2>
         <div className="poster-qr">{img && dynReady ? <img src={img} alt="Shop QR code" /> : <div className="skel skel-qr" aria-busy="true" />}</div>
         <div className="poster-rates">
-          <div><span>{t('bw')}</span><strong>{rupees(shop.rates.bw_single)}</strong><em>{t('perPageShort')}</em></div>
-          <div><span>{t('color')}</span><strong>{rupees(shop.rates.color_single)}</strong><em>{t('perPageShort')}</em></div>
+          <div><span className="sr-only">{`${t('bw')} ${rupees(shop.rates.bw_single)} ${t('perPageShort')}`}</span><span aria-hidden="true">{t('bw')}</span><strong aria-hidden="true">{rupees(shop.rates.bw_single)}</strong><em aria-hidden="true">{t('perPageShort')}</em></div>
+          <div><span className="sr-only">{`${t('color')} ${rupees(shop.rates.color_single)} ${t('perPageShort')}`}</span><span aria-hidden="true">{t('color')}</span><strong aria-hidden="true">{rupees(shop.rates.color_single)}</strong><em aria-hidden="true">{t('perPageShort')}</em></div>
         </div>
         <ol className="poster-steps">
           <li><b>1</b><span>{t('posterStep1')}</span></li>
@@ -2353,7 +2374,7 @@ function Report({ shop, onUpgrade }: { shop: Shop; onUpgrade: () => void }) {
           <button type="button" className="card stat stat-locked" key={s.label} onClick={onUpgrade}>
             <div className="small stat-label"><Icon name="lock" size={16} /> {t(s.label)}</div>
             <div className="big-num stat-lock"><Icon name="lock" size={30} /></div>
-            <div className="small stat-sub"><span className="pro-badge">{t('planPro')}</span> {t('seePlans')}</div>
+            <div className="small stat-sub"><span className="pro-badge">{t('planPro')}</span>{` ${t('seePlans')}`}</div>
           </button>
         ) : (
           <div className={`card stat${s.accent ? ' accent' : ''}`} key={s.label}>
@@ -2508,7 +2529,8 @@ function Settings({ shop, onSaved, onUpgrade }: { shop: Shop; onSaved: (s: Shop)
     address: shop.address || '',
     phone: shop.phone || '',
     upi_id: shop.upi_id || '',
-    auto_delete_hours: shop.auto_delete_hours
+    // QA #22: show the time files really stay (the plan caps it; the server uses the same cap)
+    auto_delete_hours: fileHours(shop)
   })
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
   // v25: networks this shop blocked from its orders ("Block sender" on an order)
@@ -2547,7 +2569,9 @@ function Settings({ shop, onSaved, onUpgrade }: { shop: Shop; onSaved: (s: Shop)
     <form id="shop-details" className="card form-card" onSubmit={save}>
       <h2 className="card-title">{t('settingsTitle')}</h2>
       <ShopPhotoField shop={shop} onSaved={onSaved} />
-      <label className="field"><span>{t('shopName')}</span><input name="shop-name" required minLength={2} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
+      <label className="field"><span>{t('shopName')}</span><input name="shop-name" required minLength={2} value={f.name}
+        onInvalid={(e) => e.currentTarget.setCustomValidity(t('shopNameNeeded'))}
+        onChange={(e) => { e.currentTarget.setCustomValidity(''); setF({ ...f, name: e.target.value }) }} /></label>
       <label className="field"><span>{t('address')}</span><input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></label>
       <div className="grid2">
         <label className="field"><span>{t('phone')}</span><input value={f.phone} inputMode="tel" onChange={(e) => setF({ ...f, phone: e.target.value })} /></label>
@@ -2559,7 +2583,7 @@ function Settings({ shop, onSaved, onUpgrade }: { shop: Shop; onSaved: (s: Shop)
           {Array.from(new Set([...KEEP_OPTIONS, f.auto_delete_hours])).sort((a, b) => a - b).map((h) => {
             const need = tierFor(FILE_HOURS, h)
             return (
-              <option key={h} value={h} disabled={h > cap && h !== f.auto_delete_hours}>
+              <option key={h} value={h} disabled={h > cap}>
                 {keepText(h)}{h > cap ? ` · ${need === 'plus' ? t('planPlus') : t('planPro')}` : ''}
               </option>
             )
@@ -2984,7 +3008,9 @@ function PlanCompare({ current }: { current: PlanTier }) {
                 <th scope="row">{t(r.label)}</th>
                 {r.v.map((v, i) => (
                   <td key={i} className={tiers[i] === current ? 'is-current' : ''}>
-                    {v === true ? <Icon name="check" size={16} stroke={3} className="cmp-yes" /> : v === false ? <span className="cmp-no" aria-label="—">—</span> : t(v)}
+                    {/* QA #26: ticks and dashes read as "Included" / "Not included" */}
+                    {v === true ? <><Icon name="check" size={16} stroke={3} className="cmp-yes" /><span className="sr-only">{t('cmpYesA11y')}</span></>
+                      : v === false ? <><span className="cmp-no" aria-hidden="true">—</span><span className="sr-only">{t('cmpNoA11y')}</span></> : t(v)}
                   </td>
                 ))}
               </tr>
@@ -3117,6 +3143,9 @@ function PlanTab({ shop, email, contact, onChanged }: { shop: Shop; email?: stri
         if (d) setDeal(null)
         setMsg({ text: t('planActivated'), error: false })
         await onChanged()
+      } else {
+        // QA #24: closing the checkout said nothing
+        setMsg({ text: t('planCheckoutClosed'), error: false })
       }
     } catch (e) {
       setMsg({ text: errText(e), error: true })

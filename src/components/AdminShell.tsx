@@ -25,7 +25,7 @@ const ICONS: Record<AdminTab, string> = {
 const BOTTOM_OWNER: AdminTab[] = ['overview', 'shops', 'orders', 'users']
 const BOTTOM_SUPPORT: AdminTab[] = ['support', 'shops', 'orders', 'users']
 
-export function AdminShell({ children, tab, onTab, onRefresh, refreshing = false, bell, save, tabs = ADMIN_TABS }: {
+export function AdminShell({ children, tab, onTab, onRefresh, refreshing = false, bell, save, tabs = ADMIN_TABS, account }: {
   children: ReactNode; tab?: AdminTab; onTab?: (t: AdminTab) => void; onRefresh?: () => void; refreshing?: boolean
   /** v39: tabs this admin's role may open (default all) */
   tabs?: AdminTab[]
@@ -33,6 +33,8 @@ export function AdminShell({ children, tab, onTab, onRefresh, refreshing = false
   bell?: { count: number; onClick: () => void }
   /** The open tab has unsaved changes: its bottom-bar button (or More, for More tabs) turns into Save. */
   save?: { run: () => void; busy: boolean } | null
+  /** QA #10: signed-in login and its role label, shown in the phone bar and the More sheet */
+  account?: { id: string; role: string }
 }) {
   const { t } = useI18n()
   const nav = useNavigate()
@@ -71,7 +73,7 @@ export function AdminShell({ children, tab, onTab, onRefresh, refreshing = false
           <button type="button" className="menu-btn" onClick={() => nav('/dashboard')} aria-label={t('admHome')}>
             <Icon name="homeStack" size={22} />
           </button>
-          <div className="adm-bar-title"><Icon name="shield" size={18} /><span>{t('admTitle')}</span></div>
+          <div className="adm-bar-title"><Icon name="shield" size={18} /><span>{t('admTitle')}</span>{account && <span className="admin-tag adm-bar-role">{account.role}</span>}</div>
           {bell && (
             <button type="button" className="menu-btn adm-bell" onClick={bell.onClick} aria-label={t('admNotifs')}>
               <Icon name="bell" size={21} />
@@ -117,6 +119,7 @@ export function AdminShell({ children, tab, onTab, onRefresh, refreshing = false
                 <Icon name="chevr" size={18} />
               </button>
             ))}
+            {account && <div className="adm-sheet-who small"><Icon name="user" size={16} /><span>{account.id}</span><span className="admin-tag">{account.role}</span></div>}
             <div className="adm-sheet-foot"><LangToggle /></div>
           </div>
         </div>
