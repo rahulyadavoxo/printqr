@@ -153,11 +153,23 @@ Deno.serve(async (req) => {
       jobs.push({ to: user.email, hash: d.token_hash, code: type === 'signup' ? d.token : undefined })
     }
     if (!jobs.length) return hookError(400, 'no recipient')
-    for (const j of jobs) {
-      const url = j.hash ? link(type, j.hash, redirect) : null
-      const m = render(type, url, j.code)
-      await sendMail(j.to, m.subject, m.html, m.text)
-    }
+    const mails = jobs.map((j) => ({ to: j.to, ...render(type, j.hash ? link(type, j.hash, redirect) : null, j.code) }))
+    // Supabase Auth gives this hook only 5 seconds. A cold start plus the Google token + Gmail send can take longer,
+    // so Auth showed "Failed to reach hook" even though the mail went out. Reply at once and send in the background;
+    // failures are still recorded in ops_events.
+    const work = (async () => {
+      for (const m of mails) {
+        try {
+          await sendMail(m.to, m.subject, m.html, m.text)
+        } catch (e) {
+          console.error('send-email', e)
+          await logOps('send-email', e)
+        }
+      }
+    })()
+    const rt = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime
+    if (rt?.waitUntil) rt.waitUntil(work)
+    else await work
     return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })
   } catch (e) {
     console.error('send-email', e)
