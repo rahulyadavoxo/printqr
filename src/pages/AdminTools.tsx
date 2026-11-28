@@ -798,7 +798,6 @@ type AdminRow = { user_id: string; email: string | null; role: string; created_a
 export function AdminRoles({ onMsg }: { onMsg: Msg }) {
   const { t, teRaw } = useI18n()
   const [rows, setRows] = useState<AdminRow[] | null>(null)
-  const [busy, setBusy] = useState<string | null>(null)
   const [rem, setRem] = useState<AdminRow | null>(null)
   const load = useCallback(async () => {
     const { data, error } = await supabase.rpc('admin_list')
@@ -811,16 +810,6 @@ export function AdminRoles({ onMsg }: { onMsg: Msg }) {
     window.addEventListener('pq-admins-changed', on)
     return () => window.removeEventListener('pq-admins-changed', on)
   }, [load])
-  const change = async (a: AdminRow, role: string) => {
-    if (a.is_me && role !== 'owner' && !await askConfirm(t('adxRoleSelfAsk'))) return
-    setBusy(a.user_id)
-    onMsg(null)
-    const { error } = await supabase.rpc('admin_set_role', { p_user: a.user_id, p_role: role })
-    setBusy(null)
-    if (error) { onMsg({ text: /last owner/.test(error.message) ? t('adxLastOwner') : teRaw(error), error: true }); return }
-    onMsg({ text: t('saved') })
-    void load()
-  }
   if (!rows || rows.length === 0) return null
   return (
     <>
@@ -830,15 +819,10 @@ export function AdminRoles({ onMsg }: { onMsg: Msg }) {
         {rows.map((a) => (
           <div className="admin-log-row small adx-role-row" key={a.user_id}>
             <span className="admin-ellipsis">{a.email || a.user_id.slice(0, 8)}{a.is_me ? ` (${t('adxYou')})` : ''}</span>
-            <select value={a.role} disabled={busy === a.user_id} onChange={(e) => void change(a, e.target.value)} aria-label={t('adxRole')}>
-              <option value="owner">{t('adxRoleOwner')}</option>
-              <option value="support">{t('adxRoleSupport')}</option>
-            </select>
-            {/* Owner only (this list is): not yourself, and the last Owner stays (the server checks both again). */}
-            {!a.is_me && (
-              <button type="button" className="btn small danger-outline" disabled={busy === a.user_id
-                || (a.role === 'owner' && rows.filter((r) => r.role === 'owner').length <= 1)}
-                onClick={() => setRem(a)}>{t('adxRemoveAdmin')}</button>
+            {/* v47: one Owner (the app owner) whose role never changes; every other admin is Support. */}
+            <span className={`pro-badge adx-role-badge${a.role === 'owner' ? '' : ' is-off'}`}>{t(a.role === 'owner' ? 'adxRoleOwner' : 'adxRoleSupport')}</span>
+            {!a.is_me && a.role !== 'owner' && (
+              <button type="button" className="btn small danger-outline" onClick={() => setRem(a)}>{t('adxRemoveAdmin')}</button>
             )}
           </div>
         ))}

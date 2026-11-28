@@ -307,6 +307,8 @@ Deno.serve(async (req) => {
       const isAdm = await db<{ user_id: string; role: string | null }[]>(`admins?user_id=eq.${uid}&select=user_id,role`)
       if (!isAdm.length) throw new HttpError(404, 'not_admin', 'This login is not an admin')
       const before = isAdm[0].role || 'owner'
+      // v47: there is only one Owner (the app owner's login) and it can't be removed.
+      if (before === 'owner') throw new HttpError(400, 'owner_fixed', 'The Owner cannot be removed')
       const lastOwner = async () => {
         if (before !== 'owner') return false
         const owners = await db<{ user_id: string }[]>('admins?role=eq.owner&select=user_id')

@@ -2871,6 +2871,7 @@ html:not(.in-app) .dash .bar-actions .toggle { display: inline-flex; align-items
 .adx-role-row { align-items: center; justify-content: space-between; }
 .adx-role-row > span:first-child { min-width: 0; flex: 1; }
 .adx-role-row select { width: auto; flex: none; }
+.adx-role-row .adx-role-badge { flex: none; }
 .adx-role-row .btn { flex: none; white-space: nowrap; }
 .adx-ta { display: block; width: 100%; min-width: 0; min-height: 64px; padding: 10px 12px; font: inherit; font-size: 16px; color: var(--c-ink);
   border: 1.5px solid var(--c-line-2); border-radius: var(--r-sm); background: var(--c-surface); resize: vertical; }

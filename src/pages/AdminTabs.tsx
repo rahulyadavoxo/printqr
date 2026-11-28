@@ -786,7 +786,7 @@ export function CodeDialog({ action, user, ask, body, ok: okLabel, danger, onClo
       onDone()
     } catch (e) {
       const c = (e as { code?: string }).code
-      setErr(c === 'bad_code' ? t('admMfaWrong') : c === 'last_owner' ? t('adxLastOwner') : teRaw(e))
+      setErr(c === 'bad_code' ? t('admMfaWrong') : c === 'last_owner' || c === 'owner_fixed' ? t('adxLastOwner') : teRaw(e))
       setCode('')
       setBusy(false)
     }
