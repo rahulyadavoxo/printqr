@@ -8,16 +8,24 @@ insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000039a1', 'owner-v39@example.com'),
   ('00000000-0000-0000-0000-0000000039a2', 'support-v39@example.com'),
   ('00000000-0000-0000-0000-0000000039a3', 'shop-v39@example.com');
-insert into public.admins (user_id) values ('00000000-0000-0000-0000-0000000039a1');
-insert into public.admins (user_id, role) values ('00000000-0000-0000-0000-0000000039a2', 'support');
+insert into public.admins (user_id, role) values ('00000000-0000-0000-0000-0000000039a1', 'owner');
+-- v47: a new admin defaults to support
+insert into public.admins (user_id) values ('00000000-0000-0000-0000-0000000039a2');
 insert into public.shops (id, owner_id, name, slug) values
   ('00000000-0000-0000-0000-0000000039b1', '00000000-0000-0000-0000-0000000039a3', 'V39 Test Shop', 'v39-test-shop');
 
--- 1. Existing / default admin is owner; support is not
+-- 1. One owner; a new admin is support (v47); a second owner is impossible
 do $$ begin
   if (select role from public.admins where user_id = '00000000-0000-0000-0000-0000000039a1') <> 'owner' then
-    raise exception 'TEST FAILED: default role is not owner';
+    raise exception 'TEST FAILED: owner row';
   end if;
+  if (select role from public.admins where user_id = '00000000-0000-0000-0000-0000000039a2') <> 'support' then
+    raise exception 'TEST FAILED: default role is not support';
+  end if;
+  begin
+    update public.admins set role = 'owner' where user_id = '00000000-0000-0000-0000-0000000039a2';
+    raise exception 'TEST FAILED: second owner allowed';
+  exception when unique_violation then null; end;
 end $$;
 
 -- 2. Support admin: reads shops and the inbox, cannot see payments / change plans / coupons
@@ -55,9 +63,10 @@ do $$ declare j jsonb; begin
   perform public.admin_segment_count('pro', null);
   perform public.admin_list();
   perform public.admin_backup_status();
-  begin perform public.admin_set_role('00000000-0000-0000-0000-0000000039a1', 'support'); raise exception 'TEST FAILED: last owner demoted';
-  exception when others then if sqlerrm <> 'last owner' then raise; end if; end;
-  perform public.admin_set_role('00000000-0000-0000-0000-0000000039a2', 'owner');
+  begin perform public.admin_set_role('00000000-0000-0000-0000-0000000039a1', 'support'); raise exception 'TEST FAILED: owner demoted';
+  exception when others then if sqlerrm <> 'owner fixed' then raise; end if; end;
+  begin perform public.admin_set_role('00000000-0000-0000-0000-0000000039a2', 'owner'); raise exception 'TEST FAILED: second owner made';
+  exception when others then if sqlerrm <> 'owner fixed' then raise; end if; end;
   perform public.admin_set_role('00000000-0000-0000-0000-0000000039a2', 'support');
   -- first device: quiet; second: alert
   if public.admin_device_seen('device-aaaa-1111', 'Test UA') then raise exception 'TEST FAILED: first device alerted'; end if;
