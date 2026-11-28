@@ -63,7 +63,7 @@ type UserRow = {
   confirmed: boolean; banned: boolean; shop_id: string | null; shop_name: string | null; is_admin: boolean
 }
 
-export function AdminUsers({ onMsg, owner = true }: { onMsg: Msg; owner?: boolean }) {
+export function AdminUsers({ onMsg, owner = true, appOwner = true }: { onMsg: Msg; owner?: boolean; appOwner?: boolean }) {
   const { t, teRaw, lang } = useI18n()
   const dt = useDateTime()
   const [q, setQ] = useState('')
@@ -72,7 +72,7 @@ export function AdminUsers({ onMsg, owner = true }: { onMsg: Msg; owner?: boolea
   const [more, setMore] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [del, setDel] = useState<UserRow | null>(null)
-  const [sup, setSup] = useState<UserRow | null>(null)
+  const [sup, setSup] = useState<(UserRow & { role: 'admin' | 'support' }) | null>(null)
 
   const load = useCallback(async (search: string, offset: number) => {
     const { data, error } = await supabase.rpc('admin_users', { p_q: search, p_limit: PAGE, p_offset: offset })
@@ -103,7 +103,7 @@ export function AdminUsers({ onMsg, owner = true }: { onMsg: Msg; owner?: boolea
   return (
     <>
       <h2 className="admin-sec adm-tab-h">{t('admUsers')}</h2>
-      {owner && <AdminRoles onMsg={onMsg} />}
+      {appOwner && <AdminRoles onMsg={onMsg} />}
       <Search value={q} onChange={setQ} onSubmit={() => setQuery(q.trim())} placeholder={t('admUserSearch')} />
       {!rows ? <SkelList /> : rows.length === 0 ? <p className="muted">{t('admNothing')}</p> : (
         <div className="admin-list">
@@ -127,8 +127,11 @@ export function AdminUsers({ onMsg, owner = true }: { onMsg: Msg; owner?: boolea
                   {u.banned
                     ? <button type="button" className="btn small" disabled={busy === u.user_id} onClick={() => act(u, 'enable_user')}>{t('admEnableUser')}</button>
                     : <button type="button" className="btn small danger-outline" disabled={busy === u.user_id} onClick={() => act(u, 'disable_user')}>{t('admDisableUser')}</button>}
-                  <button type="button" className="btn small soft" disabled={busy === u.user_id || u.banned} onClick={() => setSup(u)}>{t('admMakeSupport')}</button>
-                  <button type="button" className="btn small danger" disabled={busy === u.user_id} onClick={() => setDel(u)}>{t('admDeleteUser')}</button>
+                  {appOwner && <>
+                    <button type="button" className="btn small soft" disabled={busy === u.user_id || u.banned} onClick={() => setSup({ ...u, role: 'admin' })}>{t('admMakeAdmin')}</button>
+                    <button type="button" className="btn small soft" disabled={busy === u.user_id || u.banned} onClick={() => setSup({ ...u, role: 'support' })}>{t('admMakeSupport')}</button>
+                    <button type="button" className="btn small danger" disabled={busy === u.user_id} onClick={() => setDel(u)}>{t('admDeleteUser')}</button>
+                  </>}
                 </div>
               )}
             </div>
@@ -142,9 +145,10 @@ export function AdminUsers({ onMsg, owner = true }: { onMsg: Msg; owner?: boolea
           onDone={() => { onMsg({ text: t('admUserDeleted', { email: del.email || '' }) }); setDel(null); load(query, 0); window.dispatchEvent(new Event('pq-shops-changed')) }} />
       )}
       {sup && (
-        <CodeDialog action="make_support" user={sup} ask={t('admSupportAsk', { email: sup.email || '—' })}
-          body={t('admSupportBody')} ok={t('admMakeSupport')} onClose={() => setSup(null)}
-          onDone={() => { onMsg({ text: t('admSupportDone', { email: sup.email || '' }) }); setSup(null); load(query, 0); window.dispatchEvent(new Event('pq-admins-changed')) }} />
+        <CodeDialog action="make_support" user={sup} extra={{ role: sup.role }}
+          ask={t(sup.role === 'admin' ? 'admAdminAsk' : 'admSupportAsk', { email: sup.email || '—' })}
+          body={t(sup.role === 'admin' ? 'admAdminBody' : 'admSupportBody')} ok={t(sup.role === 'admin' ? 'admMakeAdmin' : 'admMakeSupport')} onClose={() => setSup(null)}
+          onDone={() => { onMsg({ text: t(sup.role === 'admin' ? 'admAdminDone' : 'admSupportDone', { email: sup.email || '' }) }); setSup(null); load(query, 0); window.dispatchEvent(new Event('pq-admins-changed')) }} />
       )}
     </>
   )
@@ -764,9 +768,11 @@ function AdminSetHub({ t, s, onOpen }: { t: ReturnType<typeof useI18n>['t']; s?:
  *  make a login Support, remove an admin). The admin-action function checks the code itself before it changes anything. */
 type CodeDialogProps = {
   action: 'delete_user' | 'make_support' | 'remove_admin'; user: { user_id: string }; ask: string; body: string; ok: string; danger?: boolean
+  /** extra fields for the action, e.g. { role: 'admin' } for make_support (v48) */
+  extra?: Record<string, unknown>
   onClose: () => void; onDone: () => void
 }
-export function CodeDialog({ action, user, ask, body, ok: okLabel, danger, onClose, onDone }: CodeDialogProps) {
+export function CodeDialog({ action, user, ask, body, ok: okLabel, danger, extra, onClose, onDone }: CodeDialogProps) {
   const { t, teRaw } = useI18n()
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
@@ -782,7 +788,7 @@ export function CodeDialog({ action, user, ask, body, ok: okLabel, danger, onClo
     setBusy(true)
     setErr('')
     try {
-      await callFn('admin-action', { action, user_id: user.user_id, code })
+      await callFn('admin-action', { ...extra, action, user_id: user.user_id, code })
       onDone()
     } catch (e) {
       const c = (e as { code?: string }).code

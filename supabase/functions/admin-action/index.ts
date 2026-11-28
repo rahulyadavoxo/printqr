@@ -5,8 +5,8 @@
 //   delete_user  { user_id, code }                       -> delete the login, its shop (all rows cascade), its files and logo,
 //                                                           and stop its Razorpay subscription. code = a fresh 6-digit code
 //                                                           from the admin's authenticator app, checked here every time.
-//   make_support { user_id, code }                       -> add a login to public.admins with role 'support' (fresh
-//                                                           authenticator code required, like delete_user)
+//   make_support { user_id, code, role? }                -> add a login to public.admins as 'support' (default) or
+//                                                           'admin' (v48). Fresh authenticator code required.
 //   remove_admin { user_id, code }                       -> remove a login from public.admins (Owner or Support). Fresh
 //                                                           authenticator code required. Not yourself, not the last Owner.
 //   send_reset   { user_id }                             -> password reset email
@@ -16,7 +16,7 @@
 //   report_delete_files { report_id }                    -> file report (v34): delete the reported files (takedown)
 //   push_send { segment, city?, title, body, in_app? }   -> v39: push (+ in-app notice) to all / pro / free / city shops
 //   notify_shop { shop_id, kind: 'expiring'|'nudge' }    -> v39: plan-ending reminder or "we miss you" nudge to one shop
-// v39 roles: 'support' admins may only use the file report actions; everything else needs role 'owner'.
+// v48 roles: 'support' may only use the file report actions; 'admin' everything except OWNER_ONLY; 'owner' all.
 // Every action is written to public.admin_log.
 import { corsHeaders, db, fail, HttpError, json, rzp, Subscription, updateShop } from '../_shared/billing.ts'
 import { pushReady, pushUsers } from '../_shared/fcm.ts'
@@ -126,6 +126,8 @@ async function removeObjects(bucket: string, paths: string[]): Promise<void> {
 
 // v39: actions a 'support' admin may use (file reports, like the Spam tab). Everything else is owner-only.
 const SUPPORT_OK = ['report_dismiss', 'report_delete_files']
+// v48: only the app owner (role 'owner') may add / remove admins, delete accounts and cancel subscriptions.
+const OWNER_ONLY = ['make_support', 'remove_admin', 'delete_user', 'cancel_subscription']
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 /**
@@ -191,7 +193,9 @@ Deno.serve(async (req) => {
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
     const action = String(body.action || '')
     actionName = action
-    if (!SUPPORT_OK.includes(action) && (await adminRole(admin)) !== 'owner') throw new HttpError(403, 'not_allowed', 'not allowed')
+    const role = await adminRole(admin)
+    if (OWNER_ONLY.includes(action) && role !== 'owner') throw new HttpError(403, 'not_allowed', 'not allowed')
+    if (!SUPPORT_OK.includes(action) && role !== 'owner' && role !== 'admin') throw new HttpError(403, 'not_allowed', 'not allowed')
 
     if (action === 'push_send') {
       const segment = String(body.segment || '')
@@ -294,10 +298,12 @@ Deno.serve(async (req) => {
       if (uid === admin) throw new HttpError(400, 'self', 'You are already an admin')
       const isAdm = await db<{ user_id: string; role: string | null }[]>(`admins?user_id=eq.${uid}&select=user_id,role`)
       if (isAdm.length) throw new HttpError(409, 'already_admin', `This login is already an admin (${isAdm[0].role || 'owner'})`)
+      if (body.role !== undefined && body.role !== 'admin' && body.role !== 'support') throw new HttpError(400, 'bad_role', 'bad role')
       await checkCode(req, body.code)
       const user = (await call(`/auth/v1/admin/users/${uid}`)) as { email?: string; phone?: string }
-      await db('admins', { method: 'POST', body: JSON.stringify({ user_id: uid, role: 'support' }), prefer: 'return=minimal' })
-      await log(admin, 'role_changed', null, { user_id: uid, email: user.email || user.phone || null, role: 'support', before: null })
+      const newRole = body.role === 'admin' ? 'admin' : 'support'
+      await db('admins', { method: 'POST', body: JSON.stringify({ user_id: uid, role: newRole }), prefer: 'return=minimal' })
+      await log(admin, 'role_changed', null, { user_id: uid, email: user.email || user.phone || null, role: newRole, before: null })
       return json({ ok: true })
     }
 

@@ -799,6 +799,7 @@ export function AdminRoles({ onMsg }: { onMsg: Msg }) {
   const { t, teRaw } = useI18n()
   const [rows, setRows] = useState<AdminRow[] | null>(null)
   const [rem, setRem] = useState<AdminRow | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
   const load = useCallback(async () => {
     const { data, error } = await supabase.rpc('admin_list')
     if (error) { setRows([]); return } // before v39 SQL: section stays empty
@@ -810,6 +811,16 @@ export function AdminRoles({ onMsg }: { onMsg: Msg }) {
     window.addEventListener('pq-admins-changed', on)
     return () => window.removeEventListener('pq-admins-changed', on)
   }, [load])
+  // v48: the Owner switches others between Admin and Support; the Owner row itself is fixed.
+  const change = async (a: AdminRow, role: string) => {
+    setBusy(a.user_id)
+    onMsg(null)
+    const { error } = await supabase.rpc('admin_set_role', { p_user: a.user_id, p_role: role })
+    setBusy(null)
+    if (error) { onMsg({ text: /owner fixed/.test(error.message) ? t('adxLastOwner') : teRaw(error), error: true }); return }
+    onMsg({ text: t('saved') })
+    void load()
+  }
   if (!rows || rows.length === 0) return null
   return (
     <>
@@ -819,10 +830,15 @@ export function AdminRoles({ onMsg }: { onMsg: Msg }) {
         {rows.map((a) => (
           <div className="admin-log-row small adx-role-row" key={a.user_id}>
             <span className="admin-ellipsis">{a.email || a.user_id.slice(0, 8)}{a.is_me ? ` (${t('adxYou')})` : ''}</span>
-            {/* v47: one Owner (the app owner) whose role never changes; every other admin is Support. */}
-            <span className={`pro-badge adx-role-badge${a.role === 'owner' ? '' : ' is-off'}`}>{t(a.role === 'owner' ? 'adxRoleOwner' : 'adxRoleSupport')}</span>
+            {/* v47/v48: one Owner (the app owner) whose role never changes; others are Admin or Support. */}
+            {a.role === 'owner'
+              ? <span className="pro-badge adx-role-badge">{t('adxRoleOwner')}</span>
+              : <select value={a.role} disabled={busy === a.user_id} onChange={(e) => void change(a, e.target.value)} aria-label={t('adxRole')}>
+                  <option value="admin">{t('adxRoleAdmin')}</option>
+                  <option value="support">{t('adxRoleSupport')}</option>
+                </select>}
             {!a.is_me && a.role !== 'owner' && (
-              <button type="button" className="btn small danger-outline" onClick={() => setRem(a)}>{t('adxRemoveAdmin')}</button>
+              <button type="button" className="btn small danger-outline" disabled={busy === a.user_id} onClick={() => setRem(a)}>{t('adxRemoveAdmin')}</button>
             )}
           </div>
         ))}

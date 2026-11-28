@@ -88,8 +88,12 @@ export default function Admin() {
   // Admin data loads only when this login may read it (aal2 while 2-step login is required).
   const allowed: boolean | null = status === null ? null : status.admin && (!status.mfa_required || status.aal === 'aal2')
   // v39 roles: 'support' sees only SUPPORT_TABS and no plan / block / money actions (SQL enforces the same)
-  const owner = status?.role !== 'support'
-  const tabs = owner ? ADMIN_TABS : SUPPORT_TABS
+  // v48: owner (the app owner) sees everything; admin everything except payments + settings; support SUPPORT_TABS.
+  const role = status?.role === 'support' ? 'support' : status?.role === 'admin' ? 'admin' : 'owner'
+  const owner = role !== 'support'      // owner or admin: plan / block / shop actions
+  const appOwner = role === 'owner'     // money, settings, admins, delete account
+  const tabs = appOwner ? ADMIN_TABS : owner ? ADMIN_TABS.filter((x) => x !== 'payments' && x !== 'settings') : SUPPORT_TABS
+  const roleLabel = t(role === 'owner' ? 'adxRoleOwner' : role === 'admin' ? 'adxRoleAdmin' : 'adxRoleSupport')
   const [viewShop, setViewShop] = useState<string | null>(null)
   const deviceDone = useRef(false)
   useEffect(() => {
@@ -261,7 +265,7 @@ export default function Admin() {
   const shell = (body: ReactElement, nav = false) => (
     nav
       ? <AdminShell tab={tab} onTab={setTab} onRefresh={onRefresh} refreshing={refreshing} bell={bell} save={saveSlot} tabs={tabs}
-          account={status?.admin ? { id: session?.user?.email || session?.user?.phone || '—', role: owner ? t('adxRoleOwner') : t('adxRoleSupport') } : undefined}>
+          account={status?.admin ? { id: session?.user?.email || session?.user?.phone || '—', role: roleLabel } : undefined}>
           {body}
           {viewShop && <AdminShopView shopId={viewShop} onClose={() => setViewShop(null)} />}
           {notifOpen && health && <AdminNotifications h={health} onClose={() => setNotifOpen(false)}
@@ -289,7 +293,7 @@ export default function Admin() {
         {/* QA #10: which login is signed in, and its admin role */}
         <span className="adm-who small" title={who}>
           <Icon name="user" size={15} /><span className="adm-who-id">{who}</span>
-          <span className="admin-tag">{owner ? t('adxRoleOwner') : t('adxRoleSupport')}</span>
+          <span className="admin-tag">{roleLabel}</span>
         </span>
         {bell && (
           <button type="button" className="btn small soft adm-bell-d" onClick={bell.onClick} aria-label={t('admNotifs')}>
@@ -312,11 +316,11 @@ export default function Admin() {
       <h2 className="admin-sec adm-tab-h">{t('admOverview')}</h2>
       {!ov ? <SkelStats n={8} /> : (
         <div className="stats">
-          <div className="card stat accent stat-wide">
+          {appOwner && <div className="card stat accent stat-wide">
             <div className="small stat-label">{t('admMrr')}</div>
             <div className="big-num">₹{mrr.toLocaleString('en-IN')}</div>
             <div className="small stat-sub">{t('admPaidLine', { m: ov.pro_monthly + (ov.plus_monthly ?? 0), y: ov.pro_yearly + (ov.plus_yearly ?? 0) })}</div>
-          </div>
+          </div>}
           <div className="card stat">
             <div className="small stat-label">{t('admShops')}</div>
             <div className="big-num">{ov.shops_total}</div>
@@ -444,7 +448,7 @@ export default function Admin() {
                     <div className="admin-row">
                       <button type="button" className="btn small soft" disabled={busy === s.id} onClick={() => shopTool(s, 'logo')}>{t('admRemoveLogo')}</button>
                       <button type="button" className="btn small soft" disabled={busy === s.id} onClick={() => shopTool(s, 'qr')}>{t('admResetQr')}</button>
-                      {s.paid && s.subscription_status !== 'cancelled' && (
+                      {appOwner && s.paid && s.subscription_status !== 'cancelled' && (
                         <button type="button" className="btn small danger-outline" disabled={busy === s.id} onClick={() => shopTool(s, 'cancel')}>{t('admCancelSub')}</button>
                       )}
                     </div>
@@ -460,7 +464,7 @@ export default function Admin() {
 
       </>)}
 
-      {tab === 'users' && <AdminUsers key={refreshKey} onMsg={setMsg} owner={owner} />}
+      {tab === 'users' && <AdminUsers key={refreshKey} onMsg={setMsg} owner={owner} appOwner={appOwner} />}
       {tab === 'orders' && <AdminOrders key={refreshKey} onMsg={setMsg} owner={owner} />}
       {tab === 'growth' && <AdminGrowth key={refreshKey} onMsg={setMsg} />}
       {tab === 'support' && <AdminSupport key={refreshKey} onMsg={setMsg} onView={setViewShop} />}
